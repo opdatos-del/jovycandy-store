@@ -1,0 +1,25 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Approved after reviewing the Medusa v2 generator's dependency set.
+# pnpm v11 blocks all unlisted lifecycle scripts by default.
+allowBuilds:
+  "@medusajs/telemetry": true
+  "@parcel/watcher": true
+  "@swc/core": true
+  esbuild: true
+  msgpackr-extract: true
+  protobufjs: true
+  sharp: false
+  unrs-resolver: false
+
+# @medusajs/eslint-plugin imports this package without declaring it directly.
+# Scope the extension to the installed Medusa version rather than hoisting all packages.
+packageExtensions:
+  "@medusajs/eslint-plugin@2.22.6":
+    dependencies:
+      "@typescript-eslint/typescript-estree": "8.72.2"
+  "@medusajs/framework@2.22.6":
+    dependencies:
+      typescript: "5.9.3"

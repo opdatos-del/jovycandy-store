@@ -1,0 +1,30 @@
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+
+# Framework and build output
+.next/
+.medusa/
+dist/
+coverage/
+playwright-report/
+test-results/
+
+# Local environment files and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.*.example
+
+# Logs and operating-system files
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Generator and shell artifacts; the root workspace lockfile is authoritative.
+NUL
+apps/storefront/pnpm-lock.yaml
+apps/storefront/pnpm-workspace.yaml
