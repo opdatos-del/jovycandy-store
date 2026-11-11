@@ -15,6 +15,9 @@ module.exports = {
   testEnvironment: "node",
   moduleFileExtensions: ["js", "ts", "json"],
   modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],
+  moduleNameMapper: {
+    "^@jovy/(.*)$": "<rootDir>/src/$1",
+  },
   setupFiles: ["./integration-tests/setup.js"],
 };
 
@@ -23,5 +26,5 @@ if (process.env.TEST_TYPE === "integration:http") {
 } else if (process.env.TEST_TYPE === "integration:modules") {
   module.exports.testMatch = ["**/src/modules/*/__tests__/**/*.[jt]s"];
 } else if (process.env.TEST_TYPE === "unit") {
-  module.exports.testMatch = ["**/src/**/__tests__/**/*.unit.spec.[jt]s"];
+  module.exports.testMatch = ["**/src/**/__tests__/**/*.[jt]s"];
 }

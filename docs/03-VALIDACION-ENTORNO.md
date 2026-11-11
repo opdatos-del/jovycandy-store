@@ -27,12 +27,19 @@ Durante la validación, `medusa lint` reveló que el wrapper DTC del generador c
 
 | Comprobación requerida | Evidencia | Dependencia para desbloquear |
 | --- | --- | --- |
-| Conexión PostgreSQL autenticada | `psql -w -h 127.0.0.1 -p 5432 -U postgres -d postgres ...` respondió `fe_sendauth: no password supplied` | Credencial local autorizada para crear/consultar la base aislada |
-| Creación de `jovycandy_prototipo_medusa` | No ejecutada para no adivinar ni extraer credenciales | Sesión PostgreSQL local autorizada |
-| Migraciones oficiales | No ejecutadas sin base nueva confirmada | Base y `DATABASE_URL` válidos |
-| `GET /health` | No iniciado sin migración | Migraciones y backend configurado |
-| Medusa Admin en `/app` | No iniciado sin migración | Migraciones, admin local y backend configurado |
-| Login/reinicio/persistencia Admin | No ejecutados | Elementos anteriores |
+| Publicación Store API con Publishable API Key | No configurada en esta fase | Configurar una clave de Store API antes de validar contenido público con HTTP 200 |
+
+
+## COMPLETADO Y VALIDADO DESPUÉS DE LA INSTALACIÓN
+
+| Comprobación | Evidencia | Resultado |
+| --- | --- | --- |
+| Conexión PostgreSQL desde el contexto de Medusa | Carga de `apps/backend/.env` mediante `loadEnv`, seguida de una consulta de lectura con el driver `pg` resuelto desde las dependencias de Medusa | Conexión autenticada correcta a `jovycandy_prototipo_medusa` con el rol local `postgres` |
+| Migraciones oficiales de Medusa | `pnpm --dir apps/backend exec medusa db:migrate` | Correcto; módulos base y la migración `jovy_content/Migration20261111174909.ts` aplicados |
+| Medusa runtime | Instancia temporal del servidor compilado | `/health` devolvió HTTP 200 y el proceso se detuvo controladamente |
+| Medusa Admin y autenticación | Instancia temporal + cuenta local ignorada | `/app` 200, login `user/emailpass` 200 y API CMS autenticada 200 |
+
+Las comprobaciones de conexión y login no imprimieron `DATABASE_URL`, contraseñas ni secretos. Las migraciones y la prueba técnica CMS sí escribieron exclusivamente en la base aislada; el registro técnico de contenido se eliminó mediante soft delete al terminar.
 
 ## IMPLEMENTADO SIN VALIDAR EN RUNTIME
 
@@ -51,9 +58,6 @@ La instalación, typecheck y build sí fueron correctos. Los riesgos restantes d
 
 ## Próximo paso reproducible
 
-1. Obtener una contraseña local autorizada de PostgreSQL o un rol local autorizado, sin revelar credenciales en Git o documentación.
-2. Verificar la inexistencia de la base nueva y crear exclusivamente `jovycandy_prototipo_medusa`.
-3. Actualizar el `.env` local de Medusa desde la plantilla con secretos nuevos.
-4. Ejecutar migraciones y crear un administrador local usando el CLI oficial.
-5. Arrancar Medusa, comprobar `/health`, `/app`, login, reinicio y persistencia.
-6. Actualizar este documento con los comandos y resultados reales, y detener la fase de cimientos.
+1. Configurar una Publishable API Key local durante la fase Store para verificar una respuesta Store API publicada con HTTP 200.
+2. Añadir pruebas HTTP automatizadas del CRUD, auditoría y filtro de publicación CMS.
+3. Añadir E2E de navegador para la ruta **Contenido Jovy** cuando se incorporen los siguientes módulos editoriales.

@@ -6,7 +6,7 @@
 
 JovyCandy 3.0 se reconstruirá como una plataforma nueva y aislada dentro de `prototipo`. Las carpetas `web-jovycandy` y `admin-webjovy` son referencias de lectura: no son dependencias de ejecución, no se migran como código y no se modifican.
 
-Esta primera entrega se limita a monorepo, Next.js, Medusa, su Admin compilado, PostgreSQL local pendiente de credencial autorizada, configuración sin secretos, scripts y documentación. No incluye catálogo, CMS, cuentas, carrito, checkout, diseño corporativo ni integraciones reales.
+La infraestructura inicial incluye monorepo, Next.js, Medusa, PostgreSQL local conectado y migraciones oficiales. La fase administrativa incorpora el primer bloque CMS `jovy_content`; no incluye catálogo comercial, cuentas B2C, carrito, checkout, diseño público ni integraciones reales.
 
 ## Inventario de referencias
 
@@ -30,7 +30,7 @@ La auditoría de `admin-webjovy` identifica gestión editorial de productos de c
 
 ## Arquitectura aprobada
 
-- **Repositorio:** un Git independiente en `prototipo`, sin remoto configurado ni repositorios anidados.
+- **Repositorio:** un Git independiente en `prototipo`, con remoto privado configurado y sin repositorios anidados.
 - **Workspace:** pnpm 11 con lockfile autoritativo en la raíz. Un lockfile anidado generado por Next.js está pendiente de eliminación autorizada.
 - **Storefront:** Next.js App Router, TypeScript estricto, Tailwind y Server Components por defecto en `apps/storefront`.
 - **Backend y administración:** Medusa v2 y su Admin nativo en `apps/backend`.
@@ -59,10 +59,10 @@ Las APIs futuras se dividirán entre Store API para contenido publicado/comercio
 
 ## Orden de implementación
 
-1. **Cimientos actuales:** completar conexión PostgreSQL, migraciones oficiales, administrador local y verificaciones de reinicio.
-2. **Diseño:** analizar assets y establecer dirección/sistema visual corporativo.
-3. **Primer vertical:** home → carrusel DEMO → ficha DEMO → carrito Medusa → checkout DEMO.
-4. **CMS nativo:** módulos editoriales, publicación, APIs públicas y UI administrativa.
+1. **Cimientos actuales:** crear administrador local y validar runtime, login y reinicio de Medusa.
+2. **CMS administrativo:** completar módulos editoriales por bloques verticales, empezando por `jovy_content` ya migrado.
+3. **Diseño:** analizar assets y establecer dirección/sistema visual corporativo.
+4. **Primer vertical comercial:** home → carrusel DEMO → ficha DEMO → carrito Medusa → checkout DEMO.
 5. **Cuentas B2C:** auth Medusa, sesiones BFF seguras, perfil, direcciones y pedidos.
 6. **Calidad transversal:** pruebas unitarias, integración, Playwright, accesibilidad, SEO, PWA evaluada y revisión visual.
 
@@ -82,8 +82,8 @@ En esta fase: instalación reproducible, lint, typecheck, build y prueba HTTP de
 
 | Riesgo o bloqueo | Tratamiento |
 | --- | --- |
-| PostgreSQL local solicita contraseña para el rol `postgres` | Solicitar una credencial local autorizada; no leer `.env` históricos ni cambiar `pg_hba.conf` |
-| Admin/health no validables sin migración | Mantenerlos bloqueados, no afirmar su disponibilidad |
+| Store API sin Publishable API Key configurada | Configurarla en la fase Store; no usar una clave productiva |
+| Sin pruebas E2E del CMS | Añadir Playwright tras estabilizar los siguientes módulos editoriales |
 | Peer dependencies transitivas del starter Medusa | Registrar salida de `pnpm peers check`; no forzar versiones oficiales |
 | Generador Medusa actual crea un wrapper DTC | Se extrajo solo el backend oficial a la estructura aprobada; no se instaló el storefront de Medusa |
 | Node requerido por Medusa | Raíz restringida a Node `>=22.23.4 <25`; entorno actual Node 24 cumple |
@@ -96,5 +96,5 @@ En esta fase: instalación reproducible, lint, typecheck, build y prueba HTTP de
 - [x] No existe backend Express ni administrador adicional.
 - [x] Ambos proyectos compilan.
 - [x] Storefront responde HTTP 200 de forma temporal.
-- [ ] Base `jovycandy_prototipo_medusa` creada y migrada — bloqueado por credencial local.
-- [ ] Health, Admin, cuenta administrativa y reinicio de Medusa — dependen de la base.
+- [x] Base `jovycandy_prototipo_medusa` creada, conectada y migrada.
+- [x] Health, Admin, cuenta administrativa y reinicio de Medusa — validados mediante instancias temporales y credenciales locales ignoradas.

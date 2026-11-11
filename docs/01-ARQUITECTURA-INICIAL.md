@@ -1,6 +1,6 @@
 # Arquitectura inicial
 
-**Estado:** implementada parcialmente y validada por build. PostgreSQL y runtime de Medusa siguen bloqueados por autenticación local.
+**Estado:** infraestructura y PostgreSQL validados por migración; runtime de Medusa/Admin pendiente de cuenta administrativa local y prueba de sesión.
 
 ```mermaid
 flowchart TB
@@ -52,6 +52,7 @@ El App Router quedó en `apps/storefront/src/app`, en lugar de `apps/storefront/
 - Configuración oficial en `medusa-config.ts` con `DATABASE_URL`, CORS y secretos de JWT/cookie por variables de entorno.
 - Estructura oficial preservada para módulos, APIs, workflows, subscribers, jobs, extensiones Admin y scripts.
 - La ausencia intencional de `REDIS_URL` usa la instancia fake que Medusa anuncia durante build; no se añade Redis a esta fase.
+- El módulo DML `jovy_content` reside en `src/modules/jovy-content` y su primera migración ya fue aplicada a PostgreSQL.
 
 ## Workspace y builds de dependencias
 
