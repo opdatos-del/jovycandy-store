@@ -1,0 +1,2 @@
+import { model } from "@medusajs/framework/utils"
+export default model.define("jovy_brand_audit_log", { id: model.id().primaryKey(), actor_id: model.text().nullable(), entity_type: model.enum(["gallery_item", "logo"]), entity_id: model.text(), action: model.enum(["create", "update", "publish", "unpublish", "archive", "delete", "reorder"]), metadata: model.json<Record<string, unknown>>().nullable() }).indexes([{ on: ["entity_type", "entity_id", "created_at"] }])

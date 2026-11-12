@@ -1,0 +1,4 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
+import { JOVY_BRAND_MODULE } from "@jovy/modules/jovy-brand"
+export async function GET(req:MedusaRequest,res:MedusaResponse){const s=req.scope.resolve(JOVY_BRAND_MODULE);const files=req.scope.resolve(Modules.FILE);const family=typeof req.query.family==="string"?req.query.family:null;const logos=(await s.listLogos({enabled:true},{order:{sort_order:"ASC",created_at:"ASC"}})).filter(logo=>!family||logo.families?.includes(family));res.json({logos:await Promise.all(logos.map(async logo=>{let media_url:null|string=null;try{media_url=(await files.retrieveFile(logo.media_file_id)).url}catch{}return {id:logo.id,slug:logo.slug,name:logo.name,alt:logo.alt,families:logo.families,crop:logo.crop,sort_order:logo.sort_order,media_url}}))})}

@@ -1,0 +1,2 @@
+import { model } from "@medusajs/framework/utils"
+export default model.define("jovy_brand_logo", { id: model.id().primaryKey(), slug: model.text(), name: model.text(), alt: model.text().nullable(), families: model.json<string[]>().nullable(), media_file_id: model.text(), crop: model.json<{ zoom: number; offset_x: number; offset_y: number }>().nullable(), enabled: model.boolean().default(true), sort_order: model.number().default(0) }).indexes([{ on: ["slug"], unique: true }, { on: ["enabled", "sort_order"] }])

@@ -51,6 +51,10 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     input: {
       id: result.page.id,
       ...parsed.data,
+      slug: parsed.data.slug ?? result.page.slug,
+      status: nextStatus,
+      translations: parsed.data.translations ?? result.page.translations,
+      seo: parsed.data.seo ?? result.page.seo ?? undefined,
       published_at: resolvePublishedAt(
         {
           status: nextStatus,

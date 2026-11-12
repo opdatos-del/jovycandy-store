@@ -46,6 +46,10 @@ async function request<T>(path: string, init?: RequestInit) {
     throw new Error("No se pudo completar la operación")
   }
 
+  if (response.status === 204) {
+    return undefined as T
+  }
+
   return (await response.json()) as T
 }
 
