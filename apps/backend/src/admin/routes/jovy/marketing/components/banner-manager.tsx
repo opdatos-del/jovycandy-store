@@ -112,8 +112,8 @@ export const BannerManager = () => {
     try {
       const body = {
         ...form,
-        starts_at: toIso(toDateTimeLocal(form.starts_at)),
-        ends_at: toIso(toDateTimeLocal(form.ends_at)),
+        starts_at: form.starts_at,
+        ends_at: form.ends_at,
       }
       await (editingId
         ? marketingApi(`/admin/jovy/marketing/banners/${editingId}`, { method: "PUT", body: JSON.stringify(body) })

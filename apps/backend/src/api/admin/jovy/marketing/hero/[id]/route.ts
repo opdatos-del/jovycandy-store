@@ -24,7 +24,13 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
   if (!patch.success) return res.status(400).json({ message: "El Hero no es válido", errors: patch.error.flatten() })
   const current = await getHero(req, res)
   if (!current) return
-  const input = heroInputSchema.safeParse({ ...current, ...patch.data, starts_at: patch.data.starts_at ?? current.starts_at?.toISOString() ?? null, ends_at: patch.data.ends_at ?? current.ends_at?.toISOString() ?? null })
+  const input = heroInputSchema.safeParse({
+    ...current,
+    ...patch.data,
+    // `null` clears the window; an omitted key keeps the stored value.
+    starts_at: patch.data.starts_at !== undefined ? patch.data.starts_at : current.starts_at?.toISOString() ?? null,
+    ends_at: patch.data.ends_at !== undefined ? patch.data.ends_at : current.ends_at?.toISOString() ?? null,
+  })
   if (!input.success) return res.status(400).json({ message: "El Hero no es válido", errors: input.error.flatten() })
   const action = input.data.status === "published" && current.status !== "published" ? "publish" : input.data.status === "archived" ? "archive" : current.status === "published" && input.data.status !== "published" ? "unpublish" : "update"
   const { result: hero_item } = await saveHeroWorkflow(req.scope).run({ input: { ...input.data, id: current.id, actor_id: getAdminActorId(req), action } })

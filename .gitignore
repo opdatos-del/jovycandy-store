@@ -3,18 +3,23 @@ node_modules/
 .pnpm-store/
 
 # Framework and build output
+.server/
 .next/
 .medusa/
 dist/
 coverage/
 playwright-report/
 test-results/
+# Playwright escribe en directorios con punto para que `medusa develop` no reinicie el servidor E2E.
+.playwright-report/
+.test-results/
 
 # Local environment files and secrets
 .env
 .env.local
 .env.*.local
 .admin.local.env
+.store.local.env
 !.env.example
 !.env.*.example
 
@@ -29,3 +34,7 @@ desktop.ini
 NUL
 apps/storefront/pnpm-lock.yaml
 apps/storefront/pnpm-workspace.yaml
+
+# Medusa file-local uploads (runtime content, not source).
+apps/backend/static/
+.serena

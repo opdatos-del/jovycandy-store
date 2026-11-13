@@ -1,12 +1,13 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { getAdminActorId } from "@jovy/lib/jovy/audit"
-import { eventInputSchema } from "@jovy/lib/jovy/events"
+import { compareEventOrder, eventInputSchema } from "@jovy/lib/jovy/events"
 import { JOVY_EVENTS_MODULE } from "@jovy/modules/jovy-events"
 import { saveEventWorkflow } from "@jovy/workflows/jovy-events/event"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const service = req.scope.resolve(JOVY_EVENTS_MODULE)
-  const events = await service.listJovyEvents({}, { order: { priority: "DESC", sort_order: "ASC", created_at: "ASC" } })
+  const events = (await service.listJovyEvents({}, { order: { priority: "DESC", sort_order: "ASC", created_at: "ASC" } }))
+    .sort(compareEventOrder)
   res.json({ events })
 }
 

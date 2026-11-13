@@ -1,12 +1,13 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { getAdminActorId } from "@jovy/lib/jovy/audit"
-import { bannerInputSchema } from "@jovy/lib/jovy/marketing"
+import { bannerInputSchema, compareBannerOrder } from "@jovy/lib/jovy/marketing"
 import { JOVY_MARKETING_MODULE } from "@jovy/modules/jovy-marketing"
 import { saveBannerWorkflow } from "@jovy/workflows/jovy-marketing/banner"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const service = req.scope.resolve(JOVY_MARKETING_MODULE)
-  const banners = await service.listMarketingBanners({}, { order: { priority: "DESC", sort_order: "ASC", created_at: "ASC" } })
+  const banners = (await service.listMarketingBanners({}, { order: { priority: "DESC", sort_order: "ASC", created_at: "ASC" } }))
+    .sort(compareBannerOrder)
   res.json({ banners })
 }
 

@@ -136,8 +136,8 @@ export const HeroManager = () => {
       const { product_id: selectedProductId, ...payload } = form
       const body = {
         ...payload,
-        starts_at: toIso(toDateTimeLocal(form.starts_at)),
-        ends_at: toIso(toDateTimeLocal(form.ends_at)),
+        starts_at: form.starts_at,
+        ends_at: form.ends_at,
       }
       const result = editingId
         ? await marketingApi<{ hero_item: Hero }>(`/admin/jovy/marketing/hero/${editingId}`, { method: "PUT", body: JSON.stringify(body) })

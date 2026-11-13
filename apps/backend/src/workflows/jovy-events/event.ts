@@ -1,11 +1,13 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { MedusaError } from "@medusajs/framework/utils"
+import { eventPublishIssues } from "@jovy/lib/jovy/events"
 import { JOVY_EVENTS_MODULE } from "@jovy/modules/jovy-events"
 
 type EventData = {
   id?: string
   event_type_id?: string | null
   title: string
+  title_en?: string | null
   slug: string
   description?: string | null
   content?: string | null
@@ -27,6 +29,13 @@ const saveEventStep = createStep("save-event", async (input: EventData, { contai
   if (event_type_id) {
     const [eventType] = await service.listJovyEventTypes({ id: event_type_id })
     if (!eventType) throw new MedusaError(MedusaError.Types.NOT_FOUND, "Tipo de evento no encontrado")
+  }
+
+  if (data.status === "published") {
+    const issues = eventPublishIssues({ ...data, event_type_id, starts_at, ends_at })
+    if (issues.length) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, `No se puede publicar el evento. Falta: ${issues.join(", ")}`)
+    }
   }
 
   const eventData = {

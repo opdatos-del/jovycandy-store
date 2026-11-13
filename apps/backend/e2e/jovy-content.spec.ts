@@ -124,7 +124,7 @@ test("administra el ciclo de vida completo de una página DEMO", async ({ page, 
       "archive",
       "delete",
     ])
-    await page.screenshot({ path: "test-results/jovy-content-lifecycle.png", fullPage: true })
+    await page.screenshot({ path: ".test-results/jovy-content-lifecycle.png", fullPage: true })
   } finally {
     for (const item of managed) {
       const response = await request.delete(`/admin/jovy/content/pages/${item.id}`, {

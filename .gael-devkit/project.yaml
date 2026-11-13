@@ -1,0 +1,41 @@
+﻿schema_version: 1
+project:
+  name: prototipo
+  maturity: new
+stack:
+  languages:
+  - typescript
+  frameworks:
+  - next
+  - react
+  - medusa
+  package_managers:
+  - pnpm
+  databases:
+  - postgresql
+  platforms: []
+architecture:
+  style:
+  - monorepo
+  - modular-monolith
+risk:
+  default: high
+  high_risk_domains:
+  - database-migrations
+  - authentication
+  - permissions
+  - payments
+  - inventory
+  - secrets
+testing:
+  required:
+  - unit
+  - integration
+  - e2e
+git:
+  default_branch: main
+  direct_main: false
+  force_push: false
+devkit:
+  profile: web
+  generated_by: devkit 2.0.0

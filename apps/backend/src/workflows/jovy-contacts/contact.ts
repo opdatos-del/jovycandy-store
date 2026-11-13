@@ -1,5 +1,6 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { MedusaError } from "@medusajs/framework/utils"
+import { contactAuditMetadata } from "@jovy/lib/jovy/audit"
 import { JOVY_CONTACTS_MODULE } from "@jovy/modules/jovy-contacts"
 import JovyContactsModuleService from "@jovy/modules/jovy-contacts/service"
 
@@ -24,7 +25,7 @@ const createContactStep = createStep("create-contact", async (input: PublicConta
     actor_id: null,
     contact_request_id: contact.id,
     action: "create",
-    metadata: { contact_type: contact.contact_type, status: contact.status },
+    metadata: contactAuditMetadata("create", contact),
   })
   return new StepResponse(contact, contact.id)
 })
@@ -57,7 +58,7 @@ const updateContactStep = createStep("update-contact", async (input: AdminContac
       actor_id: input.actor_id,
       contact_request_id: contact.id,
       action,
-      metadata: action === "status" ? { status: contact.status } : undefined,
+      metadata: contactAuditMetadata(action, contact),
     })
   }
   return new StepResponse(contact, contact.id)
@@ -72,8 +73,9 @@ const deleteContactStep = createStep("delete-contact", async (input: { id: strin
   const service = container.resolve(JOVY_CONTACTS_MODULE) as JovyContactsModuleService
   const [contact] = await service.listJovyContactRequests({ id: input.id })
   if (!contact) throw new MedusaError(MedusaError.Types.NOT_FOUND, "Solicitud no encontrada")
-  await service.deleteJovyContactRequests(contact.id)
-  await service.createJovyContactAuditLogs({ actor_id: input.actor_id, contact_request_id: contact.id, action: "delete", metadata: { status: contact.status } })
+  // Logical deletion: the row (and its audit trail) survives for the retention policy.
+  await service.softDeleteJovyContactRequests(contact.id)
+  await service.createJovyContactAuditLogs({ actor_id: input.actor_id, contact_request_id: contact.id, action: "delete", metadata: contactAuditMetadata("delete", contact) })
   return new StepResponse({ id: contact.id })
 })
 

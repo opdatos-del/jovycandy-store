@@ -1,0 +1,6 @@
+schema_version: 1
+routing:
+  always: []
+  extra: []
+  disable: []
+  path_overrides: []

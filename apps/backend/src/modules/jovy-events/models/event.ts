@@ -5,6 +5,7 @@ const JovyEvent = model
     id: model.id().primaryKey(),
     event_type_id: model.text().nullable(),
     title: model.text(),
+    title_en: model.text().nullable(),
     slug: model.text(),
     description: model.text().nullable(),
     content: model.text().nullable(),

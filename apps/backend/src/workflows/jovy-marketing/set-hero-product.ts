@@ -4,8 +4,36 @@ import { JOVY_MARKETING_MODULE } from "@jovy/modules/jovy-marketing"
 
 type SetHeroProductInput = { hero_id: string; product_id: string | null; actor_id: string | null }
 type HeroProductResult = { product_id: string | null; changed: boolean }
-type HeroProductCompensation = { hero_id: string; previous_product_id: string | null; product_id: string | null }
+export type HeroProductCompensation = { hero_id: string; previous_product_id: string | null; product_id: string | null }
 type LinkedHero = { id: string; product?: { id: string } | null }
+type ContainerLike = { resolve: (key: string) => unknown }
+
+type LinkService = {
+  create: (payload: Record<string, Record<string, string>>) => Promise<unknown>
+  dismiss: (payload: Record<string, Record<string, string>>) => Promise<unknown>
+}
+
+/**
+ * Reverts a Hero/Product link change. Extracted so the unit suite can verify the
+ * compensating path without booting a full Medusa container; the step simply
+ * delegates to this function.
+ */
+export async function compensateHeroProductLink(compensation: HeroProductCompensation, container: ContainerLike) {
+  const link = container.resolve(ContainerRegistrationKeys.LINK) as LinkService
+  if (compensation.product_id) {
+    await link.dismiss({
+      [Modules.PRODUCT]: { product_id: compensation.product_id },
+      [JOVY_MARKETING_MODULE]: { jovy_hero_item_id: compensation.hero_id },
+    })
+  }
+
+  if (compensation.previous_product_id) {
+    await link.create({
+      [Modules.PRODUCT]: { product_id: compensation.previous_product_id },
+      [JOVY_MARKETING_MODULE]: { jovy_hero_item_id: compensation.hero_id },
+    })
+  }
+}
 
 const setHeroProductStep = createStep<SetHeroProductInput, HeroProductResult, HeroProductCompensation>("set-hero-product", async (input, { container }) => {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -37,21 +65,7 @@ const setHeroProductStep = createStep<SetHeroProductInput, HeroProductResult, He
   )
 }, async (compensation, { container }) => {
   if (!compensation) return
-
-  const link = container.resolve(ContainerRegistrationKeys.LINK)
-  if (compensation.product_id) {
-    await link.dismiss({
-      [Modules.PRODUCT]: { product_id: compensation.product_id },
-      [JOVY_MARKETING_MODULE]: { jovy_hero_item_id: compensation.hero_id },
-    })
-  }
-
-  if (compensation.previous_product_id) {
-    await link.create({
-      [Modules.PRODUCT]: { product_id: compensation.previous_product_id },
-      [JOVY_MARKETING_MODULE]: { jovy_hero_item_id: compensation.hero_id },
-    })
-  }
+  await compensateHeroProductLink(compensation, container)
 })
 
 export const setHeroProductWorkflow = createWorkflow("set-hero-product", (input: SetHeroProductInput) => new WorkflowResponse(setHeroProductStep(input)))

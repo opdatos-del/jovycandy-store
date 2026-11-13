@@ -67,7 +67,7 @@ test("administra una Galería Casa Jovy publicada con imagen real", async ({ pag
     await page.getByLabel("Título galería").fill(`Galería editada ${runId}`)
     await page.getByRole("button", { name: "Guardar cambios" }).click()
     await expect(page.getByText(`Galería editada ${runId}`)).toBeVisible()
-    await page.screenshot({ path: "test-results/jovy-brand-gallery.png", fullPage: true })
+    await page.screenshot({ path: ".test-results/jovy-brand-gallery.png", fullPage: true })
 
     const editedRow = page.locator("li").filter({ hasText: `Galería editada ${runId}` })
     await editedRow.getByRole("button", { name: "Archivar" }).click()
@@ -119,15 +119,18 @@ test("administra logo, familia editorial y recorte no destructivo", async ({ pag
     await expect(page.getByText(`Logo DEMO ${runId}`)).toBeVisible()
     const saved = await request.get(`/admin/jovy/brand/logos/${logoId}`, { headers })
     expect((await saved.json()).logo.crop).toEqual({ zoom: 1.25, offset_x: 12, offset_y: 0 })
-    await page.screenshot({ path: "test-results/jovy-brand-logo.png", fullPage: true })
+    await page.screenshot({ path: ".test-results/jovy-brand-logo.png", fullPage: true })
 
     const editedRow = page.locator("li").filter({ hasText: `Logo DEMO ${runId}` })
     await editedRow.getByRole("button", { name: "Desactivar" }).click()
-    const publicLogos = await request.get("/store/jovy/brand/logos?family=demo", {
-      headers: { "x-publishable-api-key": store.MEDUSA_PUBLISHABLE_API_KEY },
-    })
-    expect(publicLogos.status()).toBe(200)
-    expect((await publicLogos.json()).logos.some((logo: { id: string }) => logo.id === logoId)).toBe(false)
+    // El clic sólo despacha la mutación; se consulta la Store API hasta que el logo deja de exponerse.
+    await expect.poll(async () => {
+      const response = await request.get("/store/jovy/brand/logos?family=demo", {
+        headers: { "x-publishable-api-key": store.MEDUSA_PUBLISHABLE_API_KEY },
+      })
+      expect(response.status()).toBe(200)
+      return (await response.json()).logos.some((logo: { id: string }) => logo.id === logoId)
+    }).toBe(false)
   } finally {
     if (logoId && headers) {
       const response = await request.delete(`/admin/jovy/brand/logos/${logoId}`, { headers })

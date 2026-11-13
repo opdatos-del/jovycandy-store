@@ -1,13 +1,14 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { getAdminActorId } from "@jovy/lib/jovy/audit"
-import { heroInputSchema } from "@jovy/lib/jovy/marketing"
+import { compareHeroOrder, heroInputSchema } from "@jovy/lib/jovy/marketing"
 import { JOVY_MARKETING_MODULE } from "@jovy/modules/jovy-marketing"
 import { saveHeroWorkflow } from "@jovy/workflows/jovy-marketing/hero"
 import { setHeroProductWorkflow } from "@jovy/workflows/jovy-marketing/set-hero-product"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const service = req.scope.resolve(JOVY_MARKETING_MODULE)
-  const hero_items = await service.listHeroItems({}, { order: { sort_order: "ASC", created_at: "ASC" } })
+  const hero_items = (await service.listHeroItems({}, { order: { sort_order: "ASC", created_at: "ASC" } }))
+    .sort(compareHeroOrder)
   res.json({ hero_items })
 }
 

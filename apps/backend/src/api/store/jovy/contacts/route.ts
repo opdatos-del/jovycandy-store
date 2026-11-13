@@ -6,9 +6,12 @@ import { createContactWorkflow } from "@jovy/workflows/jovy-contacts/contact"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const parsed = publicContactSchema.safeParse(req.body)
+  // Only field names and validation reasons are echoed; submitted values never are.
   if (!parsed.success) return res.status(400).json({ message: "La solicitud no es válida", errors: parsed.error.flatten() })
   const ip = req.ip || "unknown"
-  if (!consumeContactSubmission(ip)) {
+  const limit = consumeContactSubmission(ip)
+  if (!limit.allowed) {
+    res.setHeader("Retry-After", String(limit.retryAfterSeconds))
     return res.status(429).json({ message: "No se puede procesar la solicitud en este momento" })
   }
   // Honeypot submissions receive the same generic acknowledgement but are never persisted.

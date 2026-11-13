@@ -13,6 +13,9 @@ test("recibe Contactos públicamente y permite seguimiento privado sin exponer P
   const store = values(".store.local.env")
   const runId = `e2e-contact-${Date.now()}`
   const email = `${runId}@example.test`
+  // Medusa trusts the first proxy hop, so a per-run forwarded address isolates
+  // the in-memory window without changing the real five-per-ten-minutes limit.
+  const clientIp = `198.51.100.${(Date.now() % 250) + 1}`
   const payload = {
     first_name: "Demo",
     last_name: "Contact",
@@ -28,7 +31,10 @@ test("recibe Contactos públicamente y permite seguimiento privado sin exponer P
   let contactId = ""
 
   try {
-    const storeHeaders = { "x-publishable-api-key": store.MEDUSA_PUBLISHABLE_API_KEY }
+    const storeHeaders = {
+      "x-publishable-api-key": store.MEDUSA_PUBLISHABLE_API_KEY,
+      "x-forwarded-for": clientIp,
+    }
     expect((await request.get("/admin/jovy/contacts")).status()).toBe(401)
     expect([404, 405]).toContain((await request.get("/store/jovy/contacts", { headers: storeHeaders })).status())
     const invalid = await request.post("/store/jovy/contacts", { headers: storeHeaders, data: { contact_type: "customer-service" } })
@@ -67,7 +73,8 @@ test("recibe Contactos públicamente y permite seguimiento privado sin exponer P
     await page.getByLabel("Estado de seguimiento").selectOption("handled")
     await page.getByLabel("Notas administrativas").fill("Seguimiento DEMO cerrado.")
     await page.getByRole("button", { name: "Guardar seguimiento" }).click()
-    await expect(page.getByText("Seguimiento guardado.")).toBeVisible()
+    // La recarga posterior limpia el mensaje de éxito casi al instante; se verifica el estado persistente en la lista.
+    await expect(page.getByText("atendido", { exact: true })).toBeVisible()
 
     const detail = await request.get(`/admin/jovy/contacts/${contactId}`, { headers })
     const contact = (await detail.json()).contact

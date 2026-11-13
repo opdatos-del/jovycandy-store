@@ -17,5 +17,9 @@ export async function marketingApi<T>(path: string, init?: RequestInit): Promise
   return response.json() as Promise<T>
 }
 
-export const toDateTimeLocal = (value: string | null) => value ? new Date(value).toISOString().slice(0, 16) : ""
+export const toDateTimeLocal = (value: string | null) => {
+  if (!value) return ""
+  const date = new Date(value)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
 export const toIso = (value: string) => value ? new Date(value).toISOString() : null

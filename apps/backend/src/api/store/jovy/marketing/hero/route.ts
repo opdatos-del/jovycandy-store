@@ -1,6 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
-import { isMarketingVisible } from "@jovy/lib/jovy/marketing"
+import { compareHeroOrder, isMarketingVisible } from "@jovy/lib/jovy/marketing"
 import { JOVY_MARKETING_MODULE } from "@jovy/modules/jovy-marketing"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
@@ -8,6 +8,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const fileModule = req.scope.resolve(Modules.FILE)
   const visibleItems = (await service.listHeroItems({}, { order: { sort_order: "ASC", created_at: "ASC" } }))
     .filter((item) => isMarketingVisible(item))
+    .sort(compareHeroOrder)
 
   const hero_items = await Promise.all(visibleItems.map(async ({ id, translations, background_color, media_file_id, cta_url, sort_order }) => {
     let media_url: string | null = null

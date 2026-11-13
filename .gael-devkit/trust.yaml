@@ -1,0 +1,13 @@
+schema_version: 1
+trust: trusted
+history:
+- timestamp: '2026-11-12T17:11:38.154686+00:00'
+  from: untrusted
+  to: untrusted
+  decision: initialized
+  commit: null
+- timestamp: '2026-11-12T17:13:36.497456+00:00'
+  from: untrusted
+  to: trusted
+  decision: operator-approved
+  commit: 829b9e5
