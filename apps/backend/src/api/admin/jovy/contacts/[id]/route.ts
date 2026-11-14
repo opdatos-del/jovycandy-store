@@ -21,6 +21,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 }
 
 export async function PUT(req: MedusaRequest, res: MedusaResponse) {
+  // Strict schema: `id`, `contact_type` and any other column are rejected with 400.
   const parsed = updateContactSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ message: "La actualización no es válida", errors: parsed.error.flatten() })
   const contact = await current(req, res)

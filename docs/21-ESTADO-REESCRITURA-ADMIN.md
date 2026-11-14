@@ -1,40 +1,94 @@
 # Estado — reescritura administrativa en Medusa
 
-**Corte:** 2026-11-13. **Alcance:** `apps/backend` (Medusa 2.22.6), módulos `jovy-*`,
-Admin propio y APIs Store. Lo que no tiene evidencia ejecutada se declara pendiente.
+**Corte:** 2026-11-14. **Alcance:** `apps/backend` (Medusa 2.22.6), módulos `jovy-*`,
+Admin propio y APIs Store. Lo que no tiene evidencia ejecutada se declara pendiente. La
+paridad visual con el Admin histórico sigue sin comparación pareada: ver
+`docs/29-PARIDAD-VISUAL-FUNCIONAL-CMS.md`.
 
 ## Estado por área
 
 | Área | Estado real | Evidencia verificable | Pendiente concreto |
 | --- | --- | --- | --- |
-| PostgreSQL y migraciones Medusa | IMPLEMENTADO Y VALIDADO | `medusa db:migrate` contra `jovycandy_prototipo_medusa`; migraciones de Content, Marketing, Events (`20261113090000`, `20261113093000`), Brand y Contacts aplicadas sin reinicializar la base | Ninguno de infraestructura local. Las migraciones son append-only. |
-| Contenido editorial | IMPLEMENTADO Y VALIDADO | E2E `jovy-content.spec.ts`: login, validación, alta, duplicado, edición, publicación, Store API, archivado, auditoría y borrado lógico | UI de SEO y `published_at`; ver matriz `docs/24`. |
+| PostgreSQL y migraciones Medusa | IMPLEMENTADO Y VALIDADO | `medusa db:migrate` contra `jovycandy_prototipo_medusa`; migraciones de Content, Marketing, Events (`20261113090000`, `20261113093000`), Brand, Contacts, Catalogue (`20261113150000`), Launches (`20261113151000`), Announcements (`20261113152000`) y Product Editorial (`20261113180000`) aplicadas sin reinicializar la base | Ninguno de infraestructura local. Las migraciones son append-only. |
+| Contenido editorial | IMPLEMENTADO Y VALIDADO | E2E `jovy-content.spec.ts`: login, validación, alta, duplicado, edición, publicación, Store API, archivado, auditoría y borrado físico sin restore | UI de SEO y `published_at`; ver matriz `docs/24`. |
 | Marketing: Hero | IMPLEMENTADO Y VALIDADO | E2E `jovy-hero.spec.ts`: negativos HTTP, PNG/JPEG/WebP reales, >5 MB/SVG/firma falsa/MIME incoherente/PNG corrupto/sin archivo, persistencia de media y color global, reorden visible en Store, Product Link A→B→null idempotente con compensación | Assert explícito de `cta_url` y de color por elemento en E2E. |
 | Marketing: Banners | IMPLEMENTADO Y VALIDADO | E2E `jovy-banners.spec.ts`: slots, prioridad/orden, frecuencia, ventana UTC, `auto_open`, CTA, negativos `400`, edición, archivo y reordenamiento desde UI | El storefront aún no interpreta `frequency`/`auto_open`; es decisión de presentación (`docs/25`). |
 | Eventos | IMPLEMENTADO Y VALIDADO | E2E `jovy-events.spec.ts`: gate de publicación, `title_en`, `cancelled`/futuro/pasado fuera de Store, tipos con GET/PUT/DELETE y bloqueo de borrado en uso, multimedia PNG/JPEG con reemplazo/retiro, reorden restringido por prioridad | Prueba de concurrencia del `code` único de tipos; detalle Store por `slug` y "próximos eventos" (`docs/25`). |
-| Galería Casa Jovy y Logos | IMPLEMENTADO Y VALIDADO | E2E `jovy-brand.spec.ts`; integración con Locking Module PostgreSQL: límite de 4 con concurrencia, ventanas cerradas `[start,end]`, bordes exactos, 5.º rechazado también por update; crop no destructivo, archivo/desactivación sin borrar medios compartidos, `media_file_id` inexistente → `NOT_FOUND`; tope defensivo de 4 en lectura Store con warning sin PII | E2E exclusiva del límite; no hay borrado físico de medios. |
-| Contactos | IMPLEMENTADO Y VALIDADO PARCIALMENTE | E2E `jovy-contacts.spec.ts`; integración `contacts-query.integration.test.ts`: `take`/`skip` + `limit` máx 100, orden estable, filtros SQL con escape de `%`/`_`, envelope `{contacts,count,limit,offset}`, `429` con `Retry-After`, soft delete y auditoría con whitelist | Rate limit en memoria (solo laboratorio); sin exportación; sin restauración/purga automática (`docs/26-RETENCION-CONTACTOS.md`). |
-| RBAC fino / roles | PENDIENTE | `@medusajs/rbac` existe en 2.22.6 pero el módulo no está registrado en `medusa-config.ts`; `authorize`/`hasPermission` son no-op; diseño en `docs/19-SEGURIDAD-ADMIN.md` | Registrar RBAC, crear políticas `jovy_*`, asignar roles y añadir guardas por ruta. Sin eso no hay separación de funciones. |
-| Medios | IMPLEMENTADO PARCIALMENTE | Ruta Admin con Multer en memoria (5 MB), firma, MIME y `sharp`; E2E de subida y negativos | Sin `DELETE`, sin video, sin conteo de referencias; los archivos locales son públicos. |
-| Store API y publishable key | IMPLEMENTADO Y VALIDADO | E2E de las seis specs contra `/store/jovy/*`; sin key la respuesta es `400` antes del handler | Cerrar los gaps de contrato de `docs/25` (producto destacado, detalle de evento, paginación). |
-| Paridad con el administrador histórico | AUDITADA | `docs/24-MATRIZ-PARIDAD-ADMIN.md`: 69 filas, 37 validadas, 9 parciales, 7 nativas, 13 pendientes, 3 descartadas | Producto editorial, RBAC, ciclo de medios, exportación/restauración y configuración corporativa. |
+| Galería Casa Jovy y Logos | IMPLEMENTADO Y VALIDADO | E2E `jovy-brand.spec.ts` y `jovy-brand-families.spec.ts`; integración con Locking Module PostgreSQL: límite de 4 con concurrencia, ventanas cerradas `[start,end]`, bordes exactos, 5.º rechazado también por update; crop no destructivo, archivado/desactivación sin borrar medios compartidos, `media_file_id` inexistente → `NOT_FOUND`; relación real logo↔familia (`jovy_brand_logo_family`) con selector por categoría y Store filtrado; tope defensivo de 4 en lectura Store con warning sin PII. La ola añade carga múltiple secuencial, contador `n/4`, agenda/solapes, lightbox, confirmaciones de carga/reorden/borrado y E2E de reorden con persistencia y borrado con confirmación; logos pasa a grid 1/2/4, formulario separado, crop visual pan/zoom/guía/reset y confirmaciones de crear/guardar/activar/reordenar/eliminar (PNG/JPEG/WebP ≤ 5 MB) | Logos: DnD contextual, rutas históricas separadas de alta/edición y reorden con E2E propio. Sin borrado físico de medios compartidos. |
+| Contactos | IMPLEMENTADO Y VALIDADO | Cuatro bandejas planas más la vista consolidada `/app/jovy/contacts` sobre una sola tabla y `components/contact-inbox.tsx`; tabla de seis columnas, tabs Todos/Pendiente/Atendido/Papelera con counts reales, búsqueda por nombre/apellido/email/teléfono/ciudad/país/CP, filtros de fecha, páginas 10/20/50, detalle/edición/auditoría en modales, atender/volver, soft delete + restore, export CSV por bandeja y polling cada 30 s; E2E `jovy-contact-inboxes.spec.ts` (bandejas, filtros, modales, papelera y exportación) y `jovy-contacts.spec.ts`; integración `contacts-admin.spec.ts` y `contacts-query.integration.test.ts`: filtros SQL con escape de `%`/`_`, `limit` 10/20/50, envelope `{contacts,count,limit,offset}`, `429` con `Retry-After`, soft delete, restore y auditoría con whitelist; migración `Migration20261114120000` amplía las acciones `restore` y `update`; endpoints `POST /admin/jovy/contacts/:id/restore` y `GET /admin/jovy/contacts/export`; counts agrupa `deleted_at` y devuelve `{pending,handled,deleted,total}`; `PUT` acepta campos del remitente y operativos, y rechaza `id`, `contact_type`, `message` y desconocidos | Rate limit en memoria (solo laboratorio); sin purga física ni anonimización automática (`docs/26-RETENCION-CONTACTOS.md`); reenvío/descarga CSV acotado a 5 000 filas por petición. |
+| Dashboard y navegación CMS | IMPLEMENTADO Y VALIDADO | `src/admin/routes/jovy/page.tsx` (`label: "JovyCandy CMS"`, icono `SquaresPlus`, `rank: 0`); H1 «Dashboard» y marca «JovyCandy CMS»; KPIs en grilla 1/3 responsive con conteos reales; rangos 7/30/90/personalizado y refresco automático cada 60 s pausado en pestaña oculta; `GET /admin/jovy/dashboard` responde `401` sin sesión y `200` con conteos reales; E2E `jovy-cms-navigation.spec.ts` valida la entrada del sidebar, el tablero, las tarjetas de acceso y la ausencia de PII; capturas en `.test-results/audit-visual/dashboard/` y `.test-results/audit-final/` | Analítica histórica (`page_views`, productos top) no existe y no se simula: la sección declara «No disponible: falta fuente analítica»; los rangos no alteran los conteos. |
+| Categorías del catálogo | IMPLEMENTADO Y VALIDADO | Módulo `jovy_catalogue`; 6 tarjetas fijas (`sazonador`, `chamoy`, `gomitas_almidon`, `dulces_paletas`, `pinatero`, `gomitas_grenetina`); campos `name`, `description`, `key`, `active`, `coming_soon`, `interaction_locked`, imagen, `medusa_category_id`, orden; seed manual idempotente; UI con seis tarjetas en grid 1/3, formulario separado `lg` 8/4, apilado móvil y confirmación `usePrompt`; backend normaliza `coming_soon => active=false + interaction_locked=true` y desmarcarlo reactiva y desbloquea; `GET /store/jovy/catalogue/categories` devuelve `active` y las familias Store ocultan categorías no publicables o bloqueadas; E2E `jovy-catalogue-admin.spec.ts` (seis tarjetas, proporción 8/4, edición, «Próximamente» y reactivación, imagen, reorden, vínculo comercial, ocultar en Store) | Sin alta ni borrado por diseño (claves fijas); auditoría en módulos nuevos pendiente. |
+| Nuevos lanzamientos | IMPLEMENTADO Y VALIDADO | Módulo `jovy_launches` (`jovy_launch`, `jovy_launch_settings`); CRUD, orden, `active`, producto Medusa e imagen; color global `#00AFAA`; UI con tarjetas 1/2/4, formulario separado, ocho presets + hex y confirmaciones de color/eliminar; E2E `jovy-launches-admin.spec.ts` (producto, imagen, orden, visibilidad, preset, hex válido e inválido) | DnD histórico no replicado; el orden usa flechas. Auditoría en módulos nuevos pendiente. |
+| Anuncios de portada | IMPLEMENTADO Y VALIDADO | `/app/jovy/announcements`: bloque A resume banners `promo` reales, muestra previews y ventana calculada, y enlaza a Marketing → Banners slot `promo` (sin duplicar formulario); bloque B edita `jovy_announcement_settings` ES/EN; Banners añade búsqueda/filtros por estado y ventana, formulario agrupado con validaciones y confirmaciones de ciclo de vida; E2E `jovy-announcements-admin.spec.ts` (resumen, enlace, persistencia, vaciado por idioma, Store) y `jovy-banners.spec.ts` | El mensaje editable es nuevo y solicitado; el histórico solo tenía texto hardcodeado. El crop de banner sigue pendiente porque el backend no persiste `crop_zoom`/offsets. |
+| Novedades | IMPLEMENTADO Y VALIDADO | `/app/jovy/novelties`: grid multimedia 1/2/3/5 sobre `jovy_events` (misma entidad histórica); imagen/GIF/video (límite 100 MB con firma real), búsqueda/filtros de estado, tipo y activo, preview, reemplazo/retiro, prioridad/orden, enlace al evento exacto y confirmaciones; E2E `jovy-novelties.spec.ts` con WebM real y borrador | Sin restauración de eventos ni medio por URL externa; el alta/borrado del evento sigue en Eventos Jovy, donde el borrado es lógico desde el fix de backend; su restore aún no está expuesto. Streaming de video con `file-local` no soporta `Range`: se sirve el archivo completo. |
+| Productos editoriales | IMPLEMENTADO Y VALIDADO | Módulo `jovy-product-editorial` (`product_id` único); widget `product.details` «Ficha editorial Jovy» agrupado, con confirmaciones de guardar, restaurar, publicar, archivar y eliminar; lista `/app/jovy/products` con tarjetas 1/2/3/4/5, búsqueda y filtros; gramaje, certificaciones SGS/OU Kosher/Halal, `is_new`, `sort_order`, estado editorial y publicar/archivar/restaurar; Store `/store/jovy/products`; E2E `jovy-product-editorial.spec.ts`. `published_at` es set-once y el Store solo publica fichas `published` cuyo producto comercial siga `published`. No duplica SKU, precio, stock ni variantes | Asignación manual producto↔familia desde Admin (la API de familias existe, la UI solo lista); DnD y paginación backend no existen; auditoría de módulos nuevos pendiente. |
+| RBAC fino / roles | BLOQUEADO POR LICENCIA | `@medusajs/rbac` existe en 2.22.6, pero es Enterprise y no está licenciado ni registrado en `medusa-config.ts`; `authorize`/`hasPermission` son no-op; diseño en `docs/19-SEGURIDAD-ADMIN.md` | Decisión comercial: licenciar RBAC o aceptar que todo `user` autenticado es admin pleno. No se simulan roles. |
+| Medios | IMPLEMENTADO PARCIALMENTE | Ruta Admin con Multer en memoria (5 MB) para imágenes con firma, MIME y `sharp`; ruta de video de eventos (≤100 MB, firma MP4/WebM, `media_type`); E2E de subida de imagen y video, unit de firmas y límites | Sin `DELETE`, sin conteo de referencias, sin transcode ni `Range`; los archivos locales son públicos. |
+| Store API y publishable key | IMPLEMENTADO Y VALIDADO | E2E de las catorce specs / 27 pruebas, que ejercitan `/store/jovy/*` donde aplica; sin key la respuesta es `400` antes del handler | Cerrar los gaps de contrato de `docs/25` (producto destacado, detalle de evento, paginación). |
+| Paridad con el administrador histórico | AUDITADA | `docs/24-MATRIZ-PARIDAD-ADMIN.md` (74 filas funcionales: 49 validadas, 12 parciales, 6 nativas, 4 pendientes, 3 descartadas); `docs/28-MATRIZ-PARIDAD-PANTALLAS.md` (13 pantallas: 6 completas funcionales sin paridad visual, 6 parciales, 1 bloqueada por licencia); `docs/29-PARIDAD-VISUAL-FUNCIONAL-CMS.md` (12 parciales y 1 no replicable en extensión, porque no hay comparación visual pareada) | **No es una réplica aceptada**: la paridad visual sigue sin evaluar. Captura histórica pareada, RBAC, crop de banner, DnD de logos/lanzamientos, soft delete y restore de eventos, rutas separadas de logos, analítica y asignación producto↔familia. |
+
+## Bandejas de contactos (Bloque 7)
+
+`src/admin/routes/jovy/contacts-{national-sales,international-sales,customer-service,catalogue}/`
+expone una ruta plana por bandeja, más la vista consolidada `/app/jovy/contacts`. Las cinco
+reutilizan `src/admin/routes/jovy/contacts/components/contact-inbox.tsx` y la misma API
+`/admin/jovy/contacts`; no existen tablas ni módulos por bandeja.
+
+- El tipo de una bandeja fija se envía siempre en la consulta y el backend lo valida con
+  `contactListQuerySchema` (`z.enum`); un valor fuera del enum responde `400`.
+- Los contadores provienen de `GET /admin/jovy/contacts/counts`, una agregación SQL por
+  `contact_type`, `status` y `deleted_at` que devuelve `{pending,handled,deleted,total}` y no
+  carga filas.
+- El detalle muestra todos los campos del modelo (`phone`, `country`, `city`, `postal_code`,
+  `handled_at`, `handled_by`, `admin_notes`) y la auditoría sin PII. `PUT /admin/jovy/contacts/:id`
+  acepta `first_name`, `last_name`, `email`, `phone`, `country`, `city`, `postal_code`, `status` y
+  `admin_notes`; rechaza `id`, `contact_type`, `message` y campos desconocidos.
+- La tabla replica las seis columnas históricas (Fecha, Cliente, Contacto, Ubicación, Mensaje,
+  Acciones) y añade tabs Todos/Pendiente/Atendido/Papelera, búsqueda por nombre/apellido/email/
+  teléfono/ciudad/país/CP, filtros `date_from`/`date_to`, páginas 10/20/50, modales de detalle,
+  edición y auditoría, atender/volver, soft delete + restore y polling cada 30 s.
+- `GET /admin/jovy/contacts/export` exporta CSV de una sola bandeja (`contact_type` obligatorio),
+  reutiliza los filtros de la lista, limita a 5 000 filas, escapa fórmulas y comillas, usa UTF-8 con
+  BOM/CRLF y registra la operación en el logger con bandeja, filas, actor y filtros (sin término de
+  búsqueda ni PII).
+- `POST /admin/jovy/contacts/:id/restore` es idempotente: una solicitud viva vuelve sin cambios y no
+  escribe auditoría. La migración append-only `Migration20261114120000` amplía el check de
+  `jovy_contact_audit_log.action` con `restore` y `update`.
+- **Anidación en Medusa 2.22.6:** Medusa anida automáticamente las rutas hijas bajo el padre
+  `/app/jovy`; el campo oficial `nested` solo admite rutas nativas, no `/jovy/*`. Por eso no se
+  puede tener `/app/jovy/contacts/catalogue` como hija visible sin duplicar entradas. Cada bandeja
+  vive en una ruta plana que el menú enlaza y renderiza `<ContactInbox contactType=…>`
+  directamente: sin redirects, sin stubs y sin entradas duplicadas. El prefijo `contacts-` evita
+  que `/app/jovy/contacts-catalogue` choque con `/app/jovy/catalogue`, que pertenece al catálogo.
+- La vista consolidada `/app/jovy/contacts` («Contactos Jovy», rank 50) lista los cuatro tipos y
+  comparte búsqueda y contadores; el E2E la valida con cuatro filas y búsqueda común.
 
 ## Regresión consolidada
 
-Ejecutada el 2026-11-13 sobre el árbol de trabajo, sin commits nuevos:
+Ejecutada el 2026-11-14 sobre el árbol de trabajo, sin commits nuevos:
 
 | Comprobación | Resultado |
 | --- | --- |
 | `pnpm lint` | exit 0 |
 | `pnpm typecheck` | exit 0 |
-| `pnpm --dir apps/backend test:unit` | 15 suites / 95 pruebas OK |
-| `pnpm --dir apps/backend test:integration:modules` | 3 suites / 16 pruebas OK |
+| `pnpm --dir apps/backend test:unit` | 29 suites / 275 pruebas OK |
+| `pnpm --dir apps/backend test:integration:modules` | 6 suites / 37 pruebas OK |
+| `pnpm --dir apps/backend test:integration:http` | 10 suites / 68 pruebas OK |
 | `pnpm build` | OK (backend + storefront) |
-| `pnpm --dir apps/backend test:e2e` | 13 pruebas / 0 fallos / 2,0 min en un solo comando |
+| `pnpm --dir apps/backend test:e2e` | 27 pruebas / 0 fallos / 4,3 min en un solo comando |
 
-- `test:integration:http`: 5 suites / 19 pruebas OK (162,8 s) contra bases desechables; cubre contactos Store/Admin/rate limit, contenido Store y marketing Store/Hero/Banners.
-- Playwright agrupado quedó verde en corridas consecutivas: 6/6 previa y 13/13 en la última corrida.
-- `test:integration:modules` incluye `jovy-content`, `jovy-brand` y `jovy-contacts` contra PostgreSQL real; usa bases desechables de `@medusajs/test-utils`.
+- Playwright agrupado quedó verde: 27/27 pruebas con las catorce specs (`content`, `hero`,
+  `banners`, `events`, `brand`, `brand-families`, `contacts`, `contact-inboxes`, `cms-navigation`,
+  `catalogue-admin`, `launches-admin`, `announcements-admin`, `novelties`, `product-editorial`).
+- `test:integration:http` cubre contactos Store/Admin/rate limit/export/restore, contenido Store,
+  marketing Store/Hero/Banners, eventos y multimedia, y catálogo/lanzamientos/anuncios, contra bases
+  desechables.
+- `test:integration:modules` incluye `jovy-brand`, `jovy-contacts`, `jovy-catalogue`,
+  `jovy-launches` y `jovy-product-editorial` contra PostgreSQL real; usa bases desechables de
+  `@medusajs/test-utils`.
+- Capturas de auditoría de esta ola en `.test-results/audit-visual/` (categorías, dashboard,
+  productos, logos, anuncios, novedades, galería, lanzamientos y contactos) y capturas anteriores en
+  `.test-results/audit-final/`. Todas están ignoradas por Git; no hay capturas del Admin histórico.
 
 ## Playwright: causa raíz y corrección
 
@@ -52,27 +106,45 @@ Corrección aplicada en `apps/backend/playwright.config.ts`:
 - Dos flakes reales corregidos: `expect.poll` en Brand y verificación del badge persistente en
   Contactos.
 - `workers: 1` se mantiene porque PostgreSQL es compartido.
+- La suite completa son 14 specs / 27 pruebas; las capturas se escriben en dotfiles
+  (`.test-results/<bloque>/`) que el watcher ignora.
 
 ## Seguridad y RBAC
 
-Gap real: Medusa 2.22.6 incluye `@medusajs/rbac`, pero el módulo **no** está registrado en
-`medusa-config.ts`. Sin registro, `authorize` no hace nada y `hasPermission` devuelve `true`: toda
-sesión `user` o API key secreta es admin pleno sobre contenido, marketing, eventos, marca,
-contactos (incluida PII) y configuración. El diseño de recursos `jovy_*`, roles propuestos y guardas
-por ruta está documentado en `docs/19-SEGURIDAD-ADMIN.md`; **no está implementado**.
+Gap real: Medusa 2.22.6 incluye `@medusajs/rbac`, pero es una capacidad **Enterprise** que el
+proyecto no tiene licenciada ni registrada en `medusa-config.ts`. Sin registro, `authorize` no hace
+nada y `hasPermission` devuelve `true`: toda sesión `user` o API key secreta es admin pleno sobre
+contenido, marketing, eventos, marca, catálogo, lanzamientos, anuncios, novedades, producto
+editorial, contactos (incluida PII) y configuración. El diseño de recursos `jovy_*`, roles
+propuestos y guardas por ruta está documentado en `docs/19-SEGURIDAD-ADMIN.md`; **no se
+implementó** y **no se simulan roles** para no aparentar una seguridad que la licencia no permite.
 
-Para producción falta: registrar el módulo, ejecutar migraciones, crear políticas de dominio,
-reasignar usuarios fuera de Super Admin, añadir `authorize` por método/ruta y probar denegaciones.
-También siguen abiertos el rate limit compartido de contactos, el filtrado de campos PII y el
-tratamiento de API keys como credenciales de máquina. Detalle y hallazgos: `docs/19`.
+Si el negocio licencia RBAC, el trabajo pendiente es: registrar el módulo, ejecutar migraciones,
+crear políticas de dominio, reasignar usuarios fuera de Super Admin, añadir `authorize` por
+método/ruta y probar denegaciones. También siguen abiertos el rate limit compartido de contactos,
+el filtrado de campos PII y el tratamiento de API keys como credenciales de máquina. Detalle y
+hallazgos: `docs/19`.
 
 ## Paridad
 
-Resumen de `docs/24-MATRIZ-PARIDAD-ADMIN.md`: 69 filas auditadas; 37 implementadas y validadas,
-9 parciales, 7 resueltas por Medusa nativo, 13 pendientes y 3 descartadas justificadamente. Las
-brechas que bloquean paridad real son producto editorial (familia, gramaje, certificaciones,
-orden, restauración), RBAC, ciclo de vida de medios y exportación/retención de contactos. La matriz
-contiene el detalle por fila y el conteo por módulo; no se duplica aquí.
+Resumen funcional de `docs/24-MATRIZ-PARIDAD-ADMIN.md`: 74 filas auditadas; 49 implementadas y
+validadas, 12 parciales, 6 resueltas por Medusa nativo, 4 pendientes y 3 descartadas
+justificadamente. Resumen por pantalla de `docs/28-MATRIZ-PARIDAD-PANTALLAS.md`: de las 13 opciones
+históricas, 6 están completas **funcionalmente** (Categorías del catálogo, Galería y las cuatro
+bandejas de solicitudes), 6 son funcionalmente parciales (Dashboard, Productos, Nuevos lanzamientos,
+Logos, Anuncios y Novedades) y 1 está bloqueada por decisión comercial/licencia (Usuarios). Ese
+estado se llama `Completa funcional (sin paridad visual)` y **no** es una réplica aceptada. `docs/29`
+mantiene las 12 pantallas replicables en `Parcial` y 1 en `No replicable en extensión` porque **no
+existe comparación visual pareada** con el Admin histórico.
+
+Las brechas que bloquean paridad real ya no incluyen «producto editorial ausente» ni «exportación de
+contactos ausente»: módulo, ficha, gate, restauración de ficha, export CSV, papelera y restore de
+solicitudes existen y están validados. Quedan la asignación manual producto↔familia, el RBAC
+(bloqueado por licencia), el ciclo de vida de medios (borrado y conteo), la retención/purga de
+contactos, el rate limit compartido, la restauración fuera de ficha/contactos, el crop de banner, el
+DnD de logos/lanzamientos, la analítica y la captura histórica. El detalle por fila y el conteo por
+módulo están en `docs/24`; el detalle por pantalla, en `docs/28`; la honestidad visual, en
+`docs/29`.
 
 ## Contratos para storefront
 
@@ -91,18 +163,28 @@ completo) están en `docs/25` §9 y §10.
 | Riesgo | Impacto | Estado |
 | --- | --- | --- |
 | RBAC apagado | Cualquier admin o API key accede a todo, incluida PII | Bloqueante |
+| Sin purga ni anonimización de contactos | La restauración ya existe, pero la retención de `docs/26` sigue siendo manual | Bloqueante para cumplimiento de privacidad |
 | Rate limit de contactos en memoria | Bypass por reinicio o múltiples instancias | Bloqueante si el formulario se expone |
-| File Module local y público | Archivos accesibles sin control; no apto para material sensible | Bloqueante para medios privados |
+| `file-local` público y sin `Range` | Archivos accesibles sin control; video se sirve completo | Bloqueante para medios privados |
 | Sin borrado ni conteo de referencias de medios | Huérfanos y crecimiento no acotado | Pendiente, no bloqueante |
-| Sin restauración ni purga automática de contactos | La retención de `docs/26` es manual | Bloqueante para cumplimiento de privacidad |
+| Crop de banner no persistido | La UI no puede reproducir el encuadre histórico | Funcional, no de seguridad |
+| DnD no replicado en logos/lanzamientos | Paridad de interacción sustituida por flechas | Funcional, no de seguridad |
+| Eventos sin restauración expuesta | El borrado es lógico desde el fix de backend, pero Novedades no puede deshacerlo | Funcional |
 | Contrato Store incompleto | Sin producto destacado, detalle de evento ni agenda futura | Funcional, no de seguridad |
 | Despliegue no evaluado | No hay Docker, despliegue ni auditoría de CORS/secretos de producción | Fuera del alcance local |
 
 ## Estado de Git
 
-- `HEAD` = `origin/main` = `829b9e5` (`feat(cms): add brand gallery, logos and contacts modules`).
-- No se crearon commits ni se hizo push en esta consolidación.
-- Árbol de trabajo con cambios sin commitear: código y specs de `apps/backend` modificados,
-  migración `20261113093000`, pruebas nuevas, `AGENTS.md` y documentación (`docs/17`, `docs/19`,
-  `docs/23`, `docs/24`, `docs/25`, `docs/26`, este documento).
+- `HEAD` = `5efa851` (`feat(admin): consolidate CMS and stabilize E2E`).
+- No se crearon commits ni se hizo push en esta consolidación documental.
+- Árbol de trabajo con cambios sin commitear: código, specs, migraciones y capturas ignoradas de
+  `apps/backend` (catálogo, lanzamientos, anuncios, producto editorial, novedades, contactos,
+  dashboard, widgets y bandejas planas), más `medusa-config.ts`, `pnpm-lock.yaml`, `AGENTS.md` y
+  documentación (`docs/16`, `docs/17`, `docs/18`, `docs/21`, `docs/23`, `docs/24`, `docs/25`,
+  `docs/27`, `docs/28`, `docs/29`).
+- `docs/27-ANUNCIOS-Y-LANZAMIENTOS.md`, `docs/28-MATRIZ-PARIDAD-PANTALLAS.md` y
+  `docs/29-PARIDAD-VISUAL-FUNCIONAL-CMS.md` son archivos nuevos sin seguimiento; este documento y
+  `docs/24` están modificados sin commitear.
 - `apps/backend/static/` es runtime del provider `file-local` y no se versiona.
+- `.test-results/` (incluidas `audit-visual/` y `audit-final/`) está ignorado por Git y no forma
+  parte del entregable.

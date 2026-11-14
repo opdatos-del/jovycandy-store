@@ -99,7 +99,7 @@ medusaIntegrationTestRunner({
         expect(response.data).toEqual({ message: "La solicitud no es válida", errors: expect.anything() })
       }
 
-      const listed = await listContacts({ limit: "100" })
+      const listed = await listContacts({ limit: "50" })
       expect(listed.count).toBe(0)
     })
 

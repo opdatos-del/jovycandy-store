@@ -4,7 +4,9 @@ import {
   GALLERY_VISIBILITY_LOCK,
   LOGO_LOCK,
 } from "@jovy/lib/jovy/brand"
+import { validateFamilySelection, type BrandFamilyRef } from "@jovy/lib/jovy/brand-family"
 import { JOVY_BRAND_MODULE } from "@jovy/modules/jovy-brand"
+import { JOVY_CATALOGUE_MODULE } from "@jovy/modules/jovy-catalogue"
 
 /**
  * Persistence port for the brand module. The services keep the same shape as the
@@ -40,9 +42,13 @@ type GalleryService = {
 }
 
 type LogoService = {
+  listLogos: (filters: Record<string, unknown>) => Promise<LogoRow[]>
   createLogo: (data: Record<string, unknown>) => Promise<LogoRow | LogoRow[]>
   updateLogo: (data: Record<string, unknown>) => Promise<LogoRow | LogoRow[]>
+  setLogoFamilies: (logoId: string, familyIds: string[]) => Promise<unknown>
 }
+
+type FamilyLookup = { listProductFamilies: (filters?: unknown) => Promise<BrandFamilyRef[]> }
 
 type LockingService = {
   execute: <T>(keys: string | string[], job: () => Promise<T>) => Promise<T>
@@ -72,6 +78,7 @@ export type LogoPersistenceInput = {
   name: string
   alt?: string | null
   families?: string[] | null
+  family_ids?: string[]
   media_file_id: string
   crop?: BrandCrop | null
   enabled: boolean
@@ -131,16 +138,42 @@ export async function persistGalleryItem(
   return saved!
 }
 
+/**
+ * Valida la selección contra la taxonomía canónica. Un id desconocido o una
+ * familia inactiva se rechazan con `INVALID_DATA` (HTTP 400) antes de escribir:
+ * la relación nunca apunta a familias inventadas.
+ */
+export async function assertBrandFamilies(scope: BrandScope, familyIds: string[]): Promise<void> {
+  if (!familyIds.length) return
+  const catalogue = scope.resolve(JOVY_CATALOGUE_MODULE) as FamilyLookup
+  const { missing, inactive } = validateFamilySelection(await catalogue.listProductFamilies({}), familyIds)
+  if (missing.length) {
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, "Una o más familias seleccionadas no existen")
+  }
+  if (inactive.length) {
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, "Una o más familias seleccionadas están inactivas")
+  }
+}
+
 export async function persistLogoItem(scope: BrandScope, input: LogoPersistenceInput): Promise<LogoRow> {
   const logos = scope.resolve(JOVY_BRAND_MODULE) as LogoService
   const locking = scope.resolve(Modules.LOCKING) as LockingService
   const file = scope.resolve(Modules.FILE) as FileLookup
   await assertMediaFileExists(file, input.media_file_id)
+  await assertBrandFamilies(scope, input.family_ids ?? [])
 
   let saved: LogoRow | undefined
   await locking.execute(LOGO_LOCK, async () => {
-    const { id, actor_id: _actorId, action: _action, ...data } = input
+    const { id, actor_id: _actorId, action: _action, family_ids, ...data } = input
     saved = id ? one(await logos.updateLogo({ id, ...data })) : one(await logos.createLogo(data))
+    // `family_ids` ausente conserva la relación actual (o el modo legado de un
+    // logo nuevo); un array, incluido el vacío, la reemplaza por completo.
+    if (family_ids !== undefined) {
+      await logos.setLogoFamilies(saved.id, family_ids)
+      // La marca `families_linked` se escribe en la relación; se relee para que
+      // la respuesta no devuelva el estado anterior.
+      saved = one(await logos.listLogos({ id: saved.id }))
+    }
   })
 
   return saved!

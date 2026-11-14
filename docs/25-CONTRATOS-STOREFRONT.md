@@ -48,11 +48,19 @@ export async function jovyGet<T>(path: string): Promise<T> {
 | Hero | `GET /store/jovy/marketing/hero` | publishable key | — | `hero_items[]` | No |
 | Banners | `GET /store/jovy/marketing/banners/:slot` | publishable key | `slot` = `promo` o `hint` | `banners[]` | No |
 | Productos destacados | **sin contrato Store** (ver §9) | — | — | — | — |
+| Productos editoriales | `GET /store/jovy/products` | publishable key | `category_key`, `family_id` (opcionales) | `products[]` | No |
 | Eventos | `GET /store/jovy/events` | publishable key | — | `events[]` | No |
 | Galería Casa Jovy | `GET /store/jovy/brand/gallery` | publishable key | — | `items[]` | No |
 | Logos | `GET /store/jovy/brand/logos` | publishable key | `family` (opcional) | `logos[]` | No |
 | Páginas corporativas | `GET /store/jovy/content/pages/:slug` | publishable key | `slug` (path) | `page` | No |
 | Solicitud de contacto | `POST /store/jovy/contacts` | publishable key | — | `accepted` | No |
+| Categorías de presentación | `GET /store/jovy/catalogue/categories` | publishable key | — | `categories[]` | No |
+| Familias | `GET /store/jovy/catalogue/families` | publishable key | `category_key` (opcional) | `families[]` | No |
+| Lanzamientos | `GET /store/jovy/launches` | publishable key | — | `settings`, `launches[]` | No |
+| Mensaje corporativo | `GET /store/jovy/announcements/settings` | publishable key | — | `settings` | No |
+
+Los contratos campo por campo de las cuatro rutas nuevas están en
+`docs/27-ANUNCIOS-Y-LANZAMIENTOS.md` §4.
 
 Todas las rutas devuelven `200` (o `202` en contacto) con el conjunto completo; `limit`/`offset` se
 ignoran.
@@ -164,12 +172,17 @@ Archivo: `apps/backend/src/api/store/jovy/events/route.ts`.
 | `priority` | number | no | 0–1000 |
 | `sort_order` | number | no | ≥0 |
 | `media_file_id` | string | sí | |
-| `media_url` | string | sí | |
+| `media_url` | string | sí | URL opaca del File Module |
+| `media_type` | `"image" \| "gif" \| "video" \| null` | sí | Derivado de la URL: `null` cuando el evento no tiene medio o el archivo ya no existe. Las extensiones históricas `mov`, `m4v`, `ogg` y `ogv` se leen como `video`. |
 
 Visible con `status = published` y `enabled = true`, y `starts_at <= now <= ends_at` cuando existan.
 `draft`, `archived`, `cancelled` y deshabilitados quedan fuera. `published_at` se ignora.
 Un evento con `starts_at` futuro **no se devuelve**. Orden
 `priority DESC, sort_order ASC, starts_at ASC, created_at ASC`.
+
+Los eventos publicados **sin medio** se devuelven igualmente con `media_type: null` y
+`media_url: null`. El carrusel histórico descartaba esos eventos al pintar; en este contrato la
+decisión de ocultarlos corresponde al storefront (filtrar por `media_type`).
 
 Gate de publicación (Admin): para pasar a `published` el evento debe tener
 `title` (ES), `title_en`, `event_type_id` existente y `starts_at`; si hay
@@ -193,7 +206,8 @@ tal como se guardó, incluido `null` si el evento se creó antes de la migració
       "priority": 5,
       "sort_order": 0,
       "media_file_id": "file_01J8Z3K6B9",
-      "media_url": "http://localhost:9000/static/jovy-marketing-77aa.webp"
+      "media_url": "http://localhost:9000/static/jovy-event-77aa.webm",
+      "media_type": "video"
     }
   ]
 }
@@ -244,14 +258,20 @@ Archivo: `apps/backend/src/api/store/jovy/brand/logos/route.ts`.
 | `slug` | string | no | `^[a-z0-9]+(?:-[a-z0-9]+)*$`, ≤100, único |
 | `name` | string | no | ≤255 |
 | `alt` | string | sí | |
-| `families` | string[] | sí | Hasta 30 etiquetas libres |
+| `families` | string[] | sí | Legado: etiquetas libres del histórico, sin transformar |
+| `family_ids` | string[] | no | Ids reales de `jovy_product_family`; `[]` cuando no hay relación |
+| `family_slugs` | string[] | no | Slugs de esas familias; incluye slugs legado sin familia canónica mientras el logo no esté vinculado |
 | `crop` | `{ zoom, offset_x, offset_y }` | sí | `zoom` 0.25–2 |
 | `sort_order` | number | no | |
 | `media_url` | string | sí | |
 
 Semántica: **no hay estado editorial ni ventana**; el único filtro es `enabled = true`. El query
-`family` compara con `families.includes(family)` (exacto, case-sensitive; sin recortar espacios). Si
-el parámetro llega como array (`?family=a&family=b`) el backend lo ignora y devuelve todos.
+`family` compara con la relación real `jovy_brand_logo_family`, aceptando el id de la familia o su
+slug. Para logos sin vínculo (`families_linked = false`) sigue comparando con
+`families.includes(family)` (exacto, case-sensitive) para no romper el histórico. Un logo sin
+familias se devuelve para cualquier `family` (cambio explícito de esta entrega: el filtro anterior
+lo excluía). Si el parámetro llega
+como array (`?family=a&family=b`) el backend lo ignora y devuelve todos.
 Orden `sort_order ASC, created_at ASC`.
 
 ```json
@@ -263,6 +283,8 @@ Orden `sort_order ASC, created_at ASC`.
       "name": "Jovy Corporativo",
       "alt": "Logotipo Jovy",
       "families": ["corporativa", "demo"],
+      "family_ids": ["jfam_01J8Z3K8D2"],
+      "family_slugs": ["chamoy"],
       "crop": { "zoom": 1.25, "offset_x": 12, "offset_y": 0 },
       "sort_order": 0,
       "media_url": "http://localhost:9000/static/jovy-marketing-55ef.webp"
@@ -371,6 +393,57 @@ solicitudes que fallan la validación (`400`) no consumen cuota; el honeypot sí
 `req.ip` con `trust proxy = 1`. Ante `429` no reintentar automáticamente en el navegador antes de que
 transcurra `Retry-After`.
 
+### 4.8 Productos editoriales
+
+Archivo: `apps/backend/src/api/store/jovy/products/route.ts`.
+
+Query opcional:
+
+| Parámetro | Regla |
+| --- | --- |
+| `category_key` | Una de las seis claves de presentación. Clave o categoría desconocida → `404`; categoría sin `medusa_category_id` → `200` con `products: []` |
+| `family_id` | Acepta id o slug de familia; familia desconocida → `404` |
+
+Filtro efectivo: la consulta al módulo pide `editorial_status = "published"` y la respuesta
+**sólo incluye fichas cuyo producto comercial tiene `product_status = "published"` y todavía
+existe**. Las fichas huérfanas o con el producto comercial en borrador se descartan (la capa
+editorial no sustituye la publicación comercial). Orden: `sort_order ASC, created_at ASC` con
+desempate determinista.
+
+Respuesta `200`:
+
+```json
+{
+  "products": [
+    {
+      "id": "jovy_prod_01",
+      "product": { "id": "prod_01", "title": "Chamoy 1 L", "handle": "chamoy-1-l", "thumbnail": "http://localhost:9000/static/chamoy.jpg" },
+      "product_status": "published",
+      "gramaje": "1 L",
+      "certifications": ["SGS", "Halal"],
+      "is_new": true,
+      "sort_order": 0,
+      "published_at": "2026-11-13T00:00:00.000Z",
+      "family": { "id": "fam_01", "slug": "chamoy", "name": "Chamoy" },
+      "category_keys": ["chamoy"]
+    }
+  ]
+}
+```
+
+| Campo | Tipo | Nulo | Notas |
+| --- | --- | --- | --- |
+| `id` | string | no | Identificador de la ficha editorial, no del producto comercial |
+| `product` | `{ id, title, handle, thumbnail }` | no en Store | Referencia mínima; precios, variantes e inventario se leen en `/store/products` |
+| `product_status` | `"published"` | no | El filtro garantiza el valor; se expone para no reinterpretar la causa |
+| `gramaje` | string | sí | Texto corto libre |
+| `certifications` | string[] | no | Catálogo cerrado: `SGS`, `OU Kosher`, `Halal` |
+| `is_new` | boolean | no | Bandera de novedad |
+| `sort_order` | number | no | Orden editorial dentro del catálogo |
+| `published_at` | ISO string | sí | Set-once en la transición a `published` |
+| `family` | `{ id, slug, name }` | sí | Familia resuelta por Module Link o por la categoría mapeada |
+| `category_keys` | string[] | no | Claves de presentación derivadas de las categorías comerciales |
+
 ## 5. Idiomas y fallback
 
 - Idiomas soportados: `es` y `en`, ambos obligatorios en el esquema de Hero, Banners y Páginas.
@@ -399,6 +472,7 @@ tag sola no basta: hay que acotar el `revalidate`.
 | `/store/jovy/events` | 60 s | `jovy:events` | `starts_at` hace aparecer eventos |
 | `/store/jovy/brand/gallery` | 60 s | `jovy:gallery` | Ventana por elemento |
 | `/store/jovy/brand/logos` | 3600 s | `jovy:logos` / `jovy:logos:<family>` | Sin estado ni ventana; solo `enabled` |
+| `/store/jovy/products` | 60 s | `jovy:products` | Publicación editorial y estado comercial cambian por escritura |
 | `/store/jovy/content/pages/:slug` | 300 s | `jovy:page:<slug>` | Solo cambia al publicar/editar |
 | `POST /store/jovy/contacts` | `cache: "no-store"` | — | Mutación no idempotente |
 
@@ -431,6 +505,11 @@ cacheado debe tener el mismo TTL corto o invalidarse por tag.
 | Galería | `published` + `enabled` + dentro de ventana | Igual que Hero; la lectura devuelve como máximo 4 visibles |
 | Logo | `enabled = true` | Deshabilitado, borrado lógico |
 | Página | `published` + `published_at` nulo o pasado | Borrador, archivado, `published_at` futuro, borrado lógico |
+| Categoría de presentación | `active = true` | `active = false`, borrado lógico |
+| Familia | `active = true` | `active = false`, borrado lógico |
+| Producto editorial | `editorial_status = published` + producto comercial `published` | Borrador/archivado editorial, producto comercial borrador o inexistente, borrado lógico |
+| Lanzamiento | `active = true` | `active = false`, borrado lógico |
+| Mensaje corporativo | idioma no nulo | idioma `null` |
 
 ## 8. Diferencias entre listado y detalle
 
@@ -439,6 +518,7 @@ cacheado debe tener el mismo TTL corto o invalidarse por tag.
 | Página corporativa | Solo detalle por `slug`; **no hay listado Store** | Listado paginado con borradores |
 | Evento | Solo listado (incluye `content` completo); **no hay detalle por `slug`** | Listado y CRUD por `id` |
 | Hero, Banner, Galería, Logos | Solo listado; el detalle se resuelve en cliente por `id`/`slug` | CRUD por `id` |
+| Producto editorial | Solo listado con filtros `category_key`/`family_id`; **no hay detalle Store** | CRUD por `id` y borradores |
 | Contacto | Solo `POST`; no hay lectura pública | Listado y detalle privados con PII |
 
 ## 9. Productos destacados
@@ -496,8 +576,11 @@ Pruebas existentes que fijan el comportamiento Store (no modificar sin actualiza
 | `apps/backend/e2e/jovy-hero.spec.ts` | Publicado aparece; archivado desaparece; reordenamiento, media y producto |
 | `apps/backend/e2e/jovy-banners.spec.ts` | Slots, prioridad, frecuencia, ventana UTC, `auto_open`, CTA y negativos `400` |
 | `apps/backend/e2e/jovy-events.spec.ts` | Visibilidad por estado, gate de publicación, `title_en`, multimedia y prioridad |
-| `apps/backend/e2e/jovy-brand.spec.ts` | Galería publicada/archivada y logos con `family`; no ejercita el tope de lectura |
-| `apps/backend/src/api/store/jovy/brand/__tests__/route.test.ts` | Tope defensivo de 4 elementos visibles y warning de solo conteos, sin PII |
+| `apps/backend/e2e/jovy-novelties.spec.ts` | Bandeja Novedades: carga de WebM real, preview, persistencia, prioridad, `enabled`, retiro del medio y `media_type` en Store |
+| `apps/backend/integration-tests/http/events-media.spec.ts` | Carril de vídeo: 401, firmas/MIME, 413 por tamaño, `media_type` publicado y exclusión al archivar |
+| `apps/backend/e2e/jovy-brand.spec.ts` | Galería publicada/archivada y ciclo de logo con recorte no destructivo; no ejercita el tope de lectura |
+| `apps/backend/e2e/jovy-brand-families.spec.ts` | Selector de categoría, asociación a familias reales, persistencia tras recarga y filtro Store por id/slug |
+| `apps/backend/src/api/store/jovy/brand/__tests__/route.test.ts` | Tope defensivo de 4 elementos visibles, warning de solo conteos y filtro Store por familia real/legado |
 | `apps/backend/e2e/jovy-content.spec.ts` | `200` publicado, `404` archivado |
 | `apps/backend/e2e/jovy-contacts.spec.ts` | `400`, `202`, `429` con `Retry-After`, honeypot y `GET` no permitido |
 

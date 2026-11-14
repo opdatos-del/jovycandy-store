@@ -39,7 +39,14 @@ const logoBaseSchema = z
     slug: z.string().trim().min(1).max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     name: z.string().trim().min(1).max(255),
     alt: z.string().trim().max(255).nullable().optional(),
+    /** Legado: slugs de texto libre. Se conserva para lectura; no es la fuente de verdad. */
     families: z.array(z.string().trim().min(1).max(100)).max(30).nullable().optional(),
+    /** Fuente de verdad: ids de `jovy_product_family` existentes y activos. */
+    family_ids: z
+      .array(id)
+      .max(30)
+      .refine((ids) => new Set(ids).size === ids.length, "Las familias no deben repetirse")
+      .optional(),
     media_file_id: id,
     crop: z
       .object({

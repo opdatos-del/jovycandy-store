@@ -1,14 +1,24 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
 import { getAdminActorId } from "@jovy/lib/jovy/audit"
 import { compareEventOrder, eventInputSchema } from "@jovy/lib/jovy/events"
+import { resolveEventMedia } from "@jovy/lib/jovy/events-media"
 import { JOVY_EVENTS_MODULE } from "@jovy/modules/jovy-events"
 import { saveEventWorkflow } from "@jovy/workflows/jovy-events/event"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const service = req.scope.resolve(JOVY_EVENTS_MODULE)
+  const fileModule = req.scope.resolve(Modules.FILE)
   const events = (await service.listJovyEvents({}, { order: { priority: "DESC", sort_order: "ASC", created_at: "ASC" } }))
     .sort(compareEventOrder)
-  res.json({ events })
+
+  // La bandeja de Novedades necesita URL y tipo en la misma lectura; el CRUD
+  // editorial completo sigue viviendo en la pantalla Eventos.
+  const withMedia = await Promise.all(
+    events.map(async (event) => ({ ...event, ...(await resolveEventMedia(fileModule, event.media_file_id)) })),
+  )
+
+  res.json({ events: withMedia })
 }
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {

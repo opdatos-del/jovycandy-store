@@ -47,7 +47,14 @@ test("recibe Contactos públicamente y permite seguimiento privado sin exponer P
     expect(honeypot.status()).toBe(202)
 
     await page.goto("/app/login")
-    await page.getByPlaceholder("Email").fill(admin.MEDUSA_ADMIN_EMAIL)
+    const emailInput = page.getByPlaceholder("Email")
+    try {
+      await expect(emailInput).toBeVisible({ timeout: 15_000 })
+    } catch {
+      await page.reload()
+      await expect(emailInput).toBeVisible({ timeout: 30_000 })
+    }
+    await emailInput.fill(admin.MEDUSA_ADMIN_EMAIL)
     await page.getByPlaceholder("Password").fill(admin.MEDUSA_ADMIN_PASSWORD)
     await Promise.all([
       page.waitForURL(/\/app(?!\/login)/),
@@ -65,25 +72,61 @@ test("recibe Contactos públicamente y permite seguimiento privado sin exponer P
     contactId = contacts[0].id
     expect(contacts[0].email).toBe(email)
 
+    // La vista consolidada conserva el buscador y abre el detalle en un modal.
     await page.goto("/app/jovy/contacts")
-    await expect(page.getByRole("heading", { name: "Contactos" })).toBeVisible()
-    await page.getByLabel("Buscar contacto").fill(email)
-    await page.getByRole("button", { name: "Buscar" }).click()
-    await page.getByRole("button", { name: "Ver seguimiento" }).click()
-    await page.getByLabel("Estado de seguimiento").selectOption("handled")
-    await page.getByLabel("Notas administrativas").fill("Seguimiento DEMO cerrado.")
-    await page.getByRole("button", { name: "Guardar seguimiento" }).click()
-    // La recarga posterior limpia el mensaje de éxito casi al instante; se verifica el estado persistente en la lista.
-    await expect(page.getByText("atendido", { exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Contactos", exact: true, level: 1 })).toBeVisible()
+    await page.getByRole("tab", { name: /^Todos/ }).click()
+    await page.getByLabel("Buscar").fill(email)
+    await page.getByRole("button", { name: "Buscar", exact: true }).click()
+    const row = page.locator('tbody tr[data-testid^="contact-row-"]')
+    await expect(row).toHaveCount(1)
+    await row.getByRole("button", { name: "Ver más", exact: true }).click()
+
+    const dialog = page.getByRole("dialog")
+    await expect(dialog.getByRole("heading", { name: "Solicitud de Demo Contact" })).toBeVisible()
+    await expect(dialog.getByText(email, { exact: true })).toBeVisible()
+    await expect(dialog.getByText(payload.message, { exact: true })).toBeVisible()
+    await expect(dialog.getByText(payload.phone, { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Laboratorio, MX", { exact: true })).toBeVisible()
+    await expect(dialog.getByText(payload.postal_code, { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Alta", { exact: true })).toBeVisible()
+
+    await dialog.getByRole("button", { name: "Marcar atendido", exact: true }).click()
+    await expect.poll(async () => {
+      const detail = await request.get(`/admin/jovy/contacts/${contactId}`, { headers })
+      return (await detail.json()).contact.status
+    }).toBe("handled")
+    await expect(dialog.getByText("Atendido", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Cambio de estado", { exact: true })).toBeVisible()
+
+    await dialog.getByRole("textbox", { name: "Notas internas" }).fill("Seguimiento DEMO cerrado.")
+    await dialog.getByRole("button", { name: "Guardar notas", exact: true }).click()
+    await expect(dialog.getByText("Nota interna", { exact: true })).toBeVisible()
 
     const detail = await request.get(`/admin/jovy/contacts/${contactId}`, { headers })
     const contact = (await detail.json()).contact
     expect(contact.status).toBe("handled")
     expect(contact.handled_by).toBeTruthy()
+    expect(contact.admin_notes).toBe("Seguimiento DEMO cerrado.")
+
     const audit = await request.get(`/admin/jovy/contacts/${contactId}/audit`, { headers })
     const audits = (await audit.json()).audit_logs
     expect(JSON.stringify(audits)).not.toContain(payload.message)
     expect(JSON.stringify(audits)).not.toContain(email)
+    expect(JSON.stringify(audits)).not.toContain("Seguimiento DEMO cerrado.")
+
+    // Escape cierra el modal y devuelve el foco al disparador.
+    await page.keyboard.press("Escape")
+    await expect(dialog).toHaveCount(0)
+    await expect(row.getByRole("button", { name: "Ver más", exact: true })).toBeFocused()
+
+    // La recarga conserva el estado; el panel de atendidos lo muestra con badge.
+    await page.reload()
+    await page.getByRole("tab", { name: /^Atendidos/ }).click()
+    await page.getByLabel("Buscar").fill(email)
+    await page.getByRole("button", { name: "Buscar", exact: true }).click()
+    await expect(row).toHaveCount(1)
+    await expect(row.getByText("Atendido", { exact: true })).toBeVisible()
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await request.post("/store/jovy/contacts", {

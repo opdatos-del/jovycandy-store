@@ -1,4 +1,4 @@
-import { Badge, Button, Container, Heading, Input, Textarea } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, Input, Textarea, usePrompt } from "@medusajs/ui"
 import { useEffect, useState } from "react"
 import { marketingApi, toDateTimeLocal, toIso } from "./admin-api"
 
@@ -40,6 +40,7 @@ const emptyHero = (): HeroForm => ({
 const statusColor = (status: Status) => status === "published" ? "green" : status === "archived" ? "grey" : "orange"
 
 export const HeroManager = () => {
+  const prompt = usePrompt()
   const [items, setItems] = useState<Hero[]>([])
   const [form, setForm] = useState<HeroForm>(emptyHero())
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -51,6 +52,7 @@ export const HeroManager = () => {
   const [settingsColor, setSettingsColor] = useState("#00AFAA")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   const load = async () => {
@@ -172,14 +174,26 @@ export const HeroManager = () => {
   }
 
   const remove = async (item: Hero) => {
-    if (!window.confirm(`Eliminar lógicamente “${item.translations.es.title}”?`)) return
+    const confirmed = await prompt({
+      title: "Eliminar Hero",
+      description: `Se eliminará definitivamente “${item.translations.es.title}”. Dejará de mostrarse en Store y su archivo multimedia permanece en el almacenamiento compartido.`,
+      confirmText: "Eliminar Hero",
+      cancelText: "Cancelar",
+      variant: "danger",
+    })
+    if (!confirmed) return
+
+    setDeletingId(item.id)
     try {
       await marketingApi(`/admin/jovy/marketing/hero/${item.id}`, { method: "DELETE" })
       if (editingId === item.id) resetForm()
-      setMessage("Hero eliminado lógicamente.")
+      setMessage("Hero eliminado.")
       await load()
+      requestAnimationFrame(() => document.getElementById("hero-list-heading")?.focus())
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo eliminar Hero.")
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -221,7 +235,7 @@ export const HeroManager = () => {
     </Container>
 
     <Container className="p-6">
-      <Heading level="h2">Elementos</Heading>
+      <Heading level="h2" id="hero-list-heading" tabIndex={-1}>Elementos</Heading>
       {loading ? <p className="mt-4">Cargando…</p> : items.length === 0 ? <p className="mt-4 text-ui-fg-subtle">Aún no hay elementos Hero.</p> : <ul className="mt-4 divide-y">
         {items.map((item, index) => <li key={item.id} className="flex items-center justify-between gap-3 py-3">
           <div><p className="font-medium">{item.translations.es.title}</p><p className="text-ui-fg-subtle text-sm">Orden {item.sort_order} · {item.enabled ? "Activo" : "Inactivo"}</p></div>
@@ -231,7 +245,7 @@ export const HeroManager = () => {
             {item.status !== "published" && <Button size="small" variant="secondary" onClick={() => void updateStatus(item, "published")}>Publicar</Button>}
             {item.status === "published" && <Button size="small" variant="secondary" onClick={() => void updateStatus(item, "draft")}>Despublicar</Button>}
             {item.status !== "archived" && <Button size="small" variant="secondary" onClick={() => void updateStatus(item, "archived")}>Archivar</Button>}
-            <Button size="small" variant="secondary" onClick={() => void edit(item)}>Editar</Button><Button size="small" variant="danger" onClick={() => void remove(item)}>Eliminar</Button>
+            <Button size="small" variant="secondary" onClick={() => void edit(item)}>Editar</Button><Button size="small" variant="danger" isLoading={deletingId === item.id} onClick={() => void remove(item)}>Eliminar</Button>
           </div>
         </li>)}
       </ul>}

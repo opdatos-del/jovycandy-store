@@ -1,5 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Badge, Button, Container, Heading, Input } from "@medusajs/ui"
+import { DocumentText } from "@medusajs/icons"
+import { Badge, Button, Container, Heading, Input, usePrompt } from "@medusajs/ui"
 import { useEffect, useState } from "react"
 
 type ContentStatus = "draft" | "published" | "archived"
@@ -54,11 +55,13 @@ async function request<T>(path: string, init?: RequestInit) {
 }
 
 const ContentPage = () => {
+  const prompt = usePrompt()
   const [pages, setPages] = useState<EditorialPage[]>([])
   const [form, setForm] = useState<Omit<EditorialPage, "id">>(emptyPage)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const loadPages = async () => {
@@ -125,16 +128,27 @@ const ContentPage = () => {
   }
 
   const remove = async (page: EditorialPage) => {
-    if (!window.confirm(`Eliminar la página “${page.translations.es.title}”?`)) {
+    const confirmed = await prompt({
+      title: "Eliminar página",
+      description: `Se eliminará “${page.translations.es.title}” (/${page.slug}). La página saldrá del listado editorial y dejará de servirse en Store.`,
+      confirmText: "Eliminar página",
+      cancelText: "Cancelar",
+      variant: "danger",
+    })
+    if (!confirmed) {
       return
     }
 
+    setDeletingId(page.id)
     try {
       await request(`/admin/jovy/content/pages/${page.id}`, { method: "DELETE" })
       if (editingId === page.id) reset()
       await loadPages()
+      requestAnimationFrame(() => document.getElementById("content-list-heading")?.focus())
     } catch {
       setError("No se pudo eliminar la página.")
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -143,7 +157,7 @@ const ContentPage = () => {
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
           <div>
-            <Heading level="h1">Contenido Jovy</Heading>
+            <Heading level="h1" id="content-list-heading" tabIndex={-1}>Contenido Jovy</Heading>
             <p className="text-ui-fg-subtle text-sm">Páginas editoriales bilingües y su estado de publicación.</p>
           </div>
           <Button type="button" variant="secondary" onClick={reset}>Nueva página</Button>
@@ -165,7 +179,7 @@ const ContentPage = () => {
                   <div className="flex items-center gap-2">
                     <Badge color={page.status === "published" ? "green" : page.status === "archived" ? "grey" : "orange"}>{page.status}</Badge>
                     <Button type="button" size="small" variant="secondary" onClick={() => edit(page)}>Editar</Button>
-                    <Button type="button" size="small" variant="secondary" onClick={() => void remove(page)}>Eliminar</Button>
+                    <Button type="button" size="small" variant="secondary" isLoading={deletingId === page.id} onClick={() => void remove(page)}>Eliminar</Button>
                   </div>
                 </li>
               ))}
@@ -210,6 +224,9 @@ const ContentPage = () => {
 
 export const config = defineRouteConfig({
   label: "Contenido Jovy",
+  icon: DocumentText,
+  // 5 keeps Contenido first without colliding with the contact inbox ranks (10-13).
+  rank: 5,
 })
 
 export default ContentPage

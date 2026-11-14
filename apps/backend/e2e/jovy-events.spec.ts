@@ -125,7 +125,6 @@ test("gestiona tipos de evento desde Admin y protege los tipos en uso", async ({
 
   try {
     await cleanup(request, headers)
-    page.on("dialog", (dialog) => void dialog.accept())
 
     await page.goto("/app/jovy/events")
     await expect(page.getByRole("heading", { name: "Eventos" }).first()).toBeVisible()
@@ -145,17 +144,28 @@ test("gestiona tipos de evento desde Admin y protege los tipos en uso", async ({
     await page.getByLabel("Código tipo evento").fill(unique("e2e-tipo"))
     await page.getByLabel("Nombre tipo evento").fill(removableName)
     await page.getByRole("button", { name: "Crear tipo" }).click()
-    await expect(page.locator("li").filter({ hasText: removableName }).first()).toBeVisible()
-    await page.locator("li").filter({ hasText: removableName }).getByRole("button", { name: "Eliminar tipo" }).click()
-    await expect(page.locator("li").filter({ hasText: removableName })).toHaveCount(0)
+    const removableRow = page.locator("li").filter({ hasText: removableName })
+    await expect(removableRow).toBeVisible()
+
+    await removableRow.getByRole("button", { name: "Eliminar tipo" }).click()
+    const typePrompt = page.getByRole("alertdialog")
+    await expect(typePrompt.getByRole("heading", { name: "Eliminar tipo de evento" })).toBeVisible()
+    await typePrompt.getByRole("button", { name: "Cancelar", exact: true }).click()
+    await expect(typePrompt).toHaveCount(0)
+    await expect(removableRow).toHaveCount(1)
+
+    await removableRow.getByRole("button", { name: "Eliminar tipo" }).click()
+    await page.getByRole("alertdialog").getByRole("button", { name: "Eliminar tipo", exact: true }).click()
+    await expect(removableRow).toHaveCount(0)
 
     const types = (await (await request.get("/admin/jovy/events/types", { headers })).json()).event_types
     const inUse = types.find((type: { code: string }) => type.code === typeCode)
     await createEvent(request, headers, eventInput("Evento que usa tipo", { event_type_id: inUse.id }))
 
     await page.locator("li").filter({ hasText: editedName }).getByRole("button", { name: "Eliminar tipo" }).click()
+    await page.getByRole("alertdialog").getByRole("button", { name: "Eliminar tipo", exact: true }).click()
     await expect(page.getByRole("alert")).toContainText("está en uso")
-    await expect(page.locator("li").filter({ hasText: editedName }).first()).toBeVisible()
+    await expect(page.locator("li").filter({ hasText: editedName })).toBeVisible()
     await page.screenshot({ path: ".test-results/jovy-events-types.png", fullPage: true })
   } finally {
     await cleanup(request, headers)
@@ -288,6 +298,19 @@ test("administra eventos: validación de publicación, multimedia y reordenamien
     const storeOrder = (await storeEvents(request)).map((event) => event.id)
     expect(storeOrder.indexOf(secondEventId)).toBeGreaterThanOrEqual(0)
     expect(storeOrder.indexOf(eventId)).toBeGreaterThanOrEqual(0)
+
+    // El borrado pasa por el Prompt de Medusa: cancelar no muta y confirmar elimina.
+    const deleteRow = page.locator("li").filter({ hasText: title })
+    await deleteRow.getByRole("button", { name: "Eliminar", exact: true }).click()
+    const deletePrompt = page.getByRole("alertdialog")
+    await expect(deletePrompt.getByRole("heading", { name: "Eliminar evento" })).toBeVisible()
+    await deletePrompt.getByRole("button", { name: "Cancelar", exact: true }).click()
+    await expect(deletePrompt).toHaveCount(0)
+    await expect(deleteRow).toHaveCount(1)
+
+    await deleteRow.getByRole("button", { name: "Eliminar", exact: true }).click()
+    await page.getByRole("alertdialog").getByRole("button", { name: "Eliminar evento", exact: true }).click()
+    await expect(deleteRow).toHaveCount(0)
     await page.screenshot({ path: ".test-results/jovy-events-admin.png", fullPage: true })
   } finally {
     if (eventId) await request.delete(`/admin/jovy/events/${eventId}`, { headers })

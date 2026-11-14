@@ -17,6 +17,16 @@ El binario `psql` está instalado en `C:\Program Files\PostgreSQL\18\bin\psql.ex
 - `apps/storefront/.env.example`: URL pública local del storefront y URL local de Medusa. La integración Store API no está activa todavía.
 - Los archivos `.env` están excluidos por `.gitignore`. No use ni copie archivos de entorno de los proyectos originales.
 
+`apps/backend/.env` admite además variables opcionales del entorno local:
+
+| Variable | Uso | Valor por defecto |
+| --- | --- | --- |
+| `PORT` | Puerto HTTP de Medusa. Las pruebas E2E lo fijan en `9001`. | `9000` |
+| `FILE_BACKEND_URL` | URL pública con la que el File Module sirve los archivos subidos. | `http://localhost:${PORT}/static` |
+
+No son secretos: solo describen el entorno local. Si el servidor escucha en otro puerto, defina
+`FILE_BACKEND_URL` para que las URLs de imágenes y videos coincidan con el puerto real.
+
 En PowerShell, para crear una plantilla nueva sin sobrescribir un `.env` existente:
 
 ```powershell

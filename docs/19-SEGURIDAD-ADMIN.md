@@ -1,8 +1,9 @@
 # Seguridad administrativa y modelo de permisos
 
 > Documento verificado el 2026-11-12 contra la instalación local de `apps/backend`
-> (Medusa `2.22.6`) y actualizado el 2026-11-13 para reflejar la paginación/filtros
-> de contactos y el ciclo GET/PUT/DELETE de tipos de evento. Toda afirmación sobre
+> (Medusa `2.22.6`) y actualizado el 2026-11-14 para reflejar la paginación/filtros
+> de contactos, su exportación CSV y restore, y el ciclo GET/PUT/DELETE de tipos de
+> evento. Toda afirmación sobre
 > capacidades se contrastó con el código instalado en `apps/backend/node_modules` y
 > con `pnpm-lock.yaml`; la API de activación de RBAC se confirmó además con la
 > documentación oficial de Medusa v2 (`packages/modules/rbac/README.md` y
@@ -113,8 +114,10 @@ Regla de activación (confirmada con la documentación oficial): añadir
 | Administrar tipos de evento (catálogo) | `GET/POST /admin/jovy/events/types`, `GET/PUT/DELETE /admin/jovy/events/types/:id` | Ídem (`src/api/admin/jovy/events/types/route.ts`, `src/api/admin/jovy/events/types/[id]/route.ts`) | Cualquier `user` | **Gap** |
 | Administrar galería de marca | `GET/POST /admin/jovy/brand/gallery`, `PUT/DELETE .../:id`, `POST .../reorder`, `GET .../:id/audit` | Ídem + Zod (`src/lib/jovy/brand.ts:20-48`) | Cualquier `user` | **Gap** |
 | Administrar logos de marca | `GET/POST /admin/jovy/brand/logos`, `PUT/DELETE .../:id`, `POST .../reorder`, `GET .../:id/audit` | Ídem | Cualquier `user` | **Gap** |
-| **Listar solicitudes de contacto (PII)** | `GET /admin/jovy/contacts` | Ídem + paginación `limit`/`offset` (máximo 100) + filtros `status`, `contact_type`, `q` en SQL + envelope `{contacts,count,limit,offset}` (`src/api/admin/jovy/contacts/route.ts`; `src/lib/jovy/contacts.ts`); devuelve nombre, email, teléfono, país, ciudad, mensaje y `admin_notes` | Cualquier `user` | **Gap**; no hay filtrado de campos por rol ni `jovy_contact:read` |
+| **Listar solicitudes de contacto (PII)** | `GET /admin/jovy/contacts` | Ídem + paginación `limit`/`offset` (`limit` solo `10`, `20` o `50`; por defecto `20`) + filtros `status`, `contact_type`, `q`, `date_from` y `date_to` en SQL + envelope `{contacts,count,limit,offset}` (`src/api/admin/jovy/contacts/route.ts`; `src/lib/jovy/contacts.ts`); devuelve nombre, email, teléfono, país, ciudad, mensaje y `admin_notes` | Cualquier `user` | **Gap**; no hay filtrado de campos por rol ni `jovy_contact:read` |
 | Ver/actualizar/eliminar contactos | `GET/PUT/DELETE /admin/jovy/contacts/:id` | Ídem + `updateContactSchema` (`src/lib/jovy/contacts.ts:19-22`) | Cualquier `user` | **Gap** |
+| **Exportar solicitudes a CSV (PII masiva)** | `GET /admin/jovy/contacts/export` | Ídem + `contact_type` obligatorio + filtros del listado + tope de 5 000 filas + `Cache-Control: no-store` (`src/api/admin/jovy/contacts/export/route.ts`) | Cualquier `user` | **Gap**; sin `jovy_contact:export`, sin filtrado de columnas y con auditoría solo en logger |
+| Restaurar solicitud borrada | `POST /admin/jovy/contacts/:id/restore` | Ídem; idempotente, audita `restore` sin PII | Cualquier `user` | **Gap** |
 | Ver auditoría de contactos | `GET /admin/jovy/contacts/:id/audit` | Ídem | Cualquier `user` | **Gap** |
 | Catálogo, pedidos, clientes, precios (core) | `/admin/products`, `/admin/orders`, `/admin/customers`, `/admin/price-lists`, etc. | `authenticate` global + `authorize(...)` en el paquete, **inactivo** | Cualquier `user` (RBAC apagado) | Nativo disponible, **inactivo** |
 | Usuarios, invitaciones, API keys | `/admin/users`, `/admin/invites`, `/admin/api-keys` | Ídem; `authorize` inactivo | Cualquier `user` | Nativo disponible, **inactivo** |
@@ -128,7 +131,7 @@ Medusa 2.22.6 solo ofrece hoy **un nivel efectivo**: admin pleno.
 
 | Actor | Contenido | Marketing/eventos/marca | Contactos (PII) | Configuración sensible | Roles/usuarios |
 | --- | --- | --- | --- | --- | --- |
-| `user` con sesión o JWT | Total | Total | Leer, anotar, cambiar estado, eliminar | Total | Total (incluye crear API keys e invitar usuarios) |
+| `user` con sesión o JWT | Total | Total | Leer, anotar, cambiar estado, exportar CSV, eliminar y restaurar | Total | Total (incluye crear API keys e invitar usuarios) |
 | API key secreta (`sk_`) | Total | Total | Total | Total | Total |
 | `user` autenticado sin rol | No aplica: RBAC apagado, el rol no existe | Ídem | Ídem | Ídem | Ídem |
 | Cliente de tienda (`customer`) | Solo lectura pública | Solo lectura pública | Solo `POST` público | Sin acceso | Sin acceso |
@@ -237,7 +240,9 @@ Reglas de aplicación:
 `jovy_contact:delete` queda reservado a Super Admin: el borrado es lógico
 (soft delete en `src/workflows/jovy-contacts/contact.ts`), deja de listarse y
 conserva la fila y su auditoría para la política de retención de
-`docs/26-RETENCION-CONTACTOS.md`.
+`docs/26-RETENCION-CONTACTOS.md`. El restore existe (`POST
+/admin/jovy/contacts/:id/restore`), es idempotente y escribe auditoría
+`restore`; también debe quedar reservado a Super Admin.
 
 ### 6.5 Qué NO implementar
 
@@ -278,6 +283,7 @@ conserva la fila y su auditoría para la política de retención de
 | --- | --- | --- | --- | --- | --- |
 | **Alta** | Sin autorización por rol: todo actor `user` o API key es admin pleno | Cualquier sesión admin válida, JWT o API key filtrada; un invitado con rol "editor" tendría acceso total | Lectura masiva de PII de contactos, cambio de contenido público y de configuración; sin separación de funciones | `apps/backend/medusa-config.ts:16-59` (módulo ausente); `src/api/middlewares.ts:13-16`; `authorize.js:43-45` | Activar RBAC y políticas de dominio (sección 6). Mientras tanto: mínimo número de admins, rotación de API keys, no compartir sesiones |
 | Media | Listado de contactos con PII sin control por rol | Cualquier admin autenticado hace una sola petición | Cada página expone nombre, email, teléfono, mensaje y notas; al no haber RBAC, cualquier actor `user` o API key puede recorrer el dataset completo | `src/api/admin/jovy/contacts/route.ts`; `src/lib/jovy/contacts.ts` | Activar RBAC con `jovy_contact:read`, limitar campos por rol y separar `admin_notes`; la paginación y los filtros en SQL ya están implementados |
+| Media | Exportación CSV masiva de PII sin permiso dedicado | Cualquier admin autenticado descarga una bandeja completa | Hasta 5 000 solicitudes por petición con nombre, email, teléfono y mensaje; `Cache-Control: no-store` evita caché, pero la auditoría va al logger y no a una tabla durable, así que la traza puede perderse | `src/api/admin/jovy/contacts/export/route.ts`; `src/lib/jovy/contacts.ts` (`toContactCsv`, `CONTACT_EXPORT_MAX_ROWS`) | Añadir `jovy_contact:export`, limitar columnas por rol y persistir la auditoría de exportación; revisar el nivel de log antes de producción |
 | Media | API keys con privilegio pleno y atribución incompleta | Fuga de una clave `sk_` (script, CI, `.env` mal protegido) | Acceso persistente a todo el admin; auditoría registra el id de la clave, no la persona | `authenticate-middleware.js:21-38`; `src/lib/jovy/audit.ts:5-8` | Activar RBAC (hereda roles del creador), rotar claves, no usar claves para personas, registrar `secret_key_context.created_by` |
 | Media | Rate limit de contactos en memoria por proceso | Varias instancias/reinicios, o tráfico distribuido | Bypass del límite; spam, crecimiento de BD y posible abuso del buzón comercial | `src/lib/jovy/contact-rate-limit.ts:1-9`; `src/api/store/jovy/contacts/route.ts:8-11` | Limitador compartido (Redis/Postgres) o en el borde; conservar honeypot |
 | Baja | `media_file_id` sin validación homogénea contra archivos existentes | Un admin envía cualquier id en marketing o eventos | Referencias huérfanas o a archivos de otro contexto (todos públicos hoy) | `src/lib/jovy/marketing.ts`; `src/lib/jovy/events.ts`; validación existente en `src/lib/jovy/brand-persistence.ts` (`NOT_FOUND`) | Extender a marketing y eventos la validación de existencia y tipo que ya aplica Brand |
@@ -366,6 +372,7 @@ configuración puntual.
 | Actor de auditoría | `apps/backend/src/lib/jovy/audit.ts:5-8` |
 | Contacto público: validación, rate limit, honeypot | `apps/backend/src/api/store/jovy/contacts/route.ts:7-19`; `src/lib/jovy/contact-rate-limit.ts:1-9` |
 | Listado de contactos | `apps/backend/src/api/admin/jovy/contacts/route.ts`; `src/lib/jovy/contacts.ts` |
+| Exportación y restore de contactos | `apps/backend/src/api/admin/jovy/contacts/export/route.ts`; `.../[id]/restore/route.ts`; `src/lib/jovy/contacts.ts`; `src/workflows/jovy-contacts/contact.ts` |
 | Configuración del hero | `apps/backend/src/api/admin/jovy/marketing/hero/settings/route.ts:6-19` |
 | Subida de imágenes | `apps/backend/src/api/admin/jovy/marketing/media/route.ts:10-45` |
 | Tipos de evento | `apps/backend/src/api/admin/jovy/events/types/route.ts`; `src/api/admin/jovy/events/types/[id]/route.ts` |
@@ -380,9 +387,14 @@ configuración puntual.
 - Formulario público con límite de tamaño, rate limit básico y honeypot; las
   respuestas del honeypot no persisten. El `429` envía `Retry-After` con los
   segundos restantes; la cuota no se consume en errores de validación `400`.
-- Listado administrativo de contactos paginado (`limit` 1–100, `offset`,
-  orden `created_at DESC, id DESC`) con filtros `status`, `contact_type` y `q`
-  resueltos en SQL; `%` y `_` se escapan para que la búsqueda sea literal.
+- Listado administrativo de contactos paginado (`limit` solo `10`, `20` o `50`,
+  por defecto `20`; `offset`; orden `created_at DESC, id DESC`) con filtros
+  `status`, `contact_type`, `q`, `date_from` y `date_to` resueltos en SQL; `%` y
+  `_` se escapan para que la búsqueda sea literal.
+- Exportación CSV acotada a una bandeja y 5 000 filas, con escaping de fórmulas,
+  UTF-8 con BOM, CRLF y `Cache-Control: no-store`. La auditoría de la descarga
+  queda en el logger, sin PII ni término de búsqueda.
+- Restore de contactos idempotente y auditado con `action: "restore"`.
 - Auditoría de contactos con whitelist: solo `status` y `contact_type`, sin
   mensaje, email ni teléfonos.
 - Subida de imágenes con verificación de bytes mágicos, decodificación con

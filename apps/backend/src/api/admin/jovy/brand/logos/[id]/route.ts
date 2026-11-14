@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { getAdminActorId } from "@jovy/lib/jovy/audit"
 import { logoInputSchema, updateLogoInputSchema } from "@jovy/lib/jovy/brand"
+import { resolveStoredLogoFamilies } from "@jovy/lib/jovy/brand-family"
 import { JOVY_BRAND_MODULE } from "@jovy/modules/jovy-brand"
 import { deleteBrandWorkflow, saveLogoWorkflow } from "@jovy/workflows/jovy-brand/brand"
 
@@ -16,11 +17,17 @@ async function current(req: MedusaRequest, res: MedusaResponse) {
 }
 
 async function responseLogo(req: MedusaRequest, logo: Record<string, unknown>) {
+  let media_url: string | null = null
   try {
     const files = req.scope.resolve(Modules.FILE)
-    return { ...logo, media_url: (await files.retrieveFile(logo.media_file_id as string)).url }
+    media_url = (await files.retrieveFile(logo.media_file_id as string)).url
   } catch {
-    return { ...logo, media_url: null }
+    // Un archivo local ausente degrada a `null`; no expone el error de storage.
+  }
+  return {
+    ...logo,
+    media_url,
+    ...await resolveStoredLogoFamilies(req.scope, logo as { id: string; families?: string[] | null; families_linked?: boolean | null }),
   }
 }
 
@@ -39,6 +46,8 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     name: patch.data.name ?? logo.name,
     alt: patch.data.alt !== undefined ? patch.data.alt : logo.alt,
     families: patch.data.families !== undefined ? patch.data.families : logo.families,
+    // Ausente conserva la relación actual; presente la reemplaza.
+    ...(patch.data.family_ids !== undefined ? { family_ids: patch.data.family_ids } : {}),
     media_file_id: patch.data.media_file_id ?? logo.media_file_id,
     crop: patch.data.crop !== undefined ? patch.data.crop : logo.crop,
     enabled: patch.data.enabled ?? logo.enabled,

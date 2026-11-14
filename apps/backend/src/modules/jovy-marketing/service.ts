@@ -1,4 +1,5 @@
 import { MedusaService } from "@medusajs/framework/utils"
+import AnnouncementSettings from "./models/announcement-settings"
 import HeroItem from "./models/hero-item"
 import HeroSettings from "./models/hero-settings"
 import MarketingAuditLog from "./models/audit-log"
@@ -13,6 +14,7 @@ class JovyMarketingModuleService extends MedusaService({
   HeroItem,
   HeroSettings,
   MarketingBanner,
+  AnnouncementSettings,
   MarketingAuditLog,
 }) {
   /**

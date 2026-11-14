@@ -30,6 +30,15 @@ module.exports = defineConfig({
       resolve: "./src/modules/jovy-contacts",
     },
     {
+      resolve: "./src/modules/jovy-catalogue",
+    },
+    {
+      resolve: "./src/modules/jovy-launches",
+    },
+    {
+      resolve: "./src/modules/jovy-product-editorial",
+    },
+    {
       resolve: "@medusajs/medusa/locking",
       options: {
         providers: [
@@ -50,7 +59,11 @@ module.exports = defineConfig({
             id: "local",
             options: {
               upload_dir: "static",
-              backend_url: "http://localhost:9000/static",
+              // El puerto del servidor cambia en E2E (PORT=9001). Sin esta
+              // variable las URLs subidas apuntarían siempre a 9000.
+              backend_url:
+                process.env.FILE_BACKEND_URL ??
+                `http://localhost:${process.env.PORT ?? 9000}/static`,
             },
           },
         ],

@@ -168,6 +168,19 @@ test("administra Hero desde la UI, persiste media/ajustes y reordena hacia la St
       const response = await request.get("/store/jovy/marketing/hero", { headers: storeHeaders })
       return (await response.json()).hero_items.some((item: { id: string }) => item.id === heroA)
     }).toBe(false)
+
+    // Cancelar el Prompt conserva el elemento; confirmar lo elimina lógicamente.
+    const deleteRow = page.locator("li").filter({ hasText: titleA })
+    await deleteRow.getByRole("button", { name: "Eliminar", exact: true }).click()
+    const deletePrompt = page.getByRole("alertdialog")
+    await expect(deletePrompt.getByRole("heading", { name: "Eliminar Hero" })).toBeVisible()
+    await deletePrompt.getByRole("button", { name: "Cancelar", exact: true }).click()
+    await expect(deletePrompt).toHaveCount(0)
+    await expect(deleteRow).toHaveCount(1)
+
+    await deleteRow.getByRole("button", { name: "Eliminar", exact: true }).click()
+    await page.getByRole("alertdialog").getByRole("button", { name: "Eliminar Hero", exact: true }).click()
+    await expect(deleteRow).toHaveCount(0)
   } finally {
     await request.put("/admin/jovy/marketing/hero/settings", { headers, data: { background_color: originalColor } })
     if (heroA) await request.delete(`/admin/jovy/marketing/hero/${heroA}`, { headers })

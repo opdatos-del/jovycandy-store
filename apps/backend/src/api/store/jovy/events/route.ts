@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { compareEventOrder, isEventVisible } from "@jovy/lib/jovy/events"
+import { resolveEventMedia } from "@jovy/lib/jovy/events-media"
 import { JOVY_EVENTS_MODULE } from "@jovy/modules/jovy-events"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
@@ -9,12 +10,29 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const events = (await service.listJovyEvents({}, { order: { priority: "DESC", sort_order: "ASC", starts_at: "ASC", created_at: "ASC" } }))
     .filter((event) => isEventVisible(event))
     .sort(compareEventOrder)
+
+  // El contrato histórico de la web descartaba eventos sin medio al pintar el
+  // carrusel; la agenda sigue devolviéndolos y los identifica con
+  // `media_type: null` para que el storefront decida si los muestra.
   const visibleEvents = await Promise.all(events.map(async (event) => {
-    let media_url: string | null = null
-    if (event.media_file_id) {
-      try { media_url = (await fileModule.retrieveFile(event.media_file_id)).url } catch { /* A missing local laboratory file does not expose an internal error. */ }
+    const media = await resolveEventMedia(fileModule, event.media_file_id)
+
+    return {
+      id: event.id,
+      event_type_id: event.event_type_id,
+      title: event.title,
+      title_en: event.title_en,
+      slug: event.slug,
+      description: event.description,
+      content: event.content,
+      starts_at: event.starts_at,
+      ends_at: event.ends_at,
+      priority: event.priority,
+      sort_order: event.sort_order,
+      media_file_id: event.media_file_id,
+      ...media,
     }
-    return { id: event.id, event_type_id: event.event_type_id, title: event.title, title_en: event.title_en, slug: event.slug, description: event.description, content: event.content, starts_at: event.starts_at, ends_at: event.ends_at, priority: event.priority, sort_order: event.sort_order, media_file_id: event.media_file_id, media_url }
   }))
+
   res.json({ events: visibleEvents })
 }

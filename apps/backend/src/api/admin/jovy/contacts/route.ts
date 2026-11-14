@@ -1,5 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { contactListFilters, contactListQuerySchema } from "@jovy/lib/jovy/contacts"
+import {
+  contactListFilters,
+  contactListQuerySchema,
+  contactListWithDeleted,
+} from "@jovy/lib/jovy/contacts"
 import { JOVY_CONTACTS_MODULE } from "@jovy/modules/jovy-contacts"
 import JovyContactsModuleService from "@jovy/modules/jovy-contacts/service"
 
@@ -12,7 +16,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   // stable across concurrent inserts: new rows can shift a page boundary.
   const [contacts, count] = await service.listAndCountJovyContactRequests(
     contactListFilters(parsed.data),
-    { take: limit, skip: offset, order: { created_at: "DESC", id: "DESC" } },
+    {
+      take: limit,
+      skip: offset,
+      order: { created_at: "DESC", id: "DESC" },
+      // The trash view is the only one that reads soft-deleted rows.
+      ...(contactListWithDeleted(parsed.data) ? { withDeleted: true } : {}),
+    },
   )
   res.json({ contacts, count, limit, offset })
 }

@@ -38,3 +38,4 @@ apps/storefront/pnpm-workspace.yaml
 # Medusa file-local uploads (runtime content, not source).
 apps/backend/static/
 .serena
+.playwright-mcp/

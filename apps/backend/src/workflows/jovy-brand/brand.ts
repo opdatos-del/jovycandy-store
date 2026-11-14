@@ -24,6 +24,7 @@ type LogoInput = {
   name: string
   alt?: string | null
   families?: string[] | null
+  family_ids?: string[]
   media_file_id: string
   crop?: { zoom: number; offset_x: number; offset_y: number } | null
   enabled: boolean
@@ -60,7 +61,7 @@ const saveLogoStep = createStep("save-logo", async (input: LogoInput, { containe
     entity_type: "logo",
     entity_id: logo.id,
     action: input.action,
-    metadata: { slug: logo.slug, enabled: logo.enabled, families: logo.families },
+    metadata: { slug: logo.slug, enabled: logo.enabled, families: logo.families, family_ids: input.family_ids ?? null },
   })
   return new StepResponse(logo, logo.id)
 })
@@ -103,8 +104,15 @@ const deleteBrandStep = createStep("delete-brand", async (input: { entity: "gall
   const service = container.resolve(JOVY_BRAND_MODULE)
   const locking = container.resolve(Modules.LOCKING)
   await locking.execute(input.entity === "gallery" ? GALLERY_VISIBILITY_LOCK : LOGO_LOCK, async () => {
-    if (input.entity === "gallery") await service.deleteJovyGalleryItems(input.id)
-    else await service.deleteLogo(input.id)
+    if (input.entity === "gallery") {
+      await service.deleteJovyGalleryItems(input.id)
+      return
+    }
+    // La tabla de vínculos no tiene FK al logo: se borra primero para no dejar
+    // filas huérfanas cuando el logo desaparece.
+    const relations = await service.listLogoFamilies({ logo_id: input.id })
+    if (relations.length) await service.deleteLogoFamilies(relations.map((relation) => relation.id))
+    await service.deleteLogo(input.id)
   })
   await service.createJovyBrandAuditLogs({
     actor_id: input.actor_id,

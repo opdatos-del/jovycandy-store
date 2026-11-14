@@ -55,7 +55,9 @@ export const saveEventWorkflow = createWorkflow("save-event", (input: EventData)
 const deleteEventStep = createStep("delete-event", async (input: { id: string; actor_id: string | null }, { container }) => {
   const service = container.resolve(JOVY_EVENTS_MODULE)
   await service.createJovyEventAuditLogs({ actor_id: input.actor_id, entity_id: input.id, action: "delete" })
-  await service.deleteJovyEvents(input.id)
+  // La UI y los documentos prometen borrado lógico: conserva la fila y su
+  // `deleted_at` en lugar de eliminar el registro y romper la auditoría.
+  await service.softDeleteJovyEvents(input.id)
   return new StepResponse({ id: input.id })
 })
 

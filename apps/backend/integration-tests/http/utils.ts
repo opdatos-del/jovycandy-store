@@ -45,16 +45,40 @@ export async function createAdminSession(container: MedusaContainer, api: TestAp
     protocol: "https",
   })
 
-  const authIdentity = registration.authIdentity
+  // El runner reutiliza la base entre corridas: si una sesión anterior dejó la
+  // identidad o el usuario, `register`/`createUsers` fallan y todas las pruebas
+  // del suite caen en `beforeAll`. Reutilizamos esas entidades en lugar de
+  // asumir una base limpia, sin tocar el comportamiento del contrato probado.
+  let authIdentity = registration.authIdentity as
+    | { id: string }
+    | undefined
   if (!authIdentity) {
-    throw new MedusaError(MedusaError.Types.INVALID_DATA, "No se pudo registrar la identidad de prueba")
+    // El email vive en la identidad del proveedor, no en `auth_identity`.
+    const providerIdentities = (await authModule.listProviderIdentities({
+      provider: "emailpass",
+      entity_id: ADMIN_EMAIL,
+    })) as Array<{ auth_identity_id: string }>
+    const existing = providerIdentities[0]
+    if (existing) {
+      authIdentity = { id: existing.auth_identity_id }
+    }
   }
 
-  const user = await userModule.createUsers({
-    email: ADMIN_EMAIL,
-    first_name: "Integration",
-    last_name: "Admin",
-  })
+  if (!authIdentity) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `No se pudo registrar la identidad de prueba: ${String((registration as { error?: unknown }).error ?? "sin detalle")}`
+    )
+  }
+
+  const existingUsers = await userModule.listUsers({ email: ADMIN_EMAIL })
+  const user =
+    existingUsers[0] ??
+    (await userModule.createUsers({
+      email: ADMIN_EMAIL,
+      first_name: "Integration",
+      last_name: "Admin",
+    }))
 
   await authModule.updateAuthIdentities({
     id: authIdentity.id,

@@ -45,6 +45,7 @@ moduleIntegrationTestRunner<JovyContactsModuleService>({
         take,
         skip,
         order: { created_at: "DESC", id: "DESC" },
+        ...(query.status === "deleted" ? { withDeleted: true } : {}),
       }) as unknown as ContactRow[]
     }
 
@@ -115,6 +116,32 @@ moduleIntegrationTestRunner<JovyContactsModuleService>({
         expect(await list({ q: "%" })).toHaveLength(1)
         expect(await list({ q: "_" })).toHaveLength(0)
       })
+
+      it("busca por teléfono con separadores, ciudad y código postal", async () => {
+        const target = await createContact({
+          first_name: "Luz",
+          phone: "+52 55 1234 5678",
+          city: "Guadalajara",
+          postal_code: "44100",
+          country: "México",
+        })
+        await createContact({ first_name: "Otro", phone: "+1 415 000 0000", city: "Austin", postal_code: "73301" })
+
+        expect((await list({ q: "55 1234" })).map((contact) => contact.id)).toEqual([target.id])
+        expect((await list({ q: "551234" })).map((contact) => contact.id)).toEqual([target.id])
+        expect((await list({ q: "guadalajara" })).map((contact) => contact.id)).toEqual([target.id])
+        expect((await list({ q: "44100" })).map((contact) => contact.id)).toEqual([target.id])
+        expect((await list({ q: "méxico" })).map((contact) => contact.id)).toEqual([target.id])
+      })
+
+      it("filtra por rango de fechas ISO", async () => {
+        const inside = await createContact()
+        const before = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+        const today = new Date().toISOString().slice(0, 10)
+
+        expect((await list({ date_from: today })).map((contact) => contact.id)).toContain(inside.id)
+        expect(await list({ date_to: new Date(before.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10) })).toHaveLength(0)
+      })
     })
 
     describe("borrado lógico", () => {
@@ -125,6 +152,23 @@ moduleIntegrationTestRunner<JovyContactsModuleService>({
         expect(await list({})).toHaveLength(0)
         const rows = await service.listJovyContactRequests({ id: contact.id }, { withDeleted: true })
         expect(rows).toHaveLength(1)
+      })
+
+      it("la vista de papelera sólo devuelve borrados y la restauración los devuelve", async () => {
+        const live = await createContact()
+        const removed = await createContact()
+        await service.softDeleteJovyContactRequests(removed.id)
+
+        const trash = await list({ status: "deleted" })
+        expect(trash.map((contact) => contact.id)).toEqual([removed.id])
+
+        await service.restoreJovyContactRequests(removed.id)
+        expect(await list({ status: "deleted" })).toHaveLength(0)
+        expect((await list({})).map((contact) => contact.id).sort()).toEqual([live.id, removed.id].sort())
+
+        // Restaurar dos veces no falla ni duplica la fila.
+        await service.restoreJovyContactRequests(removed.id)
+        expect(await service.listJovyContactRequests({ id: removed.id }, { withDeleted: true })).toHaveLength(1)
       })
     })
 
@@ -155,6 +199,30 @@ moduleIntegrationTestRunner<JovyContactsModuleService>({
         expect(serialized).not.toContain(contact.email)
         expect(serialized).not.toContain(contact.message)
         expect(serialized).not.toContain(contact.first_name)
+      })
+
+      it("acepta las acciones de restauración y edición sin valores personales", async () => {
+        const contact = await createContact()
+        await service.createJovyContactAuditLogs({
+          actor_id: "usr_123",
+          contact_request_id: contact.id,
+          action: "restore",
+          metadata: contactAuditMetadata("restore", contact),
+        })
+        await service.createJovyContactAuditLogs({
+          actor_id: "usr_123",
+          contact_request_id: contact.id,
+          action: "update",
+          metadata: contactAuditMetadata("update", contact, ["email", "phone"]),
+        })
+
+        const logs = await service.listJovyContactAuditLogs({ contact_request_id: contact.id }, { order: { created_at: "ASC" } })
+        expect(logs.map((log) => log.action)).toEqual(["restore", "update"])
+        expect(logs[1].metadata).toEqual({ fields: ["email", "phone"] })
+        const serialized = JSON.stringify(logs)
+        expect(serialized).not.toContain(contact.email)
+        expect(serialized).not.toContain(contact.first_name)
+        expect(serialized).not.toContain(contact.message)
       })
     })
   },

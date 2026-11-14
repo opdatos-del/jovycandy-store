@@ -6,14 +6,16 @@ import { JOVY_BRAND_MODULE } from "@jovy/modules/jovy-brand"
 import JovyBrandAuditLog from "@jovy/modules/jovy-brand/models/audit-log"
 import JovyGalleryItem from "@jovy/modules/jovy-brand/models/gallery-item"
 import JovyBrandLogo from "@jovy/modules/jovy-brand/models/logo"
+import JovyBrandLogoFamily from "@jovy/modules/jovy-brand/models/logo-family"
 import type JovyBrandModuleService from "@jovy/modules/jovy-brand/service"
+import { JOVY_CATALOGUE_MODULE } from "@jovy/modules/jovy-catalogue"
 
 jest.setTimeout(60_000)
 
 const TEST_DATABASE = "medusa-jovy-brand-integration"
 
 type GalleryRow = { id: string; media_file_id: string; status: string; enabled: boolean; title: string | null }
-type LogoRow = { id: string; media_file_id: string; crop: unknown }
+type LogoRow = { id: string; name: string; media_file_id: string; crop: unknown; families_linked: boolean; families: string[] | null }
 type LockingPort = { execute: <T>(keys: string | string[], job: () => Promise<T>) => Promise<T> }
 
 const fileModule = {
@@ -23,6 +25,20 @@ const fileModule = {
   }),
   deleteFiles: jest.fn(async () => undefined),
   createFiles: jest.fn(async (data: Record<string, unknown>) => ({ id: "created", ...data })),
+}
+
+/**
+ * El catálogo es otro módulo: aquí se inyecta un doble mínimo para validar la
+ * selección de familias sin bootear el módulo completo. La prueba HTTP cubre el
+ * camino real contra `jovy-catalogue`.
+ */
+const catalogueFamilies = [
+  { id: "fam_chamoy", slug: "chamoy", name: "Chamoy", active: true },
+  { id: "fam_pinatero", slug: "pinatero", name: "Piñatero", active: true },
+  { id: "fam_retirada", slug: "retirada", name: "Retirada", active: false },
+]
+const catalogueModule = {
+  listProductFamilies: jest.fn(async () => catalogueFamilies),
 }
 
 /**
@@ -48,10 +64,14 @@ function label(name: string) {
 
 moduleIntegrationTestRunner<JovyBrandModuleService>({
   moduleName: JOVY_BRAND_MODULE,
-  moduleModels: [JovyBrandLogo, JovyGalleryItem, JovyBrandAuditLog],
+  moduleModels: [JovyBrandLogo, JovyGalleryItem, JovyBrandLogoFamily, JovyBrandAuditLog],
   resolve: "./src/modules/jovy-brand",
   dbName: TEST_DATABASE,
-  injectedDependencies: { [Modules.LOCKING]: locking, [Modules.FILE]: fileModule },
+  injectedDependencies: {
+    [Modules.LOCKING]: locking,
+    [Modules.FILE]: fileModule,
+    [JOVY_CATALOGUE_MODULE]: catalogueModule,
+  },
   testSuite: ({ medusaApp, service, dbConfig }) => {
     const scope = () => medusaApp.sharedContainer as unknown as { resolve: (key: string) => unknown }
 
@@ -201,6 +221,63 @@ moduleIntegrationTestRunner<JovyBrandModuleService>({
         })
         expect(fileModule.deleteFiles).not.toHaveBeenCalled()
         expect(fileModule.createFiles).not.toHaveBeenCalled()
+      })
+    })
+
+    describe("familias reales del logo", () => {
+      const logoInput = (overrides: Partial<Parameters<typeof persistLogoItem>[1]>) => ({
+        slug: label("logo-familias"),
+        name: "Logo familias",
+        media_file_id: "media-logo",
+        enabled: true,
+        sort_order: 0,
+        ...overrides,
+      })
+
+      async function relationIds(logoId: string) {
+        return (await service.listLogoFamilies({ logo_id: logoId })).map((row) => row.family_id).sort()
+      }
+
+      it("asocia familias canónicas, reemplaza la selección y permite vaciarla", async () => {
+        const logo = (await persistLogoItem(scope(), logoInput({ family_ids: ["fam_chamoy", "fam_pinatero"] }))) as unknown as LogoRow
+
+        expect(logo.families_linked).toBe(true)
+        expect(await relationIds(logo.id)).toEqual(["fam_chamoy", "fam_pinatero"])
+
+        await persistLogoItem(scope(), logoInput({ id: logo.id, name: logo.name, family_ids: ["fam_pinatero"] }))
+        expect(await relationIds(logo.id)).toEqual(["fam_pinatero"])
+
+        const cleared = (await persistLogoItem(scope(), logoInput({ id: logo.id, name: logo.name, family_ids: [] }))) as unknown as LogoRow
+        expect(cleared.families_linked).toBe(true)
+        expect(await relationIds(logo.id)).toEqual([])
+      })
+
+      it("rechaza familias inexistentes o inactivas antes de escribir", async () => {
+        await expect(
+          persistLogoItem(scope(), logoInput({ family_ids: ["fam_inexistente"] })),
+        ).rejects.toMatchObject({
+          type: MedusaError.Types.INVALID_DATA,
+          message: "Una o más familias seleccionadas no existen",
+        })
+        await expect(
+          persistLogoItem(scope(), logoInput({ family_ids: ["fam_retirada"] })),
+        ).rejects.toMatchObject({
+          type: MedusaError.Types.INVALID_DATA,
+          message: "Una o más familias seleccionadas están inactivas",
+        })
+
+        expect(await service.listLogos({})).toHaveLength(0)
+        expect(await service.listLogoFamilies({})).toHaveLength(0)
+      })
+
+      it("conserva el array legado cuando la escritura no envía family_ids", async () => {
+        const logo = (await persistLogoItem(scope(), logoInput({
+          families: ["chamoy", "corporativa"],
+        }))) as unknown as LogoRow
+
+        expect(logo.families_linked).toBe(false)
+        expect(logo.families).toEqual(["chamoy", "corporativa"])
+        expect(await relationIds(logo.id)).toEqual([])
       })
     })
 

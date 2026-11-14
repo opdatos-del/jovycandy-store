@@ -112,9 +112,17 @@ test("administra el ciclo de vida completo de una página DEMO", async ({ page, 
       "archive",
     ])
 
-    page.once("dialog", (dialog) => dialog.accept())
-    await pageRow.getByRole("button", { name: "Eliminar" }).click()
-    await expect(pageRow).toHaveCount(0)
+    const deleteRow = page.locator("li").filter({ hasText: runId })
+    await deleteRow.getByRole("button", { name: "Eliminar" }).click()
+    const deletePrompt = page.getByRole("alertdialog")
+    await expect(deletePrompt.getByRole("heading", { name: "Eliminar página" })).toBeVisible()
+    await deletePrompt.getByRole("button", { name: "Cancelar", exact: true }).click()
+    await expect(deletePrompt).toHaveCount(0)
+    await expect(deleteRow).toHaveCount(1)
+
+    await deleteRow.getByRole("button", { name: "Eliminar" }).click()
+    await page.getByRole("alertdialog").getByRole("button", { name: "Eliminar página", exact: true }).click()
+    await expect(deleteRow).toHaveCount(0)
 
     const deletedAudit = await request.get(`/admin/jovy/content/pages/${created!.id}/audit`, { headers })
     expect(deletedAudit.status()).toBe(200)

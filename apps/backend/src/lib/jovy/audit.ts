@@ -24,10 +24,13 @@ export function auditPageMutation(
   }
 }
 
-export type ContactAuditAction = "create" | "status" | "note" | "delete"
+export type ContactAuditAction = "create" | "status" | "note" | "delete" | "restore" | "update"
 
-/** Only non-identifying operational fields; message, email, phone and notes stay out. */
-export type ContactAuditMetadata = { contact_type?: string; status?: string }
+/**
+ * Only non-identifying operational fields; message, email, phone and notes stay
+ * out. `fields` lists the column names that changed, never their values.
+ */
+export type ContactAuditMetadata = { contact_type?: string; status?: string; fields?: string[] }
 
 /**
  * Whitelists the audit payload for contact requests. It takes the whole record so
@@ -36,6 +39,7 @@ export type ContactAuditMetadata = { contact_type?: string; status?: string }
 export function contactAuditMetadata(
   action: ContactAuditAction,
   contact: { status?: string | null; contact_type?: string | null },
+  fields: readonly string[] = [],
 ): ContactAuditMetadata | undefined {
   if (action === "create") {
     return {
@@ -43,6 +47,12 @@ export function contactAuditMetadata(
       status: contact.status ?? undefined,
     }
   }
-  if (action === "status" || action === "delete") return { status: contact.status ?? undefined }
+  if (action === "status" || action === "delete" || action === "restore") {
+    return { status: contact.status ?? undefined }
+  }
+  if (action === "update") {
+    // Unknown or empty field lists are not worth an audit entry.
+    return fields.length > 0 ? { fields: [...fields].sort() } : undefined
+  }
   return undefined
 }
