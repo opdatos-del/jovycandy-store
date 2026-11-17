@@ -94,18 +94,19 @@ test("vincula un logo a familias reales filtradas por categoría y las sirve en 
       families.push((await response.json()).family)
     }
 
-    await page.goto("/app/jovy/brand")
-    await page.getByRole("button", { name: "Logos" }).click()
-    await expect(page.getByRole("heading", { name: "Logos", exact: true })).toBeVisible()
+    await page.goto("/app/jovy/logos")
+    await expect(page.getByRole("heading", { name: "Logos", exact: true, level: 1 })).toBeVisible()
     await page.getByRole("button", { name: "Nuevo logo" }).click()
 
     await page.getByLabel("Slug logo").fill(`logo-${runId}`)
     await page.getByLabel("Nombre logo").fill(`Logo ${runId}`)
     await page.getByLabel("Archivo de logo").setInputFiles({ name: "logo-familias.png", mimeType: "image/png", buffer: png })
     await expect(page.getByAltText(`Logo ${runId}`)).toBeVisible()
-    const zoom = page.getByLabel("Zoom logo")
+    await page.getByTestId("logo-crop-open").click()
+    const zoom = page.getByTestId("logo-crop-zoom-slider")
     await zoom.focus()
     for (let step = 0; step < 5; step += 1) await zoom.press("ArrowRight")
+    await page.getByTestId("logo-crop-apply").click()
 
     // El selector de categoría filtra las familias con el endpoint del catálogo.
     await page.getByLabel("Categoría de familias").selectOption("sazonador")
@@ -128,13 +129,14 @@ test("vincula un logo a familias reales filtradas por categoría y las sirve en 
 
     // Persistencia tras recargar: la selección real vuelve marcada.
     await page.reload()
-    await page.getByRole("button", { name: "Logos" }).click()
     const row = page.locator("article").filter({ hasText: `Logo ${runId}` })
     await row.getByRole("button", { name: "Editar" }).click()
     await expect(page.getByLabel(`Familia ${names[0]}`)).toBeChecked()
     await expect(page.getByLabel(`Familia ${names[1]}`)).toBeChecked()
     await expect(page.getByLabel(`Familia ${names[2]}`)).not.toBeChecked()
-    await expect(page.getByLabel("Zoom logo")).toHaveValue("1.25")
+    await page.getByTestId("logo-crop-open").click()
+    await expect(page.getByTestId("logo-crop-zoom-slider")).toHaveValue("1.25")
+    await page.getByTestId("logo-crop-cancel").click()
     await page.screenshot({ path: ".test-results/audit-visual/logos/families-edit.png", fullPage: true })
 
     // Store: el logo aparece para las familias asociadas (id o slug) y no para otra.

@@ -9,5 +9,5 @@ const ContactsPage = () => (
   />
 )
 
-export const config = defineRouteConfig({ label: "Contactos Jovy", icon: Envelope, rank: 50 })
+export const config = defineRouteConfig({ label: "Contactos Jovy", icon: Envelope, rank: 5 })
 export default ContactsPage

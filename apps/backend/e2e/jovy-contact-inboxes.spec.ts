@@ -27,9 +27,9 @@ function screenshot(name: string) {
 test.setTimeout(300_000)
 
 const INBOXES = [
-  { type: "national-sales", label: "Ventas nacionales", path: "/app/jovy/contacts-national-sales" },
-  { type: "international-sales", label: "Ventas internacionales", path: "/app/jovy/contacts-international-sales" },
-  { type: "customer-service", label: "Atención al cliente", path: "/app/jovy/contacts-customer-service" },
+  { type: "national-sales", label: "Ventas Nacionales", path: "/app/jovy/contacts-national-sales" },
+  { type: "international-sales", label: "Ventas Internacionales", path: "/app/jovy/contacts-international-sales" },
+  { type: "customer-service", label: "Atención al Cliente", path: "/app/jovy/contacts-customer-service" },
   { type: "catalogue", label: "Catálogo", path: "/app/jovy/contacts-catalogue" },
 ] as const
 
@@ -74,7 +74,7 @@ function intakeHeaders(index: number) {
   const seed = Math.floor(Date.now() / 1000) % 200
   return {
     "x-publishable-api-key": store.MEDUSA_PUBLISHABLE_API_KEY,
-    "x-forwarded-for": `198.51.100.${((seed + index * 7) % 200) + 20}`,
+    "x-forwarded-for": `198.51.101.${((seed + index * 7) % 200) + 20}`,
   }
 }
 
@@ -249,7 +249,7 @@ test("replica las bandejas históricas con filtros, modales, papelera y exportac
 
     // Columnas históricas exactas, con la fecha y la hora en la misma celda.
     await page.goto(INBOXES[0].path)
-    await expect(page.getByRole("heading", { name: "Ventas nacionales", exact: true, level: 1 })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Ventas Nacionales", exact: true, level: 1 })).toBeVisible()
     expect(await page.locator("thead th").allInnerTexts()).toEqual([
       "Fecha",
       "Cliente",
@@ -539,7 +539,7 @@ test("replica las bandejas históricas con filtros, modales, papelera y exportac
 
     // Persistencia tras recarga.
     await page.reload()
-    await expect(page.getByRole("heading", { name: "Ventas nacionales", exact: true, level: 1 })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Ventas Nacionales", exact: true, level: 1 })).toBeVisible()
     await search(page, runId)
     await expect(rows(page)).toHaveCount(12)
     await expect(page.locator("tbody")).toContainText(newEmail)

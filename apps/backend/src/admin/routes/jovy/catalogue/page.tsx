@@ -33,6 +33,8 @@ const CataloguePage = () => {
   const [uploading, setUploading] = useState(false)
   const [reordering, setReordering] = useState(false)
   const [seeding, setSeeding] = useState(false)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [toggleError, setToggleError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -188,6 +190,47 @@ const CataloguePage = () => {
     }
   }
 
+  /**
+   * Alterna Próximamente desde la tarjeta. Aplica la misma regla histórica que
+   * el formulario: marcar deja la categoría inactiva y bloqueada; desmarcar la
+   * reactiva y libera la interacción. Cancelar la confirmación no muta nada.
+   */
+  const toggleComingSoon = async (category: CatalogueCategory) => {
+    const comingSoon = !category.coming_soon
+    const confirmed = await prompt({
+      title: comingSoon ? "Marcar como Próximamente" : "Quitar Próximamente",
+      description: comingSoon
+        ? "La categoría quedará como Próximamente, inactiva y sin interacción en Store."
+        : "La categoría volverá a estar activa y con interacción libre en Store.",
+      confirmText: "Confirmar",
+      cancelText: "Cancelar",
+    })
+    if (!confirmed) return
+
+    setTogglingId(category.id)
+    setToggleError(null)
+    try {
+      await adminRequest(`/admin/jovy/catalogue/categories/${category.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          coming_soon: comingSoon,
+          active: !comingSoon,
+          interaction_locked: comingSoon,
+        }),
+      })
+      toast.success(
+        comingSoon ? "Categoría marcada como Próximamente." : "Categoría reactivada en Store.",
+      )
+      await load()
+    } catch (error) {
+      const message = errorMessage(error, "No se pudo cambiar el estado de la categoría.")
+      setToggleError(message)
+      toast.error(message)
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
   const move = async (index: number, direction: -1 | 1) => {
     const target = index + direction
     if (target < 0 || target >= categories.length) return
@@ -284,6 +327,11 @@ const CataloguePage = () => {
             {sideWarning}
           </Text>
         )}
+        {toggleError && (
+          <Text size="small" role="alert" className="text-ui-fg-error mt-3">
+            {toggleError}
+          </Text>
+        )}
       </Container>
 
       {loading && categories.length === 0 ? (
@@ -341,8 +389,10 @@ const CataloguePage = () => {
                   families={categoryFamilies}
                   medusaCategories={medusaCategories}
                   reordering={reordering}
+                  comingSoonPending={togglingId === category.id}
                   onEdit={() => startEditing(category)}
                   onMove={(direction) => void move(index, direction)}
+                  onToggleComingSoon={() => void toggleComingSoon(category)}
                 />
               )
             })}
@@ -376,9 +426,9 @@ const CataloguePage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Categorías del catálogo",
+  label: "Categorías",
   icon: Tag,
-  rank: 60,
+  rank: 3,
 })
 
 export default CataloguePage

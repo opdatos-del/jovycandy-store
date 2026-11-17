@@ -20,7 +20,7 @@ export function RequestsSection({ contacts }: { contacts: JovyDashboard["contact
           </Text>
         </div>
         <a
-          href={adminHref("/jovy/contacts")}
+          href={adminHref("/jovy-herramientas/contacts")}
           className="text-ui-fg-interactive focus-visible:ring-ui-border-interactive rounded-sm text-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none"
         >
           Abrir bandeja de contactos
@@ -122,19 +122,19 @@ export function PendingSection({ pending }: { pending: JovyDashboard["pending"] 
       <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-3">
         <PendingList
           title="Contenido"
-          to="/jovy/content"
+          to="/jovy-herramientas/content"
           items={pending.content}
           empty="Sin páginas en borrador."
         />
         <PendingList
           title="Marketing"
-          to="/jovy/marketing"
+          to="/jovy-herramientas/marketing"
           items={pending.marketing}
           empty="Sin hero ni banners en borrador."
         />
         <PendingList
           title="Eventos"
-          to="/jovy/events"
+          to="/jovy-herramientas/events"
           items={pending.events}
           empty="Sin eventos en borrador."
         />

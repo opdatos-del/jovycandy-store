@@ -1,6 +1,7 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { launchAssetIssues, type LaunchInput } from "@jovy/lib/jovy/launches"
+import { assertImageFile, type ImageFileLookup } from "@jovy/lib/jovy/media"
 import { JOVY_LAUNCHES_MODULE } from "@jovy/modules/jovy-launches"
 
 type LaunchData = LaunchInput & { id?: string }
@@ -22,6 +23,12 @@ const saveLaunchStep = createStep("save-launch", async (input: LaunchData, { con
       filters: { id: data.product_id },
     })
     if (!products.length) throw new MedusaError(MedusaError.Types.NOT_FOUND, "Producto comercial no encontrado")
+  }
+
+  // `null` es una limpieza explícita; cualquier id efectivo debe existir y ser
+  // una imagen, incluso si llega heredado de una fila anterior.
+  if (data.image_file_id) {
+    await assertImageFile(container.resolve(Modules.FILE) as ImageFileLookup, data.image_file_id)
   }
 
   const launch = id

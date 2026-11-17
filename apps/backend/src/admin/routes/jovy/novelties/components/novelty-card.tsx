@@ -1,5 +1,5 @@
 import { Badge, Button, Heading, Input, Text } from "@medusajs/ui"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   MEDIA_COLOR,
   MEDIA_LABEL,
@@ -56,6 +56,7 @@ export const NoveltyCard = ({
 }: Props) => {
   const [priority, setPriority] = useState(String(event.priority))
   const [sortOrder, setSortOrder] = useState(String(event.sort_order))
+  const mediaInput = useRef<HTMLInputElement>(null)
   const titleId = `novelty-title-${event.id}`
   const status = STATUS_META[event.status]
   const orderDirty =
@@ -165,8 +166,8 @@ export const NoveltyCard = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
+        <div className="grid grid-cols-1 gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
             <label className="text-ui-fg-subtle text-xs" htmlFor={`novelty-priority-${event.id}`}>
               Prioridad
             </label>
@@ -179,10 +180,10 @@ export const NoveltyCard = ({
               value={priority}
               disabled={busy}
               onChange={(changeEvent) => setPriority(changeEvent.target.value)}
-              className="w-20"
+              className="w-full"
             />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-1">
             <label className="text-ui-fg-subtle text-xs" htmlFor={`novelty-order-${event.id}`}>
               Orden
             </label>
@@ -194,7 +195,7 @@ export const NoveltyCard = ({
               value={sortOrder}
               disabled={busy}
               onChange={(changeEvent) => setSortOrder(changeEvent.target.value)}
-              className="w-20"
+              className="w-full"
             />
           </div>
           <Button
@@ -202,6 +203,7 @@ export const NoveltyCard = ({
             variant="secondary"
             isLoading={busy}
             disabled={!orderDirty}
+            className="w-full"
             onClick={() =>
               onSaveOrder({
                 priority: toNumber(priority, event.priority),
@@ -238,14 +240,29 @@ export const NoveltyCard = ({
 
         <div className="border-ui-border-base flex flex-col gap-2 border-t pt-3">
           <div className="flex flex-col gap-1">
-            <label className="text-ui-fg-subtle text-xs" htmlFor={`novelty-media-${event.id}`}>
+            <span className="text-ui-fg-subtle text-xs" id={`novelty-media-label-${event.id}`}>
               {event.media_file_id ? "Reemplazar multimedia" : "Añadir multimedia"}
-            </label>
-            <Input
+            </span>
+            <Button
+              type="button"
+              size="small"
+              variant="secondary"
+              className="w-full"
+              aria-label={`Multimedia de ${event.title}`}
+              aria-describedby={`novelty-media-label-${event.id}`}
+              disabled={busy}
+              onClick={() => mediaInput.current?.click()}
+            >
+              {event.media_file_id ? "Elegir archivo" : "Añadir archivo"}
+            </Button>
+            <input
+              ref={mediaInput}
               id={`novelty-media-${event.id}`}
               type="file"
               accept={NOVELTY_MEDIA_ACCEPT}
-              aria-label={`Multimedia de ${event.title}`}
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
               disabled={busy}
               onClick={(changeEvent) => {
                 changeEvent.currentTarget.value = ""
@@ -270,7 +287,7 @@ export const NoveltyCard = ({
               Editar novedad
             </Button>
             <Button asChild size="small" variant="secondary">
-              <a href={`/app/jovy/events?event=${encodeURIComponent(event.id)}`}>Editar este evento</a>
+              <a href={`/app/jovy-herramientas/events?event=${encodeURIComponent(event.id)}`}>Editar este evento</a>
             </Button>
           </div>
 

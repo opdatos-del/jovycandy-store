@@ -432,12 +432,16 @@ medusaIntegrationTestRunner({
       expect(response.status).toBe(200)
       expect(response.headers["content-type"]).toContain("text/csv")
       expect(response.headers["cache-control"]).toBe("no-store")
+      // Bruno + Eva: el mensaje multilínea no infla el conteo.
+      expect(response.headers["x-export-count"]).toBe("2")
 
       expect([...Buffer.from(response.data).subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf])
       const csv = csvText(response)
       expect(csv.startsWith("ID,Tipo,Nombre,Apellido,Email,Teléfono,País,Ciudad,CP,Mensaje,Creado")).toBe(true)
       expect(csv).toContain('"Eva, ""Export"""')
       expect(csv).toContain('"Mensaje con coma, ""comillas"" y salto')
+      // La fila de Eva ocupa dos líneas físicas: contar líneas daría 3, no 2.
+      expect(csv.trimEnd().split(/\r?\n/).length - 1).toBe(3)
       // Sólo la bandeja solicitada.
       expect(csv).toContain("bruno.catalogo@example.test")
       expect(csv).toContain("eva.export@example.test")

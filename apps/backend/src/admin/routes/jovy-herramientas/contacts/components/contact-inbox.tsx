@@ -20,6 +20,7 @@ import {
   newContactIds,
   normalizeContactLimit,
   paginationItems,
+  parseExportCount,
   type Contact,
   type ContactAuditLog,
   type ContactCounts,
@@ -585,7 +586,8 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
       window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
 
       const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(buffer)
-      const rows = Math.max(0, text.replace(/^\ufeff/, "").trimEnd().split(/\r?\n/).length - 1)
+      const rows = parseExportCount(response.headers.get("X-Export-Count"))
+        ?? Math.max(0, text.replace(/^\ufeff/, "").trimEnd().split(/\r?\n/).length - 1)
       const message = `CSV exportado: ${rows} ${rows === 1 ? "solicitud" : "solicitudes"} de ${CONTACT_TYPE_LABELS[exportType]}.`
       setNotice(message)
       toast.success(message)

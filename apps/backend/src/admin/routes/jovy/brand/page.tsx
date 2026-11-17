@@ -40,5 +40,5 @@ const BrandPage = () => {
   </div>
 }
 
-export const config = defineRouteConfig({ label: "Marca Jovy", icon: Swatch, rank: 40 })
+export const config = defineRouteConfig({ label: "Casa Jovy Galería", icon: Swatch, rank: 5 })
 export default BrandPage

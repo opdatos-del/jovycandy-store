@@ -33,7 +33,7 @@ const LaunchesPage = () => {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [editing, setEditing] = useState<Launch | null>(null)
-  const [view, setView] = useState<"list" | "form">("list")
+  const [formOpen, setFormOpen] = useState(false)
   const [formVersion, setFormVersion] = useState(0)
   const [saving, setSaving] = useState(false)
   const [reordering, setReordering] = useState(false)
@@ -116,21 +116,21 @@ const LaunchesPage = () => {
     setEditing(null)
     setFormVersion((version) => version + 1)
     setFormError(null)
-    setView("form")
+    setFormOpen(true)
   }
 
   const startEditing = (launch: Launch) => {
     setEditing(launch)
     setFormVersion((version) => version + 1)
     setFormError(null)
-    setView("form")
+    setFormOpen(true)
   }
 
-  const returnToList = () => {
+  const closeForm = () => {
     setEditing(null)
     setFormError(null)
     setFormVersion((version) => version + 1)
-    setView("list")
+    setFormOpen(false)
   }
 
   const saveLaunch = async (draft: LaunchDraft) => {
@@ -151,7 +151,7 @@ const LaunchesPage = () => {
         body: JSON.stringify(payload),
       })
       toast.success(editing ? "Lanzamiento actualizado." : "Lanzamiento creado.")
-      returnToList()
+      closeForm()
       await load()
     } catch (error) {
       setFormError(errorMessage(error, "No se pudo guardar el lanzamiento."))
@@ -266,22 +266,6 @@ const LaunchesPage = () => {
       ? productNames[editing.product_id] ?? { id: editing.product_id, title: editing.product_id }
       : null
 
-  if (view === "form") {
-    return (
-      <LaunchForm
-        key={`${editing?.id ?? "new"}-${formVersion}`}
-        editing={editing}
-        initialProduct={editingProduct}
-        saving={saving}
-        error={formError}
-        onCancel={returnToList}
-        onSubmit={(draft) => void saveLaunch(draft)}
-        onUpload={upload}
-        searchProducts={searchProducts}
-      />
-    )
-  }
-
   return (
     <div className="flex flex-col gap-y-4" data-testid="jovy-launches-page">
       <Container className="p-6">
@@ -298,7 +282,7 @@ const LaunchesPage = () => {
               Actualizar
             </Button>
             <Button size="small" onClick={startNew}>
-              Nuevo lanzamiento
+              Nuevo Slide
             </Button>
           </div>
         </div>
@@ -515,14 +499,27 @@ const LaunchesPage = () => {
         )}
       </Container>
 
+      {formOpen && (
+        <LaunchForm
+          key={`${editing?.id ?? "new"}-${formVersion}`}
+          editing={editing}
+          initialProduct={editingProduct}
+          saving={saving}
+          error={formError}
+          onCancel={closeForm}
+          onSubmit={(draft) => void saveLaunch(draft)}
+          onUpload={upload}
+          searchProducts={searchProducts}
+        />
+      )}
     </div>
   )
 }
 
 export const config = defineRouteConfig({
-  label: "Nuevos lanzamientos",
+  label: "Nuevos Lanzamientos",
   icon: RocketLaunch,
-  rank: 70,
+  rank: 4,
 })
 
 export default LaunchesPage

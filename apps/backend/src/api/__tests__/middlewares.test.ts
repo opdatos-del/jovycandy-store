@@ -1,6 +1,17 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { consumeEventVideoUpload } from "@jovy/lib/jovy/events-media"
+import multer from "multer"
 import middlewares from "../middlewares"
+
+jest.mock("multer", () => {
+  const actual = jest.requireActual("multer") as typeof import("multer")
+  const arrayMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) => next())
+  const factory = jest.fn(() => ({ array: () => arrayMiddleware }))
+  return Object.assign(factory, {
+    MulterError: actual.MulterError,
+    memoryStorage: actual.memoryStorage,
+  })
+})
 
 jest.mock("@jovy/lib/jovy/event-video-upload", () => ({
   // El carril real de `multer` se prueba en `event-video-upload.test.ts`; aquí
@@ -160,5 +171,73 @@ describe("rate limit del carril de vídeo de eventos", () => {
 
     expect(response.statusCode).toBe(429)
     expect(response.body).toMatchObject({ message: expect.stringContaining("Demasiadas subidas") })
+  })
+})
+
+const logoRoute = middlewares.routes?.find((route) => route.matcher === "/admin/jovy/brand/logos/media")
+const logoMiddleware = logoRoute?.middlewares?.[0] as unknown as (
+  req: unknown,
+  res: unknown,
+  next: (error?: unknown) => void,
+) => void
+
+describe("carril de imágenes de Logos", () => {
+  const multerFactory = jest.mocked(multer)
+  const arrayMiddleware = () =>
+    (multerFactory.mock.results[0].value as unknown as { array: () => jest.Mock }).array()
+  const { MulterError } = jest.requireActual<typeof import("multer")>("multer")
+
+  beforeEach(() => {
+    arrayMiddleware().mockReset().mockImplementation((_req, _res, next) => next())
+  })
+
+  it("registra POST con multer de 20 MB y deja el carril general en 5 MB", () => {
+    expect((logoRoute as { methods?: string[] } | undefined)?.methods).toEqual(["POST"])
+    expect(logoMiddleware).toBeDefined()
+    const limits = multerFactory.mock.calls.map(([options]) => options?.limits?.fileSize)
+    expect(limits).toEqual([5 * 1024 * 1024, 20 * 1024 * 1024])
+  })
+
+  it("deja pasar la solicitud cuando multer termina sin error", () => {
+    const next = jest.fn()
+    logoMiddleware(fakeRequest() as never, fakeResponse() as never, next)
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it("traduce LIMIT_FILE_SIZE a 413 con el mensaje de 20 MB", () => {
+    arrayMiddleware().mockImplementationOnce((_req, _res, next) => next(new MulterError("LIMIT_FILE_SIZE")))
+    const response = fakeResponse()
+    const next = jest.fn()
+
+    logoMiddleware(fakeRequest() as never, response as never, next)
+
+    expect(response.statusCode).toBe(413)
+    expect(response.body).toEqual({
+      type: "invalid_data",
+      message: "El archivo supera el límite de 20 MB.",
+    })
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("traduce otros errores de multer a 400", () => {
+    arrayMiddleware().mockImplementationOnce((_req, _res, next) => next(new MulterError("LIMIT_UNEXPECTED_FILE")))
+    const response = fakeResponse()
+
+    logoMiddleware(fakeRequest() as never, response as never, jest.fn())
+
+    expect(response.statusCode).toBe(400)
+    expect(response.body).toEqual({ type: "invalid_data", message: "Se requiere una sola imagen" })
+  })
+
+  it("propaga errores que no son de multer al siguiente middleware", () => {
+    const error = new Error("fallo inesperado")
+    arrayMiddleware().mockImplementationOnce((_req, _res, next) => next(error))
+    const response = fakeResponse()
+    const next = jest.fn()
+
+    logoMiddleware(fakeRequest() as never, response as never, next)
+
+    expect(next).toHaveBeenCalledWith(error)
+    expect(response.body).toBeUndefined()
   })
 })

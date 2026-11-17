@@ -82,7 +82,7 @@ async function restoreCategories(
 
 async function openCatalogue(page: Page, request: APIRequestContext) {
   return openJovySection(page, request, {
-    label: "Categorías del catálogo",
+    label: "Categorías",
     url: /\/app\/jovy\/catalogue$/,
     heading: "Categorías del catálogo",
   })
@@ -123,7 +123,7 @@ test("muestra seis tarjetas y edita estado en formulario separado con confirmaci
     const chamoy = original.find((category) => category.key === "chamoy")!
     const normalized = await request.put(`/admin/jovy/catalogue/categories/${chamoy.id}`, {
       headers,
-      data: { active: true, coming_soon: false, interaction_locked: false },
+      data: { active: true, coming_soon: false, interaction_locked: false, image_file_id: null, image_url: null },
     })
     expect(normalized.status()).toBe(200)
     await page.reload()
@@ -131,6 +131,8 @@ test("muestra seis tarjetas y edita estado en formulario separado con confirmaci
     await expect(page.getByTestId(/^catalogue-card-/)).toHaveCount(6)
     await expect(page.getByLabel("Resumen de categorías")).toBeVisible()
     await expect(page.getByTestId("catalogue-card-chamoy").getByText("Acceso Store")).toBeVisible()
+    // Sin imagen la tarjeta no reserva el bloque gris roto del placeholder.
+    await expect(page.getByTestId("catalogue-card-chamoy").locator("img")).toHaveCount(0)
     await expectNoHorizontalOverflow(page)
     await page.screenshot({ path: screenshotPath("desktop-list.png"), fullPage: true })
 
@@ -319,6 +321,71 @@ test("desmarcar Próximamente reactiva la categoría y libera la interacción", 
       coming_soon: false,
       interaction_locked: true,
     })
+
+    expect(problems).toEqual([])
+  } finally {
+    if (original.length > 0) await restoreCategories(request, headers, original)
+  }
+})
+
+test("alterna Próximamente desde la tarjeta con confirmación cancelable y persistente", async ({ page, request }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  const problems = collectPageProblems(page)
+  const headers = await openCatalogue(page, request)
+  let original: AdminCategory[] = []
+
+  try {
+    original = await ensureSeeded(page, request, headers)
+    const chamoy = original.find((category) => category.key === "chamoy")!
+    const normalized = await request.put(`/admin/jovy/catalogue/categories/${chamoy.id}`, {
+      headers,
+      data: { active: true, coming_soon: false, interaction_locked: false },
+    })
+    expect(normalized.status()).toBe(200)
+    await page.reload()
+
+    const card = page.getByTestId("catalogue-card-chamoy")
+    const switchCard = card.getByRole("switch", { name: "Próximamente" })
+    const dialog = page.getByRole("alertdialog")
+    await expect(switchCard).not.toBeChecked()
+    await expect(card.getByText("Activa", { exact: true })).toBeVisible()
+    await expect(card.getByText("Disponible", { exact: true })).toBeVisible()
+
+    // Cancelar la confirmación deja el estado y la persistencia intactos.
+    await switchCard.click()
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByText("Marcar como Próximamente")).toBeVisible()
+    await dialog.getByRole("button", { name: "Cancelar" }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect(switchCard).not.toBeChecked()
+    expect(await categoryByKey(request, headers, "chamoy")).toMatchObject({
+      active: true,
+      coming_soon: false,
+      interaction_locked: false,
+    })
+
+    // Confirmar aplica la regla histórica y se conserva tras recargar.
+    await switchCard.click()
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole("button", { name: "Confirmar" }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect(switchCard).toBeChecked()
+    await expect(card.getByText("Próximamente", { exact: true })).toBeVisible()
+    await expect(card.getByText("Bloqueado", { exact: true })).toBeVisible()
+
+    expect(await categoryByKey(request, headers, "chamoy")).toMatchObject({
+      active: false,
+      coming_soon: true,
+      interaction_locked: true,
+    })
+
+    await page.reload()
+    const reloaded = page.getByTestId("catalogue-card-chamoy")
+    await expect(reloaded.getByRole("switch", { name: "Próximamente" })).toBeChecked()
+    await expect(reloaded.getByText("Próximamente", { exact: true })).toBeVisible()
+    await expect(reloaded.getByText("Bloqueado", { exact: true })).toBeVisible()
+    await expect(reloaded.getByText("SÍ", { exact: true })).toBeVisible()
+    await page.screenshot({ path: screenshotPath("coming-soon-switch.png"), fullPage: true })
 
     expect(problems).toEqual([])
   } finally {

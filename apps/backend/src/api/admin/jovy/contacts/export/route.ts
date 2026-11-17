@@ -56,5 +56,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   res.setHeader("Content-Disposition", `attachment; filename="${contactExportFileName(query.contact_type)}"`)
   // Personal data: never keep a copy in an intermediary cache.
   res.setHeader("Cache-Control", "no-store")
+  // Registros exportados (no líneas del CSV): un mensaje multilínea ocupa varias
+  // líneas físicas. La UI usa este número en el aviso de descarga.
+  res.setHeader("X-Export-Count", String(contacts.length))
   res.status(200).send(csv)
 }

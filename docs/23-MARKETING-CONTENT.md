@@ -2,7 +2,7 @@
 
 ## Estado real
 
-- **Hero: IMPLEMENTADO Y VALIDADO.** La ruta `/app/jovy/marketing` permite alta, edición, publicación, despublicación, archivado, borrado físico sin restore, activación, vigencia UTC, orden, CTA, color por elemento, configuración global y producto destacado. La E2E Brave cubre ciclo editorial, media PNG/JPEG/WebP real, persistencia tras recarga, reordenamiento visible en Store y Product Link A→B→null con idempotencia.
+- **Hero: IMPLEMENTADO Y VALIDADO.** La ruta `/app/jovy-herramientas/marketing` permite alta, edición, publicación, despublicación, archivado, borrado físico sin restore, activación, vigencia UTC, orden, CTA, color por elemento, configuración global y producto destacado. La E2E Brave cubre ciclo editorial, media PNG/JPEG/WebP real, persistencia tras recarga, reordenamiento visible en Store y Product Link A→B→null con idempotencia.
 - **Banners: IMPLEMENTADO Y VALIDADO.** La pestaña Banners cubre CRUD, publicación, archivado, borrado físico sin restore, slots `promo`/`hint`, prioridad, orden, programación UTC, frecuencia, `auto_open`, CTA, carga de imagen y contratos HTTP negativos. La E2E Brave verifica cada slot en Store y la exclusión de borradores, archivados y ventanas fuera de vigencia.
 - **Novedades (eventos): IMPLEMENTADO Y VALIDADO.** La entidad sigue siendo `jovy_event`; «Novedades» es la bandeja multimedia (`/app/jovy/novelties`) y no un contenido nuevo. Admite imagen (PNG/JPEG/WebP ≤ 5 MB por el endpoint existente), GIF y vídeo MP4/WebM (≤ 100 MB por `POST /admin/jovy/events/media/video`). La Store expone `media_type` derivado (`image`/`gif`/`video`/`null`). El CRUD editorial completo continúa en Eventos Jovy.
 
@@ -261,7 +261,7 @@ ventana no aparece (`isEventVisible`).
 
 Reparto entre pantallas:
 
-| Responsabilidad | Novedades (`/app/jovy/novelties`) | Eventos Jovy (`/app/jovy/events`) |
+| Responsabilidad | Novedades (`/app/jovy/novelties`) | Eventos Jovy (`/app/jovy-herramientas/events`) |
 | --- | --- | --- |
 | Subir/reemplazar/retirar medio | Sí, elige endpoint según el tipo | También (sólo imágenes) |
 | Preview reproducible | `<img>` o `<video muted loop playsInline controls>` | `<img>` |

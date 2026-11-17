@@ -68,7 +68,7 @@ async function cleanupDemoLaunches(request: APIRequestContext, headers: Record<s
 
 async function openLaunches(page: Page, request: APIRequestContext) {
   return openJovySection(page, request, {
-    label: "Nuevos lanzamientos",
+    label: "Nuevos Lanzamientos",
     url: /\/app\/jovy\/launches$/,
     heading: "Nuevos lanzamientos",
   })
@@ -97,18 +97,24 @@ test("gestiona lanzamientos con producto, imagen, orden, visibilidad y color per
 
     await page.screenshot({ path: launchesScreenshotPath("desktop-list-empty.png"), fullPage: true })
 
-    // 1. Lanzamiento asociado a un producto mediante el buscador.
-    await page.getByRole("button", { name: "Nuevo lanzamiento" }).click()
-    await expect(page.getByRole("heading", { name: "Nuevo lanzamiento" })).toBeVisible()
+    // 1. Lanzamiento asociado a un producto mediante el buscador, desde el modal.
+    await page.getByRole("button", { name: "Nuevo Slide" }).click()
+    const createDialog = page.getByRole("dialog")
+    await expect(createDialog).toBeVisible()
+    await expect(createDialog.getByRole("heading", { name: "Nuevo Lanzamiento" })).toBeVisible()
+    await expect(createDialog.getByText("Orden: — · arrastra en lista para reordenar")).toBeVisible()
+    await expect(createDialog.getByRole("switch", { name: "Activo" })).toBeChecked()
+    await page.screenshot({ path: launchesScreenshotPath("modal-nuevo-1440.png") })
     const firstTitle = demoValue("Lanzamiento producto")
-    await page.getByLabel("Título").fill(firstTitle)
-    await page.getByLabel("Descripción").fill("Lanzamiento creado por la suite E2E.")
-    await page.getByLabel("Producto publicado de Medusa (buscador)").fill(product.title)
-    await page
+    await createDialog.getByLabel("Título").fill(firstTitle)
+    await createDialog.getByRole("button", { name: "Opciones adicionales" }).click()
+    await createDialog.getByLabel("Descripción").fill("Lanzamiento creado por la suite E2E.")
+    await createDialog.getByLabel("Producto publicado de Medusa (buscador)").fill(product.title)
+    await createDialog
       .getByRole("button", { name: `Seleccionar ${product.title}` })
       .first()
       .click()
-    await page.getByRole("button", { name: "Crear lanzamiento" }).click()
+    await createDialog.getByRole("button", { name: "Crear", exact: true }).click()
     await expect(page.getByText(firstTitle).first()).toBeVisible()
 
     const first = (await listLaunches(request, headers)).find((launch) => launch.title === firstTitle)
@@ -117,17 +123,18 @@ test("gestiona lanzamientos con producto, imagen, orden, visibilidad y color per
     createdIds.push(first!.id)
 
     // 2. Lanzamiento con imagen propia (sin producto) para cubrir la otra vía.
-    await page.getByRole("button", { name: "Nuevo lanzamiento" }).click()
+    await page.getByRole("button", { name: "Nuevo Slide" }).click()
+    const imageDialog = page.getByRole("dialog")
     const secondTitle = demoValue("Lanzamiento imagen")
-    await page.getByLabel("Título").fill(secondTitle)
-    await page.getByLabel(/Imagen propia \(PNG/).setInputFiles({
+    await imageDialog.getByLabel("Título").fill(secondTitle)
+    await imageDialog.getByLabel(/Imagen propia \(PNG/).setInputFiles({
       name: "demo-lanzamiento.png",
       mimeType: "image/png",
       buffer: demoPng,
     })
-    await expect(page.getByRole("img", { name: `Vista previa de ${secondTitle}` })).toBeVisible()
+    await expect(imageDialog.getByRole("img", { name: `Vista previa de ${secondTitle}` })).toBeVisible()
     await page.screenshot({ path: launchesScreenshotPath("desktop-form-image-preview.png"), fullPage: true })
-    await page.getByRole("button", { name: "Crear lanzamiento" }).click()
+    await imageDialog.getByRole("button", { name: "Crear", exact: true }).click()
     await expect(page.getByText(secondTitle).first()).toBeVisible()
 
     const second = (await listLaunches(request, headers)).find((launch) => launch.title === secondTitle)
@@ -142,13 +149,37 @@ test("gestiona lanzamientos con producto, imagen, orden, visibilidad y color per
 
     // 3. Edición persistente del título.
     const editedTitle = `${firstTitle} editado`
-    await page.getByTestId(`launch-item-${first!.id}`).getByRole("button", { name: /^Editar/ }).click()
-    await expect(page.getByRole("heading", { name: "Editar lanzamiento" })).toBeVisible()
-    await page.getByLabel("Título").fill(editedTitle)
-    await page.getByRole("button", { name: "Guardar lanzamiento" }).click()
+    const editButton = page.getByTestId(`launch-item-${first!.id}`).getByRole("button", { name: /^Editar/ })
+    await editButton.click()
+    const editDialog = page.getByRole("dialog")
+    await expect(editDialog.getByRole("heading", { name: "Editar Lanzamiento" })).toBeVisible()
+    await editDialog.getByLabel("Título").fill(editedTitle)
+    await editDialog.getByRole("button", { name: "Guardar", exact: true }).click()
     await expect(page.getByTestId(`launch-item-${first!.id}`)).toContainText(editedTitle)
     expect((await listLaunches(request, headers)).find((launch) => launch.id === first!.id)?.title).toBe(
       editedTitle,
+    )
+
+    // 3b. El modal es role=dialog: Escape y Cancelar cierran sin persistir cambios.
+    const persistedTitle = editedTitle
+    await editButton.click()
+    const unsavedDialog = page.getByRole("dialog")
+    await expect(unsavedDialog).toBeVisible()
+    await unsavedDialog.getByLabel("Título").fill("CAMBIO NO GUARDADO")
+    await page.keyboard.press("Escape")
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(editButton).toBeFocused()
+    expect((await listLaunches(request, headers)).find((launch) => launch.id === first!.id)?.title).toBe(
+      persistedTitle,
+    )
+    await expect(page.getByTestId(`launch-item-${first!.id}`)).toContainText(persistedTitle)
+
+    await editButton.click()
+    await page.getByRole("dialog").getByLabel("Título").fill("OTRO CAMBIO NO GUARDADO")
+    await page.getByRole("dialog").getByRole("button", { name: "Cancelar" }).click()
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    expect((await listLaunches(request, headers)).find((launch) => launch.id === first!.id)?.title).toBe(
+      persistedTitle,
     )
 
     // 4. Reordenamiento visible en la API.
@@ -220,7 +251,7 @@ test("gestiona lanzamientos con producto, imagen, orden, visibilidad y color per
 test("rechaza un color hexadecimal inválido sin persistirlo", async ({ page, request }) => {
   const problems = collectPageProblems(page)
   const headers = await openJovySection(page, request, {
-    label: "Nuevos lanzamientos",
+    label: "Nuevos Lanzamientos",
     url: /\/app\/jovy\/launches$/,
     heading: "Nuevos lanzamientos",
   })

@@ -163,6 +163,18 @@ export function contactExportParams(query: {
   return params.toString()
 }
 
+/**
+ * El CSV puede contener celdas con saltos de línea, así que contar líneas no
+ * equivale a contar registros. El backend expone `X-Export-Count`; si falta o
+ * no es un entero válido se usa el conteo por líneas como respaldo.
+ */
+export function parseExportCount(headerValue: string | null): number | null {
+  if (headerValue === null || headerValue.trim() === "") return null
+  if (!/^\d+$/.test(headerValue.trim())) return null
+  const count = Number.parseInt(headerValue, 10)
+  return Number.isSafeInteger(count) ? count : null
+}
+
 export function previewMessage(message: string, max = MESSAGE_PREVIEW_LENGTH) {
   const compact = message.replace(/\s+/g, " ").trim()
   if (compact.length <= max) return compact

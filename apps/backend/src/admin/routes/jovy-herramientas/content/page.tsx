@@ -225,8 +225,7 @@ const ContentPage = () => {
 export const config = defineRouteConfig({
   label: "Contenido Jovy",
   icon: DocumentText,
-  // 5 keeps Contenido first without colliding with the contact inbox ranks (10-13).
-  rank: 5,
+  rank: 2,
 })
 
 export default ContentPage

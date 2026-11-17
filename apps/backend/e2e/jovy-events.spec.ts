@@ -126,7 +126,7 @@ test("gestiona tipos de evento desde Admin y protege los tipos en uso", async ({
   try {
     await cleanup(request, headers)
 
-    await page.goto("/app/jovy/events")
+    await page.goto("/app/jovy-herramientas/events")
     await expect(page.getByRole("heading", { name: "Eventos" }).first()).toBeVisible()
 
     await page.getByLabel("Código tipo evento").fill(typeCode = unique("e2e-tipo"))
@@ -188,7 +188,7 @@ test("reordena sólo dentro de la misma prioridad y la prioridad domina la Store
     const c = await createEvent(request, headers, eventInput(titleC, { ...publishable, priority: 10, starts_at: minutesFromNow(-70).toISOString(), ends_at: minutesFromNow(90).toISOString() }))
     ids = { a: a.id, b: b.id, c: c.id }
 
-    await page.goto("/app/jovy/events")
+    await page.goto("/app/jovy-herramientas/events")
     await expect(page.getByRole("heading", { name: "Eventos" }).first()).toBeVisible()
 
     const rowA = page.locator("li").filter({ hasText: titleA })
@@ -231,7 +231,7 @@ test("administra eventos: validación de publicación, multimedia y reordenamien
     await cleanup(request, headers)
     const type = await createType(request, headers, unique("Tipo UI"))
 
-    await page.goto("/app/jovy/events")
+    await page.goto("/app/jovy-herramientas/events")
     await expect(page.getByRole("heading", { name: "Eventos" }).first()).toBeVisible()
 
     await page.getByLabel("Título evento").fill(title)

@@ -21,6 +21,31 @@ const jovyImageUpload = multer({
   limits: { files: 1, fileSize: 5 * 1024 * 1024 },
 })
 
+// Carril propio de 20 MB para logos: reproduce el límite histórico sin relajar
+// el carril general de imágenes de marketing, que sigue en 5 MB.
+const jovyLogoImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { files: 1, fileSize: 20 * 1024 * 1024 },
+})
+
+function jovyLogoImageMedia(req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) {
+  jovyLogoImageUpload.array("files", 1)(req as never, res as never, (error: unknown) => {
+    if (!error) {
+      next()
+      return
+    }
+    if (error instanceof multer.MulterError) {
+      const tooLarge = error.code === "LIMIT_FILE_SIZE"
+      res.status(tooLarge ? 413 : 400).json({
+        type: "invalid_data",
+        message: tooLarge ? "El archivo supera el límite de 20 MB." : "Se requiere una sola imagen",
+      })
+      return
+    }
+    next(error)
+  })
+}
+
 // El carril de vídeo/GIF escribe a disco y tiene su propio límite (100 MB). No
 // comparte el de imágenes para no relajar las pantallas que sólo admiten
 // PNG/JPEG/WebP.
@@ -130,6 +155,11 @@ export default defineMiddlewares({
         // Multer is the official Medusa mechanism for multipart API routes.
         jovyImageUpload.array("files", 1),
       ],
+    },
+    {
+      method: ["POST"],
+      matcher: "/admin/jovy/brand/logos/media",
+      middlewares: [jovyLogoImageMedia],
     },
     {
       method: ["POST"],

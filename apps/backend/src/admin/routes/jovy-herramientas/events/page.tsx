@@ -117,5 +117,5 @@ const EventsPage = () => {
   </div>
 }
 
-export const config = defineRouteConfig({ label: "Eventos Jovy", icon: Calendar, rank: 30 })
+export const config = defineRouteConfig({ label: "Eventos Jovy", icon: Calendar, rank: 3 })
 export default EventsPage

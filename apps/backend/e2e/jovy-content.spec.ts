@@ -52,7 +52,7 @@ test("administra el ciclo de vida completo de una página DEMO", async ({ page, 
     token = (await auth.json()).token
     expect(token).toBeTruthy()
 
-    await page.goto("/app/jovy/content")
+    await page.goto("/app/jovy-herramientas/content")
     await expect(page.getByRole("heading", { name: "Contenido Jovy" })).toBeVisible()
     await page.getByRole("button", { name: "Nueva página" }).click()
     await page.getByRole("button", { name: "Crear página" }).click()

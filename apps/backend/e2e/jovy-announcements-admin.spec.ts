@@ -182,7 +182,9 @@ test("resume el modal promo desde el sidebar, enlaza al gestor y persiste el men
 
     await expect(page.getByRole("heading", { name: "A. Modal de portada" })).toBeVisible()
     await expect(page.getByRole("heading", { name: "B. Mensaje corporativo" })).toBeVisible()
-    await expect(page.getByText(/no duplica el formulario/i)).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Gestión del modal (slot promo)" })).toBeVisible()
+    await expect(page.getByTestId("banner-manager")).toBeVisible()
+    await expect(page.getByLabel("Filtro por slot")).toHaveValue("promo")
 
     await expect(page.getByTestId("promo-total")).toHaveText(String(expected.total))
     await expect(page.getByTestId("promo-published")).toHaveText(String(expected.published))
@@ -192,19 +194,29 @@ test("resume el modal promo desde el sidebar, enlaza al gestor y persiste el men
     await expect(page.getByTestId("promo-expired")).toHaveText(String(expected.expired))
 
     // El banner activo tiene media real del File Module y es el primero por prioridad.
-    const preview = page.getByAltText(`Vista previa de ${active.translations.es.title}`)
+    const previewList = page.getByRole("list", { name: "Vistas previas de banners promo" })
+    const preview = previewList.getByAltText(`Vista previa de ${active.translations.es.title}`)
     await expect(preview).toBeVisible()
     await expect(preview).toHaveAttribute("src", /\/static\//)
     await expect(page.getByText("Activo ahora").first()).toBeVisible()
+
+    // El gestor compartido está montado en la sección A: permite el CRUD directo
+    // sin salir de Anuncios y sin duplicar formulario ni endpoints.
+    await expect(page.getByTestId(`banner-card-${active.id}`)).toBeVisible()
+    await page.getByTestId("banner-manager").getByRole("button", { name: "Nuevo banner" }).click()
+    await expect(page.getByTestId("banner-form-panel")).toBeVisible()
+    await page.getByTestId("banner-form-panel").getByRole("button", { name: "Cancelar" }).click()
+    await expect(page.getByTestId("banner-manager")).toBeVisible()
+    await expect(page.getByTestId(`banner-card-${active.id}`)).toBeVisible()
 
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.screenshot({ path: screenshotPath("01-announcements-1440.png"), fullPage: true })
 
     // Acceso directo al gestor: la pestaña Banners abre filtrada al slot promo.
     const promoLink = page.getByRole("link", { name: "Abrir Banners (slot promo)" })
-    await expect(promoLink).toHaveAttribute("href", "/app/jovy/marketing?tab=banners&slot=promo")
+    await expect(promoLink).toHaveAttribute("href", "/app/jovy-herramientas/marketing?tab=banners&slot=promo")
     await promoLink.click()
-    await expect(page).toHaveURL(/\/app\/jovy\/marketing\?tab=banners&slot=promo$/)
+    await expect(page).toHaveURL(/\/app\/jovy-herramientas\/marketing\?tab=banners&slot=promo$/)
     await expect(page.getByRole("heading", { name: "Banners y promociones" })).toBeVisible()
     await expect(page.getByLabel("Filtro por slot")).toHaveValue("promo")
     await expect(page.getByTestId(`banner-card-${active.id}`)).toBeVisible()

@@ -73,7 +73,7 @@ test("recibe Contactos públicamente y permite seguimiento privado sin exponer P
     expect(contacts[0].email).toBe(email)
 
     // La vista consolidada conserva el buscador y abre el detalle en un modal.
-    await page.goto("/app/jovy/contacts")
+    await page.goto("/app/jovy-herramientas/contacts")
     await expect(page.getByRole("heading", { name: "Contactos", exact: true, level: 1 })).toBeVisible()
     await page.getByRole("tab", { name: /^Todos/ }).click()
     await page.getByLabel("Buscar").fill(email)

@@ -255,9 +255,9 @@ const EditorialProductsPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Productos editoriales",
+  label: "Productos",
   icon: ShoppingBag,
-  rank: 100,
+  rank: 2,
 })
 
 export default EditorialProductsPage

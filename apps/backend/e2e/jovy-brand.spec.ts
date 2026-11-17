@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test"
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test"
 import { mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 
@@ -15,10 +15,16 @@ const png = Buffer.from(
 )
 
 const galleryDir = path.join(__dirname, "..", ".test-results", "audit-visual", "gallery")
+const logoDir = path.join(__dirname, "..", ".test-results", "audit-visual", "logos")
 
 function galleryShot(name: string) {
   mkdirSync(galleryDir, { recursive: true })
   return path.join(galleryDir, name)
+}
+
+function logoShot(name: string) {
+  mkdirSync(logoDir, { recursive: true })
+  return path.join(logoDir, name)
 }
 
 /**
@@ -409,37 +415,109 @@ test("administra logo y recorte no destructivo", async ({ page, request }) => {
   try {
     headers = await login(page, request)
     page.on("pageerror", (error) => pageErrors.push(error.message))
-    await page.goto("/app/jovy/brand")
-    await page.getByRole("button", { name: "Logos" }).click()
-    await expect(page.getByRole("heading", { name: "Logos", exact: true })).toBeVisible()
+    await page.goto("/app/jovy/logos")
+    await expect(page.getByRole("heading", { name: "Logos", exact: true, level: 1 })).toBeVisible()
     await page.getByRole("button", { name: "Nuevo logo" }).click()
     const formPanel = page.getByTestId("jovy-logo-form-panel")
     await expect(formPanel.getByRole("heading", { name: "Nuevo logo", exact: true })).toBeVisible()
     await page.getByLabel("Slug logo").fill(runId)
     await page.getByLabel("Nombre logo").fill(`Logo DEMO ${runId}`)
     await page.getByLabel("Texto alternativo logo").fill("Logo de prueba")
-    // El límite de 5 MB se valida en cliente antes de llamar al backend.
+    // El límite de 20 MB se valida en cliente antes de llamar al backend.
     await page.getByLabel("Archivo de logo").setInputFiles({
       name: "logo-grande.png",
       mimeType: "image/png",
-      buffer: Buffer.concat([png, Buffer.alloc(5 * 1024 * 1024)]),
+      buffer: Buffer.concat([png, Buffer.alloc(21 * 1024 * 1024)]),
     })
-    await expect(page.getByRole("alert")).toContainText("excede 5 MB")
+    await expect(page.getByRole("alert")).toContainText("excede 20 MB")
     await expect(page.getByAltText("Logo de prueba")).toHaveCount(0)
     await page.getByLabel("Archivo de logo").setInputFiles({ name: "logo-demo.png", mimeType: "image/png", buffer: png })
     await expect(page.getByAltText("Logo de prueba")).toBeVisible()
-    const zoom = page.getByLabel("Zoom logo")
-    await zoom.focus()
-    for (let step = 0; step < 5; step += 1) await zoom.press("ArrowRight")
-    const cropCanvas = page.getByLabel("Lienzo de recorte de logo")
-    const box = await cropCanvas.boundingBox()
-    expect(box).not.toBeNull()
-    if (box) {
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-      await page.mouse.down()
-      await page.mouse.move(box.x + box.width / 2 + 24, box.y + box.height / 2 + 12)
-      await page.mouse.up()
+
+    const cropSummary = formPanel.getByTestId("logo-crop-summary")
+    const openCrop = formPanel.getByTestId("logo-crop-open")
+    const modal = page.getByTestId("logo-crop-modal")
+    await expect(cropSummary).toContainText("zoom 1.00×")
+
+    const setZoom = async (dialog: Locator, target: number) => {
+      const slider = dialog.getByTestId("logo-crop-zoom-slider")
+      await slider.focus()
+      const steps = Math.round((target - Number(await slider.inputValue())) / 0.05)
+      for (let step = 0; step < Math.abs(steps); step += 1) {
+        await slider.press(steps > 0 ? "ArrowRight" : "ArrowLeft")
+      }
     }
+    const dragCanvas = async (dialog: Locator) => {
+      const box = await dialog.getByTestId("logo-crop-canvas").boundingBox()
+      expect(box).not.toBeNull()
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+        await page.mouse.down()
+        await page.mouse.move(box.x + box.width / 2 + 24, box.y + box.height / 2 + 12)
+        await page.mouse.up()
+      }
+    }
+
+    await openCrop.click()
+    await expect(modal).toBeVisible()
+    await expect(page.getByRole("dialog")).toBeVisible()
+    await expect(modal.getByRole("heading", { name: "Ajustar imagen", exact: true })).toBeVisible()
+    await expect(modal.getByText("Vista previa del recorte", { exact: true })).toBeVisible()
+    await expect(modal.getByText("Recomendado: 75%", { exact: true })).toBeVisible()
+    await expect(modal.getByText("Arrastra la imagen para mover · rueda para zoom · doble clic = 100%", { exact: true })).toBeVisible()
+    await expect(modal.getByTestId("logo-crop-help-panel")).toBeVisible()
+    for (const section of ["Vista previa", "Zoom", "Consejos", "Botones"]) {
+      await expect(modal.getByTestId("logo-crop-help-panel").getByText(section, { exact: true })).toBeVisible()
+    }
+    await expect.poll(() => modal.evaluate((node) => node.contains(document.activeElement))).toBe(true)
+    await expect(modal.getByTestId("logo-crop-undo")).toBeDisabled()
+    await expect(modal.getByTestId("logo-crop-grid-toggle")).toHaveAttribute("aria-pressed", "true")
+
+    await modal.getByTestId("logo-crop-help-toggle").click()
+    await expect(modal.getByTestId("logo-crop-help-panel")).toBeHidden()
+    await modal.getByTestId("logo-crop-help-toggle").click()
+    await expect(modal.getByTestId("logo-crop-help-panel")).toBeVisible()
+    const originalToggle = modal.getByTestId("logo-crop-original-toggle")
+    await originalToggle.click()
+    await expect(originalToggle).toHaveAttribute("aria-pressed", "true")
+    await originalToggle.click()
+    await expect(originalToggle).toHaveAttribute("aria-pressed", "false")
+
+    await setZoom(modal, 1.25)
+    await expect(modal.getByTestId("logo-crop-zoom-value")).toHaveText("1.25×")
+    await expect(modal.getByTestId("logo-crop-zoom-percent")).toHaveText("125%")
+    await dragCanvas(modal)
+    expect(await modal.getByTestId("logo-crop-offset").innerText()).not.toContain("x: 0%")
+    await expect(modal.getByTestId("logo-crop-undo")).toBeEnabled()
+    await modal.getByTestId("logo-crop-undo").click()
+    await expect(modal.getByTestId("logo-crop-offset")).toHaveText("x: 0% · y: 0%")
+    await expect(modal.getByTestId("logo-crop-zoom-value")).toHaveText("1.25×")
+    await modal.getByTestId("logo-crop-reset").click()
+    await expect(modal).toBeVisible()
+    await expect(modal.getByTestId("logo-crop-zoom-value")).toHaveText("1.00×")
+
+    // Cancelar descarta el borrador: el crop del formulario permanece intacto.
+    await modal.getByTestId("logo-crop-cancel").click()
+    await expect(modal).toBeHidden()
+    await expect(openCrop).toBeFocused()
+    await expect(cropSummary).toContainText("zoom 1.00×")
+    await expect(cropSummary).toContainText("x: 0% · y: 0%")
+
+    await openCrop.click()
+    await expect(modal.getByTestId("logo-crop-zoom-value")).toHaveText("1.00×")
+    // Escape también cierra sin aplicar y devuelve el foco al disparador.
+    await page.keyboard.press("Escape")
+    await expect(modal).toBeHidden()
+    await expect(openCrop).toBeFocused()
+
+    await openCrop.click()
+    await setZoom(modal, 1.25)
+    await dragCanvas(modal)
+    await modal.getByTestId("logo-crop-apply").click()
+    await expect(modal).toBeHidden()
+    await expect(cropSummary).toContainText("zoom 1.25×")
+    await expect(cropSummary).not.toContainText("x: 0% · y: 0%")
+
     await formPanel.getByRole("button", { name: "Crear logo" }).click()
     await confirmPrompt(page, "Crear logo", "Crear logo")
     await expect(page.getByText(`Logo DEMO ${runId}`)).toBeVisible()
@@ -462,17 +540,37 @@ test("administra logo y recorte no destructivo", async ({ page, request }) => {
     await page.screenshot({ path: ".test-results/audit-visual/logos/list-375.png", fullPage: true })
     await page.setViewportSize({ width: 1440, height: 1000 })
 
-    const row = page.locator("article").filter({ hasText: `Logo DEMO ${runId}` })
-    await row.getByRole("button", { name: "Editar" }).click()
+    // Recargar y editar comprueba que el crop se hidrata desde el backend.
+    await page.reload()
+    await expect(page.getByTestId("jovy-logo-grid")).toBeVisible()
+    const reloadedRow = page.locator("article").filter({ hasText: `Logo DEMO ${runId}` })
+    await reloadedRow.getByRole("button", { name: "Editar" }).click()
     const editPanel = page.getByTestId("jovy-logo-form-panel")
     await expect(editPanel.getByRole("heading", { name: "Editar logo", exact: true })).toBeVisible()
-    await page.getByRole("button", { name: "Restablecer recorte" }).click()
-    await expect(page.getByLabel("Zoom logo")).toHaveValue("1")
+    await expect(editPanel.getByTestId("logo-crop-summary")).toContainText("zoom 1.25×")
+    await editPanel.getByTestId("logo-crop-open").click()
+    const persistedModal = page.getByTestId("logo-crop-modal")
+    await expect(persistedModal.getByTestId("logo-crop-zoom-value")).toHaveText("1.25×")
+    await persistedModal.getByTestId("logo-crop-cancel").click()
+    await expect(persistedModal).toBeHidden()
+
+    const editSummary = editPanel.getByTestId("logo-crop-summary")
+    await expect(editSummary).toContainText("zoom 1.25×")
+    await editPanel.getByTestId("logo-crop-open").click()
+    const editModal = page.getByTestId("logo-crop-modal")
+    await expect(editModal.getByTestId("logo-crop-zoom-value")).toHaveText("1.25×")
+    await editModal.getByTestId("logo-crop-reset").click()
+    await expect(editModal).toBeVisible()
+    await expect(editModal.getByTestId("logo-crop-zoom-value")).toHaveText("1.00×")
+    await expect(editModal.getByTestId("logo-crop-offset")).toHaveText("x: 0% · y: 0%")
+    await editModal.getByTestId("logo-crop-apply").click()
+    await expect(editModal).toBeHidden()
+    await expect(editSummary).toContainText("zoom 1.00×")
 
     // Cancelar la confirmación de guardado conserva el recorte persistido.
     await editPanel.getByRole("button", { name: "Guardar cambios" }).click()
     await cancelPrompt(page, "Guardar cambios del logo", "Seguir editando")
-    await expect(page.getByLabel("Zoom logo")).toHaveValue("1")
+    await expect(editSummary).toContainText("zoom 1.00×")
     const afterCancel = await request.get(`/admin/jovy/brand/logos/${logoId}`, { headers })
     expect((await afterCancel.json()).logo.crop).toEqual(created.crop)
 
@@ -498,7 +596,6 @@ test("administra logo y recorte no destructivo", async ({ page, request }) => {
       return (await response.json()).logos.some((logo: { id: string }) => logo.id === logoId)
     }).toBe(false)
     await page.reload()
-    await page.getByRole("button", { name: "Logos" }).click()
     await expect(page.locator("article").filter({ hasText: `Logo DEMO ${runId}` }).getByText("Inactivo")).toBeVisible()
     await page.locator("article").filter({ hasText: `Logo DEMO ${runId}` }).getByRole("button", { name: "Activar" }).click()
     await confirmPrompt(page, "Activar logo", "Activar logo")
@@ -517,6 +614,181 @@ test("administra logo y recorte no destructivo", async ({ page, request }) => {
     if (logoId && headers) {
       const response = await request.delete(`/admin/jovy/brand/logos/${logoId}`, { headers })
       if (![204, 404].includes(response.status())) console.error(`No se pudo limpiar Logo DEMO: HTTP ${response.status()}`)
+    }
+  }
+})
+
+type LogoRow = {
+  id: string
+  slug: string
+  name: string
+  enabled: boolean
+  family_ids: string[]
+}
+
+async function listLogos(request: APIRequestContext, headers: Headers): Promise<LogoRow[]> {
+  const response = await request.get("/admin/jovy/brand/logos", { headers })
+  expect(response.status()).toBe(200)
+  return (await response.json()).logos as LogoRow[]
+}
+
+test("filtra logos por texto, categoría y estado sin alterar el orden global", async ({ page, request }) => {
+  const runId = `e2e-logo-filter-${Date.now()}`
+  const headers = await login(page, request)
+  const pageErrors: string[] = []
+  page.on("pageerror", (error) => pageErrors.push(error.message))
+
+  const logoIds: string[] = []
+  const familyIds: string[] = []
+  const productCategoryIds: string[] = []
+  const restore: Array<{ id: string; medusa_category_id: string | null }> = []
+
+  const nameA = `${runId}-sazonador`
+  const nameB = `${runId}-inactivo`
+
+  try {
+    const seeded = await request.post("/admin/jovy/catalogue/categories/seed", { headers })
+    expect(seeded.status()).toBe(200)
+    const categoriesResponse = await request.get("/admin/jovy/catalogue/categories", { headers })
+    expect(categoriesResponse.status()).toBe(200)
+    const categories = (await categoriesResponse.json()).categories as Array<{
+      id: string
+      key: string
+      medusa_category_id: string | null
+    }>
+    const sazonador = categories.find((category) => category.key === "sazonador")
+    const chamoy = categories.find((category) => category.key === "chamoy")
+    expect(sazonador, "La categoría sazonador debe existir tras el seed").toBeTruthy()
+    expect(chamoy, "La categoría chamoy debe existir tras el seed").toBeTruthy()
+    restore.push(
+      { id: sazonador!.id, medusa_category_id: sazonador!.medusa_category_id },
+      { id: chamoy!.id, medusa_category_id: chamoy!.medusa_category_id },
+    )
+
+    const productCategories: string[] = []
+    for (const [index, label] of ["Sazonador filtros", "Chamoy filtros"].entries()) {
+      const created = await request.post("/admin/product-categories", {
+        headers,
+        data: { name: `${label} ${runId}`, handle: `${runId}-pc-${index}`, is_active: true, is_internal: false },
+      })
+      expect(created.status()).toBe(200)
+      productCategories.push((await created.json()).product_category.id)
+    }
+    productCategoryIds.push(...productCategories)
+
+    for (const [index, category] of [sazonador!, chamoy!].entries()) {
+      const linked = await request.put(`/admin/jovy/catalogue/categories/${category.id}`, {
+        headers,
+        data: { medusa_category_id: productCategories[index] },
+      })
+      expect(linked.status()).toBe(200)
+    }
+
+    const families: string[] = []
+    for (const [index, categoryId] of productCategories.entries()) {
+      const family = await request.post("/admin/jovy/catalogue/families", {
+        headers,
+        data: {
+          name: `Familia filtros ${index} ${runId}`,
+          slug: `familia-filtros-${index}-${runId}`,
+          medusa_category_id: categoryId,
+          sort_order: index,
+        },
+      })
+      expect(family.status()).toBe(201)
+      families.push((await family.json()).family.id)
+    }
+    familyIds.push(...families)
+
+    const mediaFileId = await uploadMedia(request, headers, `${runId}.png`)
+    for (const input of [
+      { slug: `${runId}-sazonador`, name: nameA, family_ids: [families[0]], enabled: true },
+      { slug: `${runId}-inactivo`, name: nameB, family_ids: [families[0], families[1]], enabled: false },
+    ]) {
+      const created = await request.post("/admin/jovy/brand/logos", {
+        headers,
+        data: { ...input, alt: input.name, media_file_id: mediaFileId, crop: null, sort_order: 0 },
+      })
+      expect(created.status()).toBe(201)
+      logoIds.push((await created.json()).logo.id)
+    }
+
+    const before = await listLogos(request, headers)
+    const total = before.length
+    const active = before.filter((logo) => logo.enabled).length
+    const orderBefore = before.map((logo) => logo.id)
+
+    await page.goto("/app/jovy/logos")
+    await expect(page.getByRole("heading", { name: "Logos", exact: true, level: 1 })).toBeVisible()
+    await expect(page.getByTestId("logo-stat-total")).toHaveText(`Total: ${total}`)
+    await expect(page.getByTestId("logo-stat-active")).toHaveText(`Activos: ${active}`)
+    await expect(page.getByTestId("logo-stat-filtered")).toHaveText(`Filtrados: ${total}`)
+
+    const cardA = page.locator("article").filter({ hasText: nameA })
+    const cardB = page.locator("article").filter({ hasText: nameB })
+
+    // Texto: nombre, slug y family_id acotan la cuadrícula sin tocar el orden.
+    await page.getByLabel("Buscar logos").fill(runId)
+    await expect(page.getByTestId("logo-stat-filtered")).toHaveText("Filtrados: 2")
+    await expect(cardA).toBeVisible()
+    await expect(cardB).toBeVisible()
+    await expect(page.locator("article")).toHaveCount(2)
+
+    // Categoría derivada de las familias canónicas: ambas pertenecen a sazonador.
+    await page.getByLabel("Filtrar logos por categoría").selectOption("sazonador")
+    await expect(page.getByTestId("logo-stat-filtered")).toHaveText("Filtrados: 2")
+
+    // Estado: el inactivo queda solo y el activo desaparece.
+    await page.getByLabel("Filtrar logos por estado").selectOption("inactive")
+    await expect(page.getByTestId("logo-stat-filtered")).toHaveText("Filtrados: 1")
+    await expect(cardB).toBeVisible()
+    await expect(cardA).toHaveCount(0)
+
+    // Categoría chamoy: solo el logo que también tiene esa familia.
+    await page.getByLabel("Filtrar logos por categoría").selectOption("chamoy")
+    await expect(cardB).toBeVisible()
+    await page.getByLabel("Filtrar logos por estado").selectOption("active")
+    await expect(page.getByTestId("logo-stat-filtered")).toHaveText("Filtrados: 0")
+    await expect(page.getByText("No hay logos con esos filtros", { exact: true })).toBeVisible()
+
+    await page.getByLabel("Buscar logos").fill("sin-coincidencias-en-el-catalogo")
+    await page.getByLabel("Filtrar logos por estado").selectOption("all")
+    await expect(page.getByTestId("logo-stat-filtered")).toHaveText("Filtrados: 0")
+
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.screenshot({ path: logoShot("filter-1440.png"), fullPage: true })
+
+    // Limpiar filtros restaura la cuadrícula completa y no reordena nada.
+    await page.locator('[data-testid="jovy-logos-panel"]').getByRole("button", { name: "Limpiar filtros" }).first().click()
+    await expect(page.getByLabel("Buscar logos")).toHaveValue("")
+    await expect(page.getByLabel("Filtrar logos por categoría")).toHaveValue("")
+    await expect(page.getByLabel("Filtrar logos por estado")).toHaveValue("all")
+    await expect(page.getByTestId("logo-stat-filtered")).toHaveText(`Filtrados: ${total}`)
+    await expect(cardA).toBeVisible()
+    await expect(cardB).toBeVisible()
+    await expect(page.locator("article")).toHaveCount(total)
+
+    const orderAfter = (await listLogos(request, headers)).map((logo) => logo.id)
+    expect(orderAfter).toEqual(orderBefore)
+    expect(pageErrors).toEqual([])
+  } finally {
+    for (const id of logoIds) {
+      const response = await request.delete(`/admin/jovy/brand/logos/${id}`, { headers })
+      if (![204, 404].includes(response.status())) console.error(`No se pudo limpiar el logo ${id}: HTTP ${response.status()}`)
+    }
+    for (const id of familyIds) {
+      const response = await request.delete(`/admin/jovy/catalogue/families/${id}`, { headers })
+      if (![204, 404].includes(response.status())) console.error(`No se pudo limpiar la familia ${id}: HTTP ${response.status()}`)
+    }
+    for (const category of restore) {
+      await request.put(`/admin/jovy/catalogue/categories/${category.id}`, {
+        headers,
+        data: { medusa_category_id: category.medusa_category_id },
+      })
+    }
+    for (const id of productCategoryIds) {
+      const response = await request.delete(`/admin/product-categories/${id}`, { headers })
+      if (![200, 204, 404].includes(response.status())) console.error(`No se pudo limpiar la categoría ${id}: HTTP ${response.status()}`)
     }
   }
 })

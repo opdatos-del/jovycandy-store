@@ -439,6 +439,32 @@ describe("GET /admin/jovy/contacts/export", () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff)
     expect(csv).toContain("ID,Tipo,Nombre,Apellido,Email,Teléfono,País,Ciudad,CP,Mensaje,Creado")
     expect(csv).toContain('"Hola, ""catálogo"""')
+    expect(response.headers["X-Export-Count"]).toBe("1")
+  })
+
+  it("informa X-Export-Count con registros y no con líneas del CSV", async () => {
+    const multiline = {
+      ...exportRow,
+      id: "req_02",
+      email: "bruno@example.test",
+      message: "Primera línea\nSegunda línea, con coma y \"comillas\".",
+    }
+    listContact.mockResolvedValue([exportRow, multiline])
+    const response = fakeResponse()
+
+    await exportContacts(
+      fakeRequest({ query: { contact_type: "catalogue" } }),
+      response as unknown as MedusaResponse,
+    )
+
+    const csv = response.body as string
+    expect(response.headers["X-Export-Count"]).toBe("2")
+    // El BOM se conserva y el mensaje multilínea sigue correctamente entrecomillado.
+    expect(csv.charCodeAt(0)).toBe(0xfeff)
+    expect(csv).toContain('"Primera línea\nSegunda línea, con coma y ""comillas""."')
+    // El conteo visible por líneas físicas sería mayor que los registros reales.
+    const visualLines = csv.replace(/^\uFEFF/, "").trimEnd().split(/\r?\n/)
+    expect(visualLines.length - 1).toBe(3)
   })
 
   it("incluye la papelera sólo cuando se pide y lo audita sin PII", async () => {

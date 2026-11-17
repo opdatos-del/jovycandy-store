@@ -159,13 +159,13 @@ test("JovyCandy CMS: dashboard real, rangos honestos y navegación por tarjetas"
   const destinations = [
     { link: "Abrir productos", url: /\/app\/products$/ },
     { link: "Abrir categorías", url: /\/app\/categories$/ },
-    { link: "Abrir contenido", url: /\/app\/jovy\/content$/ },
-    { link: "Abrir hero", url: /\/app\/jovy\/marketing$/ },
-    { link: "Abrir banners", url: /\/app\/jovy\/marketing$/ },
-    { link: "Abrir eventos", url: /\/app\/jovy\/events$/ },
+    { link: "Abrir contenido", url: /\/app\/jovy-herramientas\/content$/ },
+    { link: "Abrir hero", url: /\/app\/jovy-herramientas\/marketing$/ },
+    { link: "Abrir banners", url: /\/app\/jovy-herramientas\/marketing$/ },
+    { link: "Abrir eventos", url: /\/app\/jovy-herramientas\/events$/ },
     { link: "Abrir galería", url: /\/app\/jovy\/brand$/ },
     { link: "Abrir logos", url: /\/app\/jovy\/brand$/ },
-    { link: "Abrir contactos", url: /\/app\/jovy\/contacts$/ },
+    { link: "Abrir contactos", url: /\/app\/jovy-herramientas\/contacts$/ },
   ]
 
   for (const destination of destinations) {
@@ -175,6 +175,37 @@ test("JovyCandy CMS: dashboard real, rangos honestos y navegación por tarjetas"
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible()
     await expect(page.getByTestId("jovy-stat-products")).toBeVisible({ timeout: 15_000 })
   }
+
+  // Estructura del sidebar: 13 entradas canónicas y herramientas en grupo aparte.
+  const sidebar = page.getByRole("navigation").first()
+  await expect(sidebar.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible()
+  const cmsLinks = sidebar.locator('a[href^="/app/jovy/"]')
+  const cmsLabels = (await cmsLinks.allTextContents()).map((label) => label.trim())
+  expect(cmsLabels.slice(0, 13)).toEqual([
+    "Dashboard",
+    "Productos",
+    "Categorías",
+    "Nuevos Lanzamientos",
+    "Casa Jovy Galería",
+    "Logos",
+    "Anuncios de portada",
+    "Novedades",
+    "Usuarios",
+    "Ventas Nacionales",
+    "Ventas Internacionales",
+    "Atención al Cliente",
+    "Catálogo",
+  ])
+  expect(cmsLabels).toHaveLength(13)
+
+  const toolLabels = ["Contenido Jovy", "Eventos Jovy", "Marketing Jovy", "Contactos Jovy"]
+  for (const label of toolLabels) expect(cmsLabels).not.toContain(label)
+
+  await sidebar.getByRole("link", { name: "JovyCandy · Herramientas", exact: true }).click()
+  await expect(sidebar.getByRole("link", { name: "Marketing Jovy", exact: true })).toBeVisible()
+  const herramientasLinks = sidebar.locator('a[href^="/app/jovy-herramientas/"]')
+  const herramientasLabels = (await herramientasLinks.allTextContents()).map((label) => label.trim())
+  expect(herramientasLabels.slice(0, 4)).toEqual(toolLabels)
 
   expect(pageErrors).toEqual([])
 })

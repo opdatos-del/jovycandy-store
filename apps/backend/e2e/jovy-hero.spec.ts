@@ -114,7 +114,7 @@ test("administra Hero desde la UI, persiste media/ajustes y reordena hacia la St
     const settings = await request.get("/admin/jovy/marketing/hero/settings", { headers })
     originalColor = (await settings.json()).hero_settings.background_color ?? originalColor
 
-    await page.goto("/app/jovy/marketing")
+    await page.goto("/app/jovy-herramientas/marketing")
     await expect(page.getByRole("heading", { name: "Hero corporativo" })).toBeVisible()
     await page.getByLabel("Hero título es").fill(titleA)
     await page.getByLabel("Hero título en").fill(`EN ${titleA}`)

@@ -21,5 +21,5 @@ const MarketingPage = () => {
   </div>
 }
 
-export const config = defineRouteConfig({ label: "Marketing Jovy", icon: Sparkles, rank: 20 })
+export const config = defineRouteConfig({ label: "Marketing Jovy", icon: Sparkles, rank: 4 })
 export default MarketingPage

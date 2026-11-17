@@ -316,9 +316,9 @@ duplica vínculos. Ver `docs/23-MARKETING-CONTENT.md` §«Backfill explícito».
 | `e2e/jovy-launches-admin.spec.ts` | E2E Admin | producto, imagen, orden, visibilidad, color global y rechazo de hex inválido |
 | `e2e/jovy-announcements-admin.spec.ts` | E2E Admin | separación modal/mensaje, persistencia ES/EN, vaciado de un idioma y Store |
 
-Regresión consolidada final: `lint` 0, `typecheck` 0, `test:unit` 29 suites / 275 pruebas,
-`test:integration:modules` 6 suites / 37 pruebas, `test:integration:http` 10 suites / 68 pruebas,
-`build` OK y `test:e2e` 27 pruebas / 0 fallos en 4,3 min. Los conteos completos viven en
+Regresión consolidada final: `lint` 0, `typecheck` 0, `test:unit` 31 suites / 301 pruebas,
+`test:integration:modules` 6 suites / 37 pruebas, `test:integration:http` 10 suites / 70 pruebas,
+`build` OK y `test:e2e` 29 pruebas / 0 fallos en 4,9 min. Los conteos completos viven en
 `docs/21-ESTADO-REESCRITURA-ADMIN.md`.
 
 ## 7. Decisiones y pendientes reales

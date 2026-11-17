@@ -3,7 +3,8 @@ import { Images } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Input, Text, toast, usePrompt } from "@medusajs/ui"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { adminRequest, errorMessage } from "../components/admin-api"
-import { canMoveEventWithinPriority, moveEventWithinPriority } from "../events/ordering"
+// eslint-disable-next-line no-restricted-imports -- el Vite del Admin no resuelve el alias @jovy; la ruta relativa cruzando grupos es necesaria
+import { canMoveEventWithinPriority, moveEventWithinPriority } from "../../jovy-herramientas/events/ordering"
 import { NoveltyCard } from "./components/novelty-card"
 import { NoveltyForm } from "./components/novelty-form"
 import {
@@ -489,7 +490,7 @@ const NoveltiesPage = () => {
               Actualizar
             </Button>
             <Button asChild size="small" variant="secondary">
-              <a href="/app/jovy/events">Abrir Eventos Jovy</a>
+              <a href="/app/jovy-herramientas/events">Abrir Eventos Jovy</a>
             </Button>
           </div>
         </div>
@@ -679,7 +680,7 @@ const NoveltiesPage = () => {
       ) : (
         <section
           aria-label="Novedades del carrusel"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
         >
           {filtered.map((event) => (
             <NoveltyCard
@@ -709,5 +710,5 @@ const NoveltiesPage = () => {
   )
 }
 
-export const config = defineRouteConfig({ label: "Novedades", icon: Images, rank: 90 })
+export const config = defineRouteConfig({ label: "Novedades", icon: Images, rank: 8 })
 export default NoveltiesPage

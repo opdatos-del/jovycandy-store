@@ -8,6 +8,11 @@ import { createAdminSession, adminHeaders, createPublishableApiKey, storeHeaders
 
 jest.setTimeout(120_000)
 
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLfkQAAAABJRU5ErkJggg==",
+  "base64",
+)
+
 type Category = {
   id: string
   key: string
@@ -59,6 +64,11 @@ medusaIntegrationTestRunner({
     const createProductCategory = async (name: string, handle: string) => {
       const productService = getContainer().resolve(Modules.PRODUCT)
       return productService.createProductCategories({ name, handle, is_active: true })
+    }
+
+    const createFile = async (filename: string, mimeType: string, content: Buffer) => {
+      const files = getContainer().resolve(Modules.FILE)
+      return files.createFiles({ filename, mimeType, content: content.toString("base64"), access: "public" })
     }
 
     const linkPublicFamily = async (key: string, suffix: string) => {
@@ -213,6 +223,44 @@ medusaIntegrationTestRunner({
         name: "Fantasma",
       })
       expect(missingCategory.status).toBe(404)
+    })
+
+    it("valida image_file_id del catálogo contra el File Module", async () => {
+      const seeded = await seedCategories()
+      const sazonador = categoryByKey(seeded.data.categories as Category[], "sazonador")
+      const image = await createFile("categoria.png", "image/png", PNG)
+      const text = await createFile("categoria.txt", "text/plain", Buffer.from("no soy una imagen", "utf8"))
+
+      const saved = await adminSend("put", `/admin/jovy/catalogue/categories/${sazonador.id}`, {
+        image_file_id: image.id,
+      })
+      expect(saved.status).toBe(200)
+      expect(saved.data.category.image_file_id).toBe(image.id)
+
+      const missing = await adminSend("put", `/admin/jovy/catalogue/categories/${sazonador.id}`, {
+        image_file_id: "jovy-missing.png",
+      })
+      expect(missing.status).toBe(400)
+      expect(missing.data.message).toBe("El archivo de imagen no existe")
+      // No persiste: la categoría conserva la imagen válida anterior.
+      expect((await adminGet(`/admin/jovy/catalogue/categories/${sazonador.id}`)).data.category.image_file_id).toBe(
+        image.id,
+      )
+
+      const notImage = await adminSend("put", `/admin/jovy/catalogue/categories/${sazonador.id}`, {
+        image_file_id: text.id,
+      })
+      expect(notImage.status).toBe(400)
+      expect(notImage.data.message).toBe("El archivo de imagen no es una imagen PNG, JPEG o WebP")
+      expect((await adminGet(`/admin/jovy/catalogue/categories/${sazonador.id}`)).data.category.image_file_id).toBe(
+        image.id,
+      )
+
+      const cleared = await adminSend("put", `/admin/jovy/catalogue/categories/${sazonador.id}`, {
+        image_file_id: null,
+      })
+      expect(cleared.status).toBe(200)
+      expect(cleared.data.category.image_file_id).toBeNull()
     })
 
     it("reordena categorías y rechaza identificadores repetidos", async () => {
@@ -443,6 +491,50 @@ medusaIntegrationTestRunner({
       expect(removed.status).toBe(204)
       expect((await adminGet(`/admin/jovy/launches/${withProduct.data.launch.id}`)).status).toBe(404)
       expect((await store("/store/jovy/launches")).data.launches).toHaveLength(0)
+    })
+
+    it("valida image_file_id de lanzamientos y permite quitarlo", async () => {
+      const image = await createFile("lanzamiento.png", "image/png", PNG)
+      const text = await createFile("lanzamiento.txt", "text/plain", Buffer.from("no soy una imagen", "utf8"))
+
+      const productService = getContainer().resolve(Modules.PRODUCT)
+      const product = await productService.createProducts({ title: "Producto con archivo" })
+
+      const created = await adminSend("post", "/admin/jovy/launches", {
+        title: "Con archivo",
+        product_id: product.id,
+        image_file_id: image.id,
+      })
+      expect(created.status).toBe(201)
+      expect(created.data.launch.image_file_id).toBe(image.id)
+
+      const missing = await adminSend("post", "/admin/jovy/launches", {
+        title: "Archivo inexistente",
+        product_id: product.id,
+        image_file_id: "jovy-missing.png",
+      })
+      expect(missing.status).toBe(400)
+      expect(missing.data.message).toBe("El archivo de imagen no existe")
+
+      const notImage = await adminSend("post", "/admin/jovy/launches", {
+        title: "Archivo que no es imagen",
+        product_id: product.id,
+        image_file_id: text.id,
+      })
+      expect(notImage.status).toBe(400)
+      expect(notImage.data.message).toBe("El archivo de imagen no es una imagen PNG, JPEG o WebP")
+
+      const listed = await adminGet("/admin/jovy/launches")
+      const titles = (listed.data.launches as Launch[]).map((launch) => launch.title)
+      expect(titles).toContain("Con archivo")
+      expect(titles).not.toContain("Archivo inexistente")
+      expect(titles).not.toContain("Archivo que no es imagen")
+
+      const cleared = await adminSend("put", `/admin/jovy/launches/${created.data.launch.id}`, {
+        image_file_id: null,
+      })
+      expect(cleared.status).toBe(200)
+      expect(cleared.data.launch.image_file_id).toBeNull()
     })
 
     it("publica el mensaje corporativo por idioma sin exponer datos internos", async () => {

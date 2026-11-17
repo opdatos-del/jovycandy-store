@@ -1,5 +1,5 @@
-import { Photo } from "@medusajs/icons"
-import { Badge, Button, Heading, Text } from "@medusajs/ui"
+import { Badge, Button, Heading, Switch, Text } from "@medusajs/ui"
+import { useEffect, useState } from "react"
 import type { CatalogueCategory, CatalogueFamily, MedusaCategory } from "./catalogue-types"
 
 type Props = {
@@ -9,8 +9,10 @@ type Props = {
   families: CatalogueFamily[]
   medusaCategories: MedusaCategory[]
   reordering: boolean
+  comingSoonPending: boolean
   onEdit: () => void
   onMove: (direction: -1 | 1) => void
+  onToggleComingSoon: () => void
 }
 
 type Accent = { card: string; marker: string; badge: "orange" | "red" | "blue" | "green" | "grey" }
@@ -49,7 +51,7 @@ const accentByKey: Record<string, Accent> = {
 }
 
 const fallbackAccent: Accent = {
-  card: "border-ui-border-base bg-ui-bg-base",
+  card: "border-ui-border-base bg-gradient-to-b from-ui-bg-subtle to-ui-bg-base",
   marker: "bg-ui-tag-neutral-icon",
   badge: "grey",
 }
@@ -69,11 +71,18 @@ export const CatalogueCategoryCard = ({
   families,
   medusaCategories,
   reordering,
+  comingSoonPending,
   onEdit,
   onMove,
+  onToggleComingSoon,
 }: Props) => {
   const titleId = `catalogue-title-${category.key}`
   const accent = accentByKey[category.key] ?? fallbackAccent
+  // Una URL rota no debe reservar un bloque gris: la imagen solo ocupa espacio
+  // cuando existe y carga; al fallar se oculta sin dejar hueco.
+  const [imageFailed, setImageFailed] = useState(false)
+  useEffect(() => setImageFailed(false), [category.image_resolved_url])
+  const showImage = Boolean(category.image_resolved_url) && !imageFailed
   const linkedCategory = medusaCategories.find((item) => item.id === category.medusa_category_id)
   const productCount = families.reduce((count, family) => count + family.product_ids.length, 0)
   const access = category.coming_soon || category.interaction_locked ? "Bloqueado" : "Disponible"
@@ -82,15 +91,16 @@ export const CatalogueCategoryCard = ({
     <article
       data-testid={`catalogue-card-${category.key}`}
       aria-labelledby={titleId}
-      className={`flex min-w-0 flex-col overflow-hidden rounded-lg border shadow-elevation-card-rest ${accent.card}`}
+      className={`flex min-w-0 flex-col overflow-hidden rounded-xl border shadow-elevation-card-rest ${accent.card}`}
     >
       <div className={`h-1.5 w-full ${accent.marker}`} aria-hidden />
-      {category.image_resolved_url ? (
-        <img src={category.image_resolved_url} alt={`Imagen de ${category.name}`} className="h-32 w-full object-cover" />
-      ) : (
-        <div className="bg-ui-bg-subtle text-ui-fg-muted flex h-32 items-center justify-center" aria-hidden>
-          <Photo />
-        </div>
+      {showImage && category.image_resolved_url && (
+        <img
+          src={category.image_resolved_url}
+          alt={`Imagen de ${category.name}`}
+          className="h-32 w-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
       )}
 
       <div className="flex flex-1 flex-col gap-y-3 p-4">
@@ -113,7 +123,7 @@ export const CatalogueCategoryCard = ({
           {category.description || "Sin descripción."}
         </Text>
 
-        <div className="border-ui-border-base bg-ui-bg-base/75 grid grid-cols-2 gap-3 rounded-md border p-3">
+        <div className="border-ui-border-base bg-ui-bg-base/75 grid grid-cols-2 gap-x-3 gap-y-3 rounded-md border p-3">
           <div className="min-w-0">
             <Text size="xsmall" className="text-ui-fg-subtle uppercase">
               Clave
@@ -129,6 +139,23 @@ export const CatalogueCategoryCard = ({
             <Text size="small" weight="plus">
               {access}
             </Text>
+          </div>
+          {/* Jerarquía del admin histórico: etiqueta + indicador + switch dentro del panel de la clave. */}
+          <div className="border-ui-border-base col-span-2 flex items-center justify-between gap-3 border-t pt-3">
+            <Text size="xsmall" className="text-ui-fg-subtle uppercase">
+              {"Próximamente:"}
+            </Text>
+            <div className="flex items-center gap-2">
+              <Badge color={category.coming_soon ? "orange" : "grey"}>
+                {category.coming_soon ? "SÍ" : "NO"}
+              </Badge>
+              <Switch
+                aria-label="Próximamente"
+                checked={category.coming_soon}
+                disabled={comingSoonPending}
+                onCheckedChange={onToggleComingSoon}
+              />
+            </div>
           </div>
         </div>
 

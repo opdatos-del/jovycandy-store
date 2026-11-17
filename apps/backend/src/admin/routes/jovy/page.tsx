@@ -23,7 +23,7 @@ import {
 import { number } from "./components/dashboard-model"
 import { useDashboard } from "./components/use-dashboard"
 
-const DashboardPage = () => {
+export const DashboardPage = () => {
   const { dashboard, isLoading, isRefreshing, error, refresh, retry } = useDashboard()
 
   return (
@@ -110,7 +110,7 @@ const DashboardPage = () => {
                 `${number.format(dashboard.events.total)} en total`,
               ]}
               icon={Calendar}
-              href="/jovy/events"
+              href="/jovy-herramientas/events"
               linkLabel="Abrir eventos"
               testId="jovy-stat-events"
               cardTestId="jovy-card-events"
@@ -162,7 +162,7 @@ const DashboardPage = () => {
                 `${number.format(dashboard.content.pages.archived)} archivadas`,
               ]}
               icon={DocumentText}
-              href="/jovy/content"
+              href="/jovy-herramientas/content"
               linkLabel="Abrir contenido"
               testId="jovy-stat-content"
               cardTestId="jovy-card-content"
@@ -174,7 +174,7 @@ const DashboardPage = () => {
                 `${number.format(dashboard.marketing.hero.draft)} borradores · ${number.format(dashboard.marketing.hero.archived)} archivados`,
               ]}
               icon={Sparkles}
-              href="/jovy/marketing"
+              href="/jovy-herramientas/marketing"
               linkLabel="Abrir hero"
               testId="jovy-stat-hero"
               cardTestId="jovy-card-hero"
@@ -186,7 +186,7 @@ const DashboardPage = () => {
                 `${number.format(dashboard.marketing.banners.draft)} borradores · ${number.format(dashboard.marketing.banners.archived)} archivados`,
               ]}
               icon={Sparkles}
-              href="/jovy/marketing"
+              href="/jovy-herramientas/marketing"
               linkLabel="Abrir banners"
               testId="jovy-stat-banners"
               cardTestId="jovy-card-banners"
@@ -204,7 +204,7 @@ const DashboardPage = () => {
                 `${number.format(dashboard.contacts.total.handled)} atendidas · ${number.format(dashboard.contacts.total.total)} en total`,
               ]}
               icon={Envelope}
-              href="/jovy/contacts"
+              href="/jovy-herramientas/contacts"
               linkLabel="Abrir contactos"
               testId="jovy-stat-contacts"
               cardTestId="jovy-card-contacts"

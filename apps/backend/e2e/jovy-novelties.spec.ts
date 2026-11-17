@@ -184,6 +184,13 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
     await expect(card.getByTestId(`novelty-preview-${eventId}`)).toBeVisible()
     await expect(card.getByText("Borrador", { exact: true })).toBeVisible()
     await expect(card.getByTestId(`novelty-store-state-${eventId}`)).toHaveText("Fuera de Store")
+    // Densidad histórica: cinco columnas fijas también a 1440 (breakpoint xl).
+    await expect.poll(async () => page
+      .locator('section[aria-label="Novedades del carrusel"]')
+      .evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length)).toBe(5)
+    await expect.poll(() => page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    )).toBe(true)
     await page.screenshot({ path: screenshot("02-desktop-grid-borrador.png"), fullPage: true })
     await card.screenshot({ path: screenshot("02b-card-borrador.png") })
 
@@ -249,7 +256,7 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
       .getByTestId(`novelty-card-${eventId}`)
       .getByRole("link", { name: "Editar este evento" })
       .click()
-    await expect(page).toHaveURL(/\/app\/jovy\/events\?event=/)
+    await expect(page).toHaveURL(/\/app\/jovy-herramientas\/events\?event=/)
     await expect.poll(() => new URL(page.url()).searchParams.get("event")).toBe(eventId)
     await expect(page.getByRole("heading", { name: "Editar evento" })).toBeVisible()
     await expect(page.getByLabel("Título evento")).toHaveValue(title)

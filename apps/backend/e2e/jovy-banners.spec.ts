@@ -90,7 +90,7 @@ function localInput(date: Date) {
 }
 
 async function openBanners(page: Page) {
-  await page.goto("/app/jovy/marketing?tab=banners&slot=promo")
+  await page.goto("/app/jovy-herramientas/marketing?tab=banners&slot=promo")
   await expect(page.getByRole("heading", { name: "Banners y promociones" })).toBeVisible()
 }
 
@@ -175,6 +175,12 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
 
     await page.goto("/app/jovy")
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible()
+    // Marketing vive en el grupo hermano «JovyCandy · Herramientas».
+    await page
+      .getByRole("navigation")
+      .first()
+      .getByRole("link", { name: "JovyCandy · Herramientas", exact: true })
+      .click()
     await page
       .getByRole("navigation")
       .first()

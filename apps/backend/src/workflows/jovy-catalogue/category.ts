@@ -1,6 +1,7 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { normalizeCatalogueInteraction, type UpdateCatalogueCategoryInput } from "@jovy/lib/jovy/catalogue"
+import { assertImageFile, type ImageFileLookup } from "@jovy/lib/jovy/media"
 import { JOVY_CATALOGUE_MODULE } from "@jovy/modules/jovy-catalogue"
 
 type SaveCategoryInput = UpdateCatalogueCategoryInput & {
@@ -26,6 +27,12 @@ const saveCategoryStep = createStep("save-category", async (input: SaveCategoryI
     if (!categories.length) {
       throw new MedusaError(MedusaError.Types.NOT_FOUND, "Categoría comercial no encontrada")
     }
+  }
+
+  // `null` quita la imagen; un id efectivo debe existir en el File Module y
+  // ser una imagen antes de tocar la fila.
+  if (data.image_file_id) {
+    await assertImageFile(container.resolve(Modules.FILE) as ImageFileLookup, data.image_file_id)
   }
 
   const category = await service.updateCatalogueCategories({

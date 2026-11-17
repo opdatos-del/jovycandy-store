@@ -27,8 +27,8 @@ import { marketingApi, toDateTimeLocal, toIso } from "./admin-api"
 /**
  * Administración de los banners de portada (`promo` = modal, `hint` = franja
  * bajo el logo). Reutiliza el CRUD existente `/admin/jovy/marketing/banners`:
- * no hay endpoints nuevos y esta pantalla tampoco duplica el formulario en
- * Anuncios de portada.
+ * no hay endpoints nuevos. Anuncios de portada monta este mismo componente con
+ * `initialSlot="promo"`, así que tampoco existe un segundo formulario.
  *
  * Diferencia pendiente con el administrador histórico: el recorte interactivo
  * (`crop_zoom`, `crop_offset_x`, `crop_offset_y`, `original_src`) no existe en
@@ -206,7 +206,21 @@ function initialSlotFilter(): SlotFilter {
   return slot === "promo" || slot === "hint" ? slot : "all"
 }
 
-export const BannerManager = ({ initialSlot = "promo" }: { initialSlot?: Slot } = {}) => {
+export const BannerManager = ({
+  initialSlot = "promo",
+  headingLevel = "h1",
+  heading = "Banners y promociones",
+  defaultSlotFilter,
+  onBannersChange,
+}: {
+  initialSlot?: Slot
+  headingLevel?: "h1" | "h2" | "h3"
+  heading?: string
+  /** Slot preseleccionado en el filtro; sin él la URL decide y por defecto se ven todos. */
+  defaultSlotFilter?: SlotFilter
+  /** Se invoca después de crear, editar, publicar, archivar, reordenar o eliminar. */
+  onBannersChange?: () => void
+} = {}) => {
   const prompt = usePrompt()
   const [items, setItems] = useState<Banner[]>([])
   const [mediaUrls, setMediaUrls] = useState<Record<string, string | null>>({})
@@ -220,7 +234,7 @@ export const BannerManager = ({ initialSlot = "promo" }: { initialSlot?: Slot } 
   const [busyId, setBusyId] = useState<string | null>(null)
   const [reordering, setReordering] = useState(false)
   const [query, setQuery] = useState("")
-  const [slotFilter, setSlotFilter] = useState<SlotFilter>(initialSlotFilter)
+  const [slotFilter, setSlotFilter] = useState<SlotFilter>(() => defaultSlotFilter ?? initialSlotFilter())
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
 
   const resolveMedia = useCallback(async (banners: Banner[]) => {
@@ -325,6 +339,7 @@ export const BannerManager = ({ initialSlot = "promo" }: { initialSlot?: Slot } 
       toast.success(editing ? "Banner actualizado." : "Banner creado.")
       returnToList()
       await load()
+      onBannersChange?.()
     } catch (error) {
       setFormError(errorText(error, "No se pudo guardar el banner."))
     } finally {
@@ -363,6 +378,7 @@ export const BannerManager = ({ initialSlot = "promo" }: { initialSlot?: Slot } 
             : "Banner despublicado.",
       )
       await load()
+      onBannersChange?.()
     } catch (error) {
       toast.error(errorText(error, "No se pudo actualizar el estado del banner."))
     } finally {
@@ -385,6 +401,7 @@ export const BannerManager = ({ initialSlot = "promo" }: { initialSlot?: Slot } 
       await marketingApi(`/admin/jovy/marketing/banners/${banner.id}`, { method: "DELETE" })
       toast.success("Banner eliminado.")
       await load()
+      onBannersChange?.()
     } catch (error) {
       toast.error(errorText(error, "No se pudo eliminar el banner."))
     } finally {
@@ -408,6 +425,7 @@ export const BannerManager = ({ initialSlot = "promo" }: { initialSlot?: Slot } 
       })
       toast.success("Orden de banners actualizado.")
       await load()
+      onBannersChange?.()
     } catch (error) {
       toast.error(errorText(error, "No se pudo reordenar los banners."))
     } finally {
@@ -474,7 +492,7 @@ export const BannerManager = ({ initialSlot = "promo" }: { initialSlot?: Slot } 
       <Container className="p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Heading level="h1">Banners y promociones</Heading>
+            <Heading level={headingLevel}>{heading}</Heading>
             <Text size="small" className="text-ui-fg-subtle mt-1">
               Dos slots históricos: <span className="font-medium">promo</span> es el modal de portada y{" "}
               <span className="font-medium">hint</span> la franja bajo el logo. La frecuencia y la

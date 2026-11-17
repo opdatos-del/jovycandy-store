@@ -14,6 +14,7 @@ import {
   mergeSeenIds,
   newContactIds,
   paginationItems,
+  parseExportCount,
   previewMessage,
   validateContactDraft,
   type Contact,
@@ -264,5 +265,14 @@ describe("bandejas de contactos", () => {
 
   it("acumula vistos entre páginas sin perder los anteriores", () => {
     expect([...mergeSeenIds(new Set(["a"]), [{ id: "b" }, { id: "a" }])]).toEqual(["a", "b"])
+  })
+
+  it("usa X-Export-Count cuando existe y descarta valores inválidos", () => {
+    expect(parseExportCount("12")).toBe(12)
+    expect(parseExportCount(" 0 ")).toBe(0)
+    expect(parseExportCount(null)).toBeNull()
+    expect(parseExportCount("")).toBeNull()
+    expect(parseExportCount("12 filas")).toBeNull()
+    expect(parseExportCount("-3")).toBeNull()
   })
 })

@@ -3,12 +3,15 @@ import { BellAlert, Photo } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Skeleton, Text, toast } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
 import { adminRequest, errorMessage } from "../components/admin-api"
+// eslint-disable-next-line no-restricted-imports -- el Vite del Admin no resuelve el alias @jovy; la ruta relativa cruzando grupos es necesaria
+import { BannerManager } from "../../jovy-herramientas/marketing/components/banner-manager"
 import { CorporateMessageForm } from "./components/corporate-message-form"
 
 /**
  * Anuncios de portada = dos piezas independientes:
- * A. El modal promocional, que es un banner del slot `promo` y se edita en
- *    Marketing → Banners (esta pantalla solo resume y enlaza; no duplica CRUD).
+ * A. El modal promocional, que es un banner del slot `promo`. Se administra
+ *    aquí mismo con el gestor de Marketing (mismo CRUD y mismos endpoints); el
+ *    enlace a Marketing queda como atajo secundario.
  * B. El mensaje corporativo ES/EN, editado aquí.
  *
  * Los conteos usan la misma regla de publicación que el backend
@@ -272,8 +275,8 @@ const AnnouncementsPage = () => {
             <Heading level="h2">A. Modal de portada</Heading>
             <Text size="small" className="text-ui-fg-subtle mt-1">
               Ventana promocional con imagen, título bilingüe, CTA, frecuencia y apertura automática. Se administra
-              como banner en el slot <code className="font-mono">promo</code>; esta pantalla no duplica el
-              formulario.
+              aquí con el mismo gestor del slot <code className="font-mono">promo</code> que usa Marketing; no hay
+              formulario ni endpoint duplicado.
             </Text>
           </div>
           <Badge color="purple">Marketing Jovy</Badge>
@@ -382,7 +385,7 @@ const AnnouncementsPage = () => {
                * así que `Link` se renderiza sin contexto de router y rompe la página.
                */}
               <Button asChild size="small" variant="secondary">
-                <a href="/app/jovy/marketing?tab=banners&slot=promo">Abrir Banners (slot promo)</a>
+                <a href="/app/jovy-herramientas/marketing?tab=banners&slot=promo">Abrir Banners (slot promo)</a>
               </Button>
               <Text size="small" className="text-ui-fg-subtle">
                 {promoSummary.published === 1
@@ -395,13 +398,23 @@ const AnnouncementsPage = () => {
         ) : (
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Button asChild size="small" variant="secondary">
-              <a href="/app/jovy/marketing?tab=banners&slot=promo">Abrir Banners (slot promo)</a>
+              <a href="/app/jovy-herramientas/marketing?tab=banners&slot=promo">Abrir Banners (slot promo)</a>
             </Button>
             <Text size="small" className="text-ui-fg-subtle">
               El resumen del modal no está disponible; el gestor sigue accesible.
             </Text>
           </div>
         )}
+
+        <div className="border-ui-border-base mt-5 border-t pt-4">
+          <BannerManager
+            initialSlot="promo"
+            defaultSlotFilter="promo"
+            heading="Gestión del modal (slot promo)"
+            headingLevel="h2"
+            onBannersChange={loadPromoBanners}
+          />
+        </div>
 
         <Text size="xsmall" className="text-ui-fg-subtle mt-4">
           El modal y el mensaje corporativo son independientes: publicar o archivar el banner promo no modifica el
@@ -467,7 +480,7 @@ const AnnouncementsPage = () => {
 export const config = defineRouteConfig({
   label: "Anuncios de portada",
   icon: BellAlert,
-  rank: 80,
+  rank: 7,
 })
 
 export default AnnouncementsPage
