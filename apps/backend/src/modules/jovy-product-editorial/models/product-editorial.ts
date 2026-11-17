@@ -1,5 +1,5 @@
 import { model } from "@medusajs/framework/utils"
-import { PRODUCT_EDITORIAL_STATUSES } from "@jovy/lib/jovy/product-editorial"
+import { COMMERCIAL_MODES, PRODUCT_EDITORIAL_STATUSES } from "@jovy/lib/jovy/product-editorial"
 
 /**
  * Ficha editorial de un producto comercial de Medusa. `product_id` es único y
@@ -17,6 +17,9 @@ const ProductEditorial = model
     sort_order: model.number().default(0),
     is_new: model.boolean().default(false),
     editorial_status: model.enum([...PRODUCT_EDITORIAL_STATUSES]).default("draft"),
+    // Modalidad de venta. `null` identifica una ficha histórica informativa: se
+    // resuelve como CATALOG_ONLY, nunca se auto-clasifica como vendible.
+    commercial_mode: model.enum([...COMMERCIAL_MODES]).nullable(),
     published_at: model.dateTime().nullable(),
   })
   .indexes([

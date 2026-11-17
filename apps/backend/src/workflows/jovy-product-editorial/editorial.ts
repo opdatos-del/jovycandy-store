@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import {
   productPublishIssues,
   resolveEditorialPublishedAt,
+  type CommercialMode,
   type ProductEditorialInput,
 } from "@jovy/lib/jovy/product-editorial"
 import {
@@ -29,6 +30,7 @@ type EditorialService = {
       id: string
       deleted_at?: Date | string | null
       editorial_status: string
+      commercial_mode?: CommercialMode | null
       published_at?: Date | string | null
     }>
   >
@@ -74,6 +76,8 @@ const saveProductEditorialStep = createStep(
     }
 
     const data: Record<string, unknown> = {
+      // `commercial_mode` viaja en `patch`: null y valores del enum se guardan
+      // tal cual. No se backfillea ni se infiere; la ausencia sigue siendo null.
       ...patch,
       editorial_status: editorialStatus,
       // Guardar una ficha ya publicada no reescribe la fecha de publicación:
@@ -91,6 +95,7 @@ const saveProductEditorialStep = createStep(
           certifications: [],
           sort_order: 0,
           is_new: false,
+          commercial_mode: null,
           ...data,
         })
 

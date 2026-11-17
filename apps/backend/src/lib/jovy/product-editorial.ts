@@ -14,6 +14,27 @@ export const PRODUCT_EDITORIAL_STATUSES = ["draft", "published", "archived"] as 
 export type ProductEditorialStatus = (typeof PRODUCT_EDITORIAL_STATUSES)[number]
 
 /**
+ * Modalidad comercial de la ficha. `catalog_only` muestra el producto en el
+ * catálogo sin permitir la compra; `sellable` autoriza la venta solo después de
+ * la validación del servidor. `null` marca fichas históricas sin clasificar y
+ * siempre se resuelve como CATALOG_ONLY: nunca se auto-clasifica como vendible.
+ */
+export const COMMERCIAL_MODES = ["catalog_only", "sellable"] as const
+export type CommercialMode = (typeof COMMERCIAL_MODES)[number]
+
+export const RESOLVED_COMMERCIAL_MODES = ["CATALOG_ONLY", "SELLABLE"] as const
+export type ResolvedCommercialMode = (typeof RESOLVED_COMMERCIAL_MODES)[number]
+
+/** Códigos informativos de requisitos pendientes para poder vender. */
+export const SELLABLE_REQUIREMENT_CODES = ["variants", "prices", "sales_channel", "inventory_policy"] as const
+export type SellableRequirementCode = (typeof SELLABLE_REQUIREMENT_CODES)[number]
+
+/** Toda modalidad no explícitamente `sellable` se resuelve como catálogo. */
+export function resolveCommercialMode(mode: CommercialMode | null | undefined): ResolvedCommercialMode {
+  return mode === "sellable" ? "SELLABLE" : "CATALOG_ONLY"
+}
+
+/**
  * Catálogo permitido de certificaciones (valores que mostraba el histórico).
  * Es un enum cerrado a propósito: una certificación nueva se agrega aquí y en
  * la migración de datos correspondiente, no se acepta texto libre.
@@ -45,6 +66,7 @@ const editorialFields = {
   sort_order: z.number().int().min(0).optional(),
   is_new: z.boolean().optional(),
   editorial_status: editorialStatusSchema.optional(),
+  commercial_mode: z.enum(COMMERCIAL_MODES).nullable().optional(),
 }
 
 /**
@@ -66,6 +88,24 @@ export type EditorialProductRef = {
   status?: string | null
   categories?: Array<{ id: string }> | null
   jovy_product_family?: { id?: string | null } | null
+  /** Campos comerciales que el graph ya consulta para el diagnóstico de venta. */
+  variants?: SellableProductSnapshot["variants"]
+  sales_channels?: SellableProductSnapshot["sales_channels"]
+}
+
+/**
+ * Instantánea mínima del producto comercial tal como la devuelve el graph.
+ * Todos los campos son opcionales: la capa editorial no exige datos comerciales
+ * para mostrar el catálogo y esta función solo informa de lo que falta.
+ */
+export type SellableProductSnapshot = {
+  variants?: ReadonlyArray<{
+    id?: string | null
+    prices?: ReadonlyArray<{ id?: string | null; amount?: number | null }> | null
+    inventory_items?: ReadonlyArray<{ inventory_item_id?: string | null }> | null
+    allow_backorder?: boolean | null
+  }> | null
+  sales_channels?: ReadonlyArray<{ id?: string | null }> | null
 }
 
 export type EditorialCatalogueCategory = {
@@ -157,6 +197,37 @@ export function productPublishIssues(
   if (!product.title?.trim()) issues.push("nombre")
   if (!product.thumbnail) issues.push("imagen principal")
   return issues
+}
+
+/**
+ * Requisitos pendientes para que un producto pueda venderse, derivados de los
+ * campos comerciales que ya lee el graph. Es puramente informativo: NO habilita
+ * la venta por sí solo. La autorización depende de `commercial_mode` y de la
+ * validación del servidor en los hooks del carrito. El orden de salida es fijo.
+ */
+export function sellableRequirements(
+  product: SellableProductSnapshot | null | undefined,
+): SellableRequirementCode[] {
+  const pending = new Set<SellableRequirementCode>()
+  const variants = product?.variants ?? []
+
+  if (variants.length === 0) {
+    pending.add("variants")
+    pending.add("prices")
+    pending.add("inventory_policy")
+  } else {
+    if (!variants.some((variant) => (variant.prices?.length ?? 0) > 0)) pending.add("prices")
+    const hasInventoryPolicy = variants.some(
+      (variant) =>
+        (variant.inventory_items?.length ?? 0) > 0 ||
+        variant.allow_backorder === true,
+    )
+    if (!hasInventoryPolicy) pending.add("inventory_policy")
+  }
+
+  if (!(product?.sales_channels?.length ?? 0)) pending.add("sales_channel")
+
+  return SELLABLE_REQUIREMENT_CODES.filter((code) => pending.has(code))
 }
 
 /** Solo lo publicado llega a Store; `archived` y `draft` se ocultan. */

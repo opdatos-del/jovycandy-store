@@ -319,6 +319,7 @@ medusaIntegrationTestRunner({
         category_keys: ["chamoy"],
       })
       expect(Object.keys(storeProducts[0])).not.toContain("editorial_status")
+      expect(Object.keys(storeProducts[0])).not.toContain("sellable_requirements")
       expect(Object.keys(storeProducts[0].product)).toEqual(["id", "title", "handle", "thumbnail"])
 
       const archived = await adminSend("put", `/admin/jovy/products/${setup.product.id}/editorial`, {

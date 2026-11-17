@@ -710,5 +710,5 @@ const NoveltiesPage = () => {
   )
 }
 
-export const config = defineRouteConfig({ label: "Novedades", icon: Images, rank: 8 })
+export const config = defineRouteConfig({ label: "Novedades", icon: Images, rank: 7 })
 export default NoveltiesPage

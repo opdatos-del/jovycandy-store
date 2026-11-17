@@ -7,5 +7,5 @@ const InternationalSalesInbox = () => (
   <ContactInbox title="Ventas Internacionales" contactType="international-sales" description="Solicitudes de exportación y distribución fuera de México." />
 )
 
-export const config = defineRouteConfig({ label: "Ventas Internacionales", icon: Globe, rank: 11 })
+export const config = defineRouteConfig({ label: "Ventas Internacionales", icon: Globe, rank: 9 })
 export default InternationalSalesInbox

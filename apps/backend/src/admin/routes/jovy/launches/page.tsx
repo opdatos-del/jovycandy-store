@@ -519,7 +519,7 @@ const LaunchesPage = () => {
 export const config = defineRouteConfig({
   label: "Nuevos Lanzamientos",
   icon: RocketLaunch,
-  rank: 4,
+  rank: 3,
 })
 
 export default LaunchesPage

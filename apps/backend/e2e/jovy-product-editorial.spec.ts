@@ -41,6 +41,7 @@ type Editorial = {
 
 type DemoContext = {
   productId: string | null
+  productTitle: string | null
   productCategoryId: string | null
   familyId: string | null
   catalogueCategoryId: string | null
@@ -102,10 +103,12 @@ async function createDemoScenario(request: APIRequestContext, headers: Record<st
   expect(family.status()).toBe(201)
   context.familyId = (await family.json()).family.id
 
+  const productTitle = demoValue("Producto editorial")
+  context.productTitle = productTitle
   const product = await request.post("/admin/products", {
     headers,
     data: {
-      title: demoValue("Producto editorial"),
+      title: productTitle,
       thumbnail: DEMO_THUMBNAIL,
       // Store exige además que el producto comercial esté `published`; la
       // ficha editorial conserva su propio estado `draft` hasta publicarla.
@@ -159,6 +162,7 @@ test("recorre listado, editor editorial y Store sin duplicar el producto comerci
 
   const context: DemoContext = {
     productId: null,
+    productTitle: null,
     productCategoryId: null,
     familyId: null,
     catalogueCategoryId: null,
@@ -191,7 +195,9 @@ test("recorre listado, editor editorial y Store sin duplicar el producto comerci
 
     // Cancelar no crea la ficha ni persiste cambios locales.
     await widget.getByRole("button", { name: "Guardar cambios" }).click()
-    await expect(page.getByText("SKU, precio, stock, variantes e imágenes del producto comercial nativo no se modifican.")).toBeVisible()
+    // El aviso de no duplicidad del prompt se valida por fragmento estable,
+    // resistente al word wrapping y a cambios de redacción alrededor.
+    await expect(page.getByText(/no se modifican/).first()).toBeVisible()
     await page.getByRole("button", { name: "Cancelar", exact: true }).last().click()
     await expect(widget.getByText(/Aún no hay ficha editorial/)).toBeVisible()
     expect(await editorialsFor(request, headers, productId)).toEqual([])
@@ -232,33 +238,43 @@ test("recorre listado, editor editorial y Store sin duplicar el producto comerci
       ),
     ).not.toContain(productId)
 
-    // El listado mantiene la composición visual histórica: tarjetas densas,
-    // filtros y búsqueda. Ambos enlaces dejan inequívoco que el editor vive en
-    // el detalle nativo, sin crear una copia comercial.
-    await page.goto("/app/jovy/products")
-    await expect(page.getByRole("heading", { name: "Productos editoriales", level: 1 })).toBeVisible({ timeout: 45_000 })
-    await page.getByLabel("Estado editorial").selectOption("draft")
-    await page.getByLabel("Buscar en fichas cargadas").fill("Producto editorial")
-    const row = page.getByTestId(`editorial-product-${productId}`)
-    await expect(row).toBeVisible({ timeout: 15_000 })
-    await expect(row.getByRole("link", { name: /Editar ficha editorial/ })).toHaveAttribute("href", `/app/products/${productId}`)
-    await expect(row.getByRole("link", { name: /Abrir producto comercial/ })).toHaveAttribute("href", `/app/products/${productId}`)
-    await expect(row.getByText("Novedad", { exact: true })).toBeVisible()
-    await page.setViewportSize({ width: 1440, height: 1000 })
-    await page.screenshot({ path: screenshotPath("04-listado-1440.png"), fullPage: true })
-    await page.setViewportSize({ width: 375, height: 812 })
-    await expect(row).toBeVisible()
-    await page.screenshot({ path: screenshotPath("05-listado-375.png"), fullPage: true })
-
-    await row.getByRole("link", { name: /Editar ficha editorial/ }).click()
+    // El listado editorial del grupo CMS se retiró con el Bloque 2: la ficha se
+    // comprueba reentrando al detalle nativo, único punto de edición editorial.
+    // Sustituciones de lo exclusivo del listado: el h1 «Productos editoriales»
+    // y el enlace «Abrir producto comercial» se cubren con el h1 del producto
+    // comercial nativo; la fila filtrada por «Estado editorial»/búsqueda y su
+    // etiqueta «Novedad» se cubren con el badge de estado y los atributos del
+    // widget; y el clic «Editar ficha editorial» se cubre con la URL nativa y
+    // el propio widget. Así se verifica la misma ficha sin duplicar Product Module.
+    await page.goto(`/app/products/${productId}`)
     await expect(page).toHaveURL(`/app/products/${productId}`)
-    const editorFromList = page.getByTestId("product-editorial-widget")
-    await expect(editorFromList.getByLabel("Gramaje", { exact: true })).toHaveValue(gramaje, { timeout: 30_000 })
+    await expect(page.getByRole("heading", { name: context.productTitle!, level: 1 })).toBeVisible({ timeout: 45_000 })
+    const editorFromDetail = page.getByTestId("product-editorial-widget")
+    await expect(editorFromDetail.getByRole("heading", { name: "Editor editorial Jovy", level: 2 })).toBeVisible()
+    await expect(editorFromDetail.getByTestId("editorial-status-badge")).toHaveText("Borrador")
+    await expect(editorFromDetail.getByLabel("Gramaje", { exact: true })).toHaveValue(gramaje, { timeout: 30_000 })
+    await expect(editorFromDetail.getByRole("checkbox", { name: "SGS" })).toBeChecked()
+    await expect(editorFromDetail.getByRole("checkbox", { name: "OU Kosher" })).toBeChecked()
+    await expect(editorFromDetail.getByRole("checkbox", { name: "Halal" })).not.toBeChecked()
+    await expect(editorFromDetail.getByRole("switch", { name: "Novedad" })).toBeChecked()
+    await expect(editorFromDetail.getByLabel("Orden", { exact: true })).toHaveValue("3")
+    // El widget redacta el aviso de no duplicidad con otras palabras y parte el
+    // texto: se valida por fragmentos reales y estables, resistentes al wrapping.
+    await expect(editorFromDetail.getByText(/SKU, precio, stock/).first()).toBeVisible()
+    await expect(editorFromDetail.getByText(/se mantienen en el detalle nativo de Medusa/).first()).toBeVisible()
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await editorFromDetail.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: screenshotPath("04-detalle-nativo-1440.png"), fullPage: true })
+    await page.setViewportSize({ width: 375, height: 812 })
+    await editorFromDetail.scrollIntoViewIfNeeded()
+    await expect(editorFromDetail.getByLabel("Gramaje", { exact: true })).toBeVisible()
+    await page.screenshot({ path: screenshotPath("05-detalle-nativo-375.png"), fullPage: true })
+    await page.setViewportSize({ width: 1440, height: 1000 })
 
-    await editorFromList.getByRole("button", { name: "Publicar en Store" }).click()
+    await editorFromDetail.getByRole("button", { name: "Publicar en Store" }).click()
     await page.getByRole("button", { name: "Publicar en Store", exact: true }).last().click()
-    await expect(editorFromList.getByTestId("editorial-status-badge")).toHaveText("Publicado", { timeout: 15_000 })
-    await expect(editorFromList.getByTestId("editorial-status-badge")).toHaveText("Publicado", { timeout: 15_000 })
+    await expect(editorFromDetail.getByTestId("editorial-status-badge")).toHaveText("Publicado", { timeout: 15_000 })
+    await expect(editorFromDetail.getByTestId("editorial-status-badge")).toHaveText("Publicado", { timeout: 15_000 })
 
     editorial = await editorialFor(request, headers, productId)
     expect(editorial.editorial_status).toBe("published")
@@ -280,12 +296,12 @@ test("recorre listado, editor editorial y Store sin duplicar el producto comerci
       sort_order: 3,
     })
     expect(published!.product.thumbnail).toBe(DEMO_THUMBNAIL)
-    await editorFromList.scrollIntoViewIfNeeded()
+    await editorFromDetail.scrollIntoViewIfNeeded()
     await page.screenshot({ path: screenshotPath("06-editor-publicado-375.png") })
 
     // Archivar: deja de ser público sin borrar nada.
     await page.setViewportSize({ width: 1440, height: 1000 })
-    const archivedWidget = editorFromList
+    const archivedWidget = editorFromDetail
     await expect(archivedWidget.getByRole("button", { name: "Archivar ficha" })).toBeVisible({ timeout: 45_000 })
     await archivedWidget.getByRole("button", { name: "Archivar ficha" }).click()
     await page.getByRole("button", { name: "Archivar ficha", exact: true }).last().click()

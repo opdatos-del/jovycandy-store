@@ -3,9 +3,12 @@ import {
   productPresentationCategoryKeys,
   productPublishIssues,
   resolveEditorialFamily,
+  sellableRequirements,
+  type CommercialMode,
   type EditorialCatalogueCategory,
   type EditorialCatalogueFamily,
   type EditorialProductRef,
+  type SellableRequirementCode,
 } from "@jovy/lib/jovy/product-editorial"
 import { JOVY_CATALOGUE_MODULE } from "@jovy/modules/jovy-catalogue"
 
@@ -40,6 +43,13 @@ export const EDITORIAL_PRODUCT_FIELDS = [
   "status",
   "categories.id",
   "jovy_product_family.id",
+  // Solo diagnóstico de `sellableRequirements`; nunca se copian al CMS ni se
+  // exponen como precio/inventario en la Store API.
+  "variants.id",
+  "variants.prices.id",
+  "variants.inventory_items.inventory_item_id",
+  "variants.allow_backorder",
+  "sales_channels.id",
 ]
 
 export type EditorialCatalogue = {
@@ -55,6 +65,8 @@ export type ProductEditorialRecord = {
   sort_order: number
   is_new: boolean
   editorial_status: string
+  /** null = ficha histórica sin clasificar; se resuelve como CATALOG_ONLY. */
+  commercial_mode: CommercialMode | null
   published_at?: Date | string | null
   created_at?: Date | string | null
   updated_at?: Date | string | null
@@ -76,6 +88,8 @@ export type DecoratedProductEditorial = ProductEditorialRecord & {
   family: { id: string; slug: string; name: string } | null
   category_keys: string[]
   publish_issues: string[]
+  /** Requisitos pendientes para vender: diagnóstico interno de Admin, nunca expuesto en Store. */
+  sellable_requirements: SellableRequirementCode[]
 }
 
 export async function loadEditorialCatalogue(scope: ReadScope): Promise<EditorialCatalogue> {
@@ -142,6 +156,7 @@ export function decorateProductEditorial(
     family: family ? { id: family.id, slug: family.slug, name: family.name } : null,
     category_keys: productPresentationCategoryKeys(product, context.categories),
     publish_issues: productPublishIssues(product, context.categories, context.families),
+    sellable_requirements: sellableRequirements(product),
   }
 }
 

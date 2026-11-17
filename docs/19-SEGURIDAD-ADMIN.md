@@ -9,6 +9,18 @@
 > documentación oficial de Medusa v2 (`packages/modules/rbac/README.md` y
 > `AGENTS.md`, versión 2.22.3).
 
+**Nota 2026-11-17:** RBAC sigue **sin licenciar y sin registrar**. `@medusajs/rbac@2.22.6`
+es solo dependencia transitiva, con licencia *Medusa Enterprise Edition License*;
+`MEDUSA_LICENSE_KEY` / `MEDUSA_LICENSE_PUBLIC_KEY` están ausentes, `authorize` → `next()`,
+`hasPermission` → `true` y las rutas `/rbac/*` están desactivadas. La sección 6 es **diseño
+no implementado**; registrar el módulo sin acuerdo comercial sería un incumplimiento. En
+paralelo, la seguridad comercial se refuerza con los hooks `validate` del carrito en
+`src/workflows/hooks/jovy-commercial-mode.ts`: la modalidad `commercial_mode` de
+`jovy_product_editorial` se valida en servidor y se rechaza con `MedusaError(NOT_ALLOWED)`
+lo que no sea `SELLABLE` (nunca se confía en `metadata` ni en `product_id` del cliente).
+Modelo comercial, recursos y roles propuestos en
+[docs/30](30-MODELO-COMERCIAL-Y-PERMISOS.md).
+
 ## 1. Resumen ejecutivo
 
 - La instalación **autentica** correctamente a los actores administrativos, pero
@@ -164,9 +176,13 @@ persistido ni verificación de permisos. Cualquier afirmación de "editor" o
 
 Las políticas core no cubren recursos propios
 (`CORE_POLICY_RESOURCES` en `@medusajs/types/dist/rbac/common.d.ts` no incluye
-`jovy_*`). Hay que declararlos y crearlos. Operaciones: usar las existentes
-`read`, `create`, `update`, `delete`; no inventar `publish` (publicar es
-`update` sobre `jovy_content`/`jovy_marketing`).
+`jovy_*`). Hay que declararlos y crearlos. Operaciones: `read`, `create`, `update`,
+`delete` y, donde el dominio lo requiera, `publish`, `archive`, `restore` y `export`.
+La documentación oficial (v2.22.3+) permite **augmentar `PolicyOperationRegistry`**
+con operaciones propias, así que `publish` **sí se puede modelar**; la afirmación
+anterior de que no se podía queda corregida. `export` debe mapearse de forma
+explícita (por ejemplo, `GET /admin/jovy/contacts/export` ⇒ `jovy_contact:export`,
+no `read`). Todo esto sigue siendo **diseño**: RBAC no está licenciado ni activo.
 
 ```ts
 // apps/backend/src/types/rbac.d.ts

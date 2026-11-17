@@ -480,7 +480,7 @@ const AnnouncementsPage = () => {
 export const config = defineRouteConfig({
   label: "Anuncios de portada",
   icon: BellAlert,
-  rank: 7,
+  rank: 6,
 })
 
 export default AnnouncementsPage

@@ -428,7 +428,7 @@ const CataloguePage = () => {
 export const config = defineRouteConfig({
   label: "Categorías",
   icon: Tag,
-  rank: 3,
+  rank: 2,
 })
 
 export default CataloguePage

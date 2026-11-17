@@ -10,6 +10,12 @@ personales reales); la copia aislada DEMO queda como evidencia complementaria. *
 No se declara fidelidad total: persisten diferencias visibles; ver
 `docs/29-PARIDAD-VISUAL-FUNCIONAL-CMS.md`.
 
+**Nota de cierre (2026-11-17):** el menú «JovyCandy CMS» tiene **11 entradas**; Productos y
+Usuarios son solo superficies nativas (`/app/products` y `/app/settings/users`) y las rutas
+`/app/jovy/products` y `/app/jovy/users` ya no existen. Modalidad comercial y modelo de
+permisos (diseño no implementado) en
+`docs/30-MODELO-COMERCIAL-Y-PERMISOS.md`.
+
 ## Estado por área
 
 | Área | Estado real | Evidencia verificable | Pendiente concreto |
@@ -26,8 +32,8 @@ No se declara fidelidad total: persisten diferencias visibles; ver
 | Nuevos lanzamientos | IMPLEMENTADO Y VALIDADO | Módulo `jovy_launches` (`jovy_launch`, `jovy_launch_settings`); CRUD, orden, `active`, producto Medusa e imagen; color global `#00AFAA`; UI con tarjetas 1/2/4, modal histórico de alta/edición (portal, `role=dialog`, foco/Escape, «Nuevo Slide», «Opciones adicionales» plegables), ocho presets + hex y confirmaciones de color/eliminar; E2E `jovy-launches-admin.spec.ts` (producto, imagen, orden, visibilidad, preset, hex válido e inválido) | DnD histórico no replicado; el orden usa flechas. Auditoría en módulos nuevos pendiente. |
 | Anuncios de portada | IMPLEMENTADO Y VALIDADO | `/app/jovy/announcements`: bloque A resume banners `promo` reales, muestra previews y ventana calculada, y enlaza a Marketing → Banners slot `promo` (sin duplicar formulario); bloque B edita `jovy_announcement_settings` ES/EN; Banners añade búsqueda/filtros por estado y ventana, formulario agrupado con validaciones y confirmaciones de ciclo de vida; E2E `jovy-announcements-admin.spec.ts` (resumen, enlace, persistencia, vaciado por idioma, Store) y `jovy-banners.spec.ts` | El mensaje editable es nuevo y solicitado; el histórico solo tenía texto hardcodeado. El crop de banner sigue pendiente porque el backend no persiste `crop_zoom`/offsets. |
 | Novedades | IMPLEMENTADO Y VALIDADO | `/app/jovy/novelties`: grid multimedia 1/2/3/5 sobre `jovy_events` (misma entidad histórica); imagen/GIF/video (límite 100 MB con firma real), búsqueda/filtros de estado, tipo y activo, preview, reemplazo/retiro, prioridad/orden, enlace al evento exacto y confirmaciones; E2E `jovy-novelties.spec.ts` con WebM real y borrador | Sin restauración de eventos ni medio por URL externa; el alta/borrado del evento sigue en Eventos Jovy, donde el borrado es lógico desde el fix de backend; su restore aún no está expuesto. Streaming de video con `file-local` no soporta `Range`: se sirve el archivo completo. |
-| Productos editoriales | IMPLEMENTADO Y VALIDADO | Módulo `jovy-product-editorial` (`product_id` único); widget `product.details` «Ficha editorial Jovy» agrupado, con confirmaciones de guardar, restaurar, publicar, archivar y eliminar; lista `/app/jovy/products` con tarjetas 1/2/3/4/5, búsqueda y filtros; gramaje, certificaciones SGS/OU Kosher/Halal, `is_new`, `sort_order`, estado editorial y publicar/archivar/restaurar; Store `/store/jovy/products`; E2E `jovy-product-editorial.spec.ts`. `published_at` es set-once y el Store solo publica fichas `published` cuyo producto comercial siga `published`. No duplica SKU, precio, stock ni variantes | Asignación manual producto↔familia desde Admin (la API de familias existe, la UI solo lista); DnD y paginación backend no existen; auditoría de módulos nuevos pendiente. |
-| RBAC fino / roles | BLOQUEADO POR LICENCIA | `@medusajs/rbac` existe en 2.22.6, pero es Enterprise y no está licenciado ni registrado en `medusa-config.ts`; `authorize`/`hasPermission` son no-op; diseño en `docs/19-SEGURIDAD-ADMIN.md` | Decisión comercial: licenciar RBAC o aceptar que todo `user` autenticado es admin pleno. No se simulan roles. |
+| Productos editoriales | IMPLEMENTADO Y VALIDADO | Módulo `jovy-product-editorial` (`product_id` único); widget `product.details` «Ficha editorial Jovy» agrupado, con confirmaciones de guardar, restaurar, publicar, archivar y eliminar; edición exclusiva vía widget `product.details` en el detalle nativo; agregado en `GET /admin/jovy/products/editorial`; gramaje, certificaciones SGS/OU Kosher/Halal, `is_new`, `sort_order`, estado editorial y publicar/archivar/restaurar; Store `/store/jovy/products`; E2E `jovy-product-editorial.spec.ts`. `published_at` es set-once y el Store solo publica fichas `published` cuyo producto comercial siga `published`. No duplica SKU, precio, stock ni variantes. Modalidad `commercial_mode` (`catalog_only`/`sellable`/null; null ⇒ `CATALOG_ONLY`, sin backfill) con migración `Migration20261117120000` aplicada en local el 2026-11-17; hooks `validate` del carrito en `src/workflows/hooks/jovy-commercial-mode.ts` rechazan con `MedusaError(NOT_ALLOWED)` lo que no sea `SELLABLE`; `/store/jovy/products` expone la modalidad derivada sin precios ni inventario. | Asignación manual producto↔familia desde Admin (la API de familias existe, la UI solo lista); DnD y paginación backend no existen; auditoría de módulos nuevos pendiente. |
+| RBAC fino / roles | BLOQUEADO POR LICENCIA | `@medusajs/rbac` existe en 2.22.6 como dependencia transitiva, es Enterprise y no está licenciado ni registrado en `medusa-config.ts`; `authorize`/`hasPermission` son no-op, rutas `/rbac/*` desactivadas. Recursos, roles y alternativa sin licencia: **diseño NO IMPLEMENTADO** en `docs/19-SEGURIDAD-ADMIN.md` y `docs/30-MODELO-COMERCIAL-Y-PERMISOS.md` | Decisión comercial: licenciar RBAC o aceptar que todo `user` autenticado es admin pleno. No se simulan roles. |
 | Medios | IMPLEMENTADO PARCIALMENTE | Ruta Admin con Multer en memoria (5 MB) para imágenes con firma, MIME y `sharp`; ruta de video de eventos (≤100 MB, firma MP4/WebM, `media_type`); E2E de subida de imagen y video, unit de firmas y límites | Sin `DELETE`, sin conteo de referencias, sin transcode ni `Range`; los archivos locales son públicos. |
 | Store API y publishable key | IMPLEMENTADO Y VALIDADO | E2E de las catorce specs / 29 pruebas (confirmada el 2026-11-17), que ejercitan `/store/jovy/*` donde aplica; sin key la respuesta es `400` antes del handler | Cerrar los gaps de contrato de `docs/25` (producto destacado, detalle de evento, paginación). |
 | Paridad con el administrador histórico | AUDITADA | `docs/24-MATRIZ-PARIDAD-ADMIN.md` (74 filas funcionales: 49 validadas, 12 parciales, 6 nativas, 4 pendientes, 3 descartadas); `docs/28-MATRIZ-PARIDAD-PANTALLAS.md` (13 pantallas: 6 completas funcionales sin paridad visual, 6 parciales, 1 bloqueada por licencia); `docs/29-PARIDAD-VISUAL-FUNCIONAL-CMS.md` (8 pantallas comparadas contra el admin histórico real en localhost con login real: 6 prioritarias, Galería —solo listado 1440— y Dashboard —1440, con composite `dashboard-1440`—; Usuarios queda `PENDIENTE DE COMPARACIÓN (BLOQUEADO POR PII)` porque su captura histórica contiene correos y nombres reales del administrador antiguo y no se replica en composites; 4 Solicitudes siguen pendientes y bloqueadas por PII, con captura histórica única sin distinción por tipo que contiene datos personales reales y no se propaga; la copia aislada DEMO es evidencia complementaria) | **No es una réplica aceptada**: la ejecución real reduce la incertidumbre, pero los modales de logos y lanzamientos ya están reproducidos; quedan diferencias visibles (tema oscuro/claro del shell, switch «Próximamente» corregido, zoom y texto de ayuda en el modal de logos, jerarquía de anuncios, densidad de novedades, grid de productos). Pendiente: estados no cubiertos, RBAC, crop de banner, DnD de logos/lanzamientos, restore de eventos, rutas separadas de logos, analítica y asignación producto↔familia. |
@@ -68,13 +74,16 @@ reutilizan `src/admin/routes/jovy/contacts/components/contact-inbox.tsx` y la mi
 - La vista consolidada `/app/jovy-herramientas/contacts` («Contactos Jovy», rank 5) lista los cuatro tipos y
   comparte búsqueda y contadores; el E2E la valida con cuatro filas y búsqueda común.
 
-**Nota de navegación (2026-11-17):** el sidebar «JovyCandy CMS» ya reproduce las **13 entradas
-históricas en orden** (Dashboard `/app/jovy/dashboard`, Logos `/app/jovy/logos`, Usuarios
-`/app/jovy/users` con redirect al gestor nativo `/app/settings/users`, y las cuatro bandejas
-`/app/jovy/contacts-*` sin cambio de path). Las cuatro funciones aditivas (Contenido, Marketing,
+**Nota de navegación (2026-11-17):** en la ola de fidelidad el sidebar «JovyCandy CMS» reproducía
+las 13 entradas históricas; el **estado vigente** tiene **11 entradas** (Dashboard
+`/app/jovy/dashboard`, Categorías, Nuevos Lanzamientos, Casa Jovy Galería, Logos
+`/app/jovy/logos`, Anuncios de portada, Novedades y las cuatro bandejas `/app/jovy/contacts-*`,
+la última «Catálogo — Solicitudes»). `/app/jovy/products` y `/app/jovy/users` ya no existen:
+Productos y Usuarios son solo nativos. Las cuatro funciones aditivas (Contenido, Marketing,
 Eventos y Contactos consolidados) están en el grupo hermano «JovyCandy · Herramientas» bajo
 `/app/jovy-herramientas/{content,events,marketing,contacts}`; sus componentes compartidos se importan
-con rutas relativas porque el Vite del Admin no resuelve el alias `@jovy/*`. Ver `docs/28` y `docs/29`.
+con rutas relativas porque el Vite del Admin no resuelve el alias `@jovy/*`. Ver `docs/28`, `docs/29`
+y `docs/30`.
 
 ## Regresión consolidada
 
@@ -84,11 +93,11 @@ Re-ejecutada parcialmente el 2026-11-17 sobre el árbol de trabajo, sin commits 
 | --- | --- |
 | `pnpm lint` | exit 0 |
 | `pnpm typecheck` | 0 en la verificación final del 2026-11-17. |
-| `pnpm --dir apps/backend test:unit` | 31 suites / 301 pruebas OK |
+| `pnpm --dir apps/backend test:unit` | 32 suites / 325 pruebas OK |
 | `pnpm --dir apps/backend test:integration:modules` | 6 suites / 37 pruebas OK |
-| `pnpm --dir apps/backend test:integration:http` | 10 suites / 70 pruebas OK |
+| `pnpm --dir apps/backend test:integration:http` | 11 suites / 76 pruebas OK |
 | `pnpm build` | OK en la verificación final del 2026-11-17. |
-| `pnpm --dir apps/backend test:e2e` | 29/29 en 4,9 min, re-ejecutado el 2026-11-17 |
+| `pnpm --dir apps/backend test:e2e` | 29/29 sin flaky en 4,1 min, corrida final agrupada y secuencial del 2026-11-17 |
 
 - Playwright agrupado quedó verde en la corrida confirmada del 2026-11-17: 29/29 pruebas con las catorce
   specs (`content`, `hero`, `banners`, `events`, `brand`, `brand-families`, `contacts`,

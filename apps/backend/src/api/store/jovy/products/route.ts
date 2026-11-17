@@ -1,6 +1,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { catalogueCategoryKeySchema } from "@jovy/lib/jovy/catalogue"
-import { compareProductEditorialOrder, findEditorialFamily } from "@jovy/lib/jovy/product-editorial"
+import {
+  compareProductEditorialOrder,
+  findEditorialFamily,
+  resolveCommercialMode,
+} from "@jovy/lib/jovy/product-editorial"
 import {
   decorateEditorialRecords,
   loadEditorialCatalogue,
@@ -63,6 +67,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       id: item.id,
       product: item.product,
       product_status: item.product_status,
+      // Modalidad derivada: nunca se exponen precios ni inventario desde aquí.
+      commercial_mode: resolveCommercialMode(item.commercial_mode),
       gramaje: item.gramaje,
       certifications: item.certifications,
       is_new: item.is_new,

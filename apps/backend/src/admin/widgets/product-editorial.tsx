@@ -3,6 +3,9 @@ import { Badge, Button, Container, Heading, Input, Switch, Text, toast, usePromp
 import { useCallback, useEffect, useState } from "react"
 import { adminRequest, errorMessage } from "../routes/jovy/components/admin-api"
 
+/** Modalidad comercial: solo catálogo (informativo) o autorizada para la venta. */
+type CommercialMode = "catalog_only" | "sellable"
+
 /**
  * Panel editorial dentro del detalle nativo. Product Module conserva producto,
  * SKU, precio, inventario, variantes e imágenes; esta ficha solo añade datos de
@@ -21,6 +24,10 @@ type ProductEditorial = {
   family: { id: string; slug: string; name: string } | null
   category_keys: string[]
   publish_issues: string[]
+  /** null = producto histórico sin clasificar; se trata como informativo. */
+  commercial_mode: CommercialMode | null
+  /** Códigos pendientes para vender; si no llegan, se tratan como lista vacía. */
+  sellable_requirements?: string[]
 }
 
 type EditorialDraft = {
@@ -29,6 +36,7 @@ type EditorialDraft = {
   sort_order: string
   is_new: boolean
   editorial_status: ProductEditorial["editorial_status"]
+  commercial_mode: CommercialMode
 }
 
 /** Catálogo cerrado validado por servidor; el orden también es presentación. */
@@ -46,12 +54,14 @@ const STATUS_BADGE: Record<ProductEditorial["editorial_status"], "grey" | "green
   archived: "orange",
 }
 
+/** Nunca se preselecciona "sellable": por defecto toda ficha nueva es informativa. */
 const emptyDraft = (): EditorialDraft => ({
   gramaje: "",
   certifications: [],
   sort_order: "0",
   is_new: false,
   editorial_status: "draft",
+  commercial_mode: "catalog_only",
 })
 
 const draftFrom = (editorial: ProductEditorial): EditorialDraft => ({
@@ -60,7 +70,23 @@ const draftFrom = (editorial: ProductEditorial): EditorialDraft => ({
   sort_order: String(editorial.sort_order),
   is_new: editorial.is_new,
   editorial_status: editorial.editorial_status,
+  commercial_mode: editorial.commercial_mode === "sellable" ? "sellable" : "catalog_only",
 })
+
+const COMMERCIAL_MODE_BADGE: Record<CommercialMode, { label: string; color: "grey" | "green" }> = {
+  catalog_only: { label: "CATALOG_ONLY — Informativo", color: "grey" },
+  sellable: { label: "SELLABLE — Vendible", color: "green" },
+}
+
+/** Códigos del servidor traducidos; un código desconocido se muestra tal cual. */
+const SELLABLE_REQUIREMENT_LABELS: Record<string, string> = {
+  variants: "Variantes del producto configuradas",
+  prices: "Precios definidos",
+  sales_channel: "Canal de ventas asignado",
+  inventory_policy: "Política de inventario configurada",
+}
+
+const selectClass = "border-ui-border-base bg-ui-bg-field text-ui-fg-base focus-visible:ring-ui-border-interactive rounded-md border px-3 py-2 text-sm focus-visible:ring-2"
 
 const labelClass = "text-ui-fg-subtle text-xs font-medium"
 
@@ -121,6 +147,26 @@ const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
     }))
   }
 
+  /** Pasar a vendible exige confirmación; nunca se inventan precios ni stock. */
+  const changeCommercialMode = async (mode: CommercialMode) => {
+    if (mode === draft.commercial_mode) return
+    if (mode === "sellable") {
+      const confirmed = await prompt({
+        title: "Marcar producto como vendible",
+        description:
+          "Al marcarlo como vendible no se inventan precios ni stock y no se modifica el producto comercial nativo. La venta real requiere cumplir los requisitos comerciales y superar las validaciones del servidor; esta acción solo registra la intención comercial.",
+        confirmText: "Marcar como vendible",
+        cancelText: "Cancelar",
+      })
+      if (!confirmed) {
+        // Fuerza el render para que el <select> controlado vuelva al valor confirmado.
+        update({})
+        return
+      }
+    }
+    update({ commercial_mode: mode })
+  }
+
   const persist = async (overrides: Partial<EditorialDraft> = {}) => {
     const next = { ...draft, ...overrides }
     const sortOrder = Number(next.sort_order)
@@ -143,6 +189,7 @@ const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
             sort_order: sortOrder,
             is_new: next.is_new,
             editorial_status: next.editorial_status,
+            commercial_mode: next.commercial_mode,
           }),
         },
       )
@@ -257,6 +304,12 @@ const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
     ? editorial.publish_issues
     : ["guardar una ficha para que el servidor pueda comprobar los requisitos de publicación"]
 
+  const commercialBadge = COMMERCIAL_MODE_BADGE[draft.commercial_mode]
+  const isLegacyUnclassified = editorial?.commercial_mode == null
+  const sellableRequirements = Array.isArray(editorial?.sellable_requirements)
+    ? editorial.sellable_requirements
+    : []
+
   return (
     <Container className="p-4 sm:p-6" data-testid="product-editorial-widget">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -288,6 +341,52 @@ const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
           {editorial?.product_missing && <p role="alert" className="text-ui-fg-error text-sm">El producto comercial de esta ficha ya no existe en Medusa. Restaura o depura el registro antes de publicarlo.</p>}
           {!editorial && <Text size="small" className="text-ui-fg-subtle">Aún no hay ficha editorial. Guardar crea un borrador sin crear ni duplicar un producto comercial.</Text>}
           {formError && <p role="alert" className="text-ui-fg-error text-sm">{formError}</p>}
+
+          <section aria-labelledby="editorial-commercial-heading" className="border-ui-border-base rounded-lg border p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="max-w-2xl">
+                <Heading id="editorial-commercial-heading" level="h3">Modalidad comercial</Heading>
+                <Text size="small" className="text-ui-fg-subtle mt-1">Define si esta ficha es informativa o está autorizada para la venta. No crea ni modifica un producto comercial.</Text>
+              </div>
+              <Badge color={commercialBadge.color} data-testid="commercial-mode-badge">{commercialBadge.label}</Badge>
+            </div>
+
+            {isLegacyUnclassified && (
+              <p role="note" className="border-ui-border-base bg-ui-bg-subtle text-ui-fg-base mt-3 rounded-md border p-3 text-sm">Producto histórico sin clasificar: se trata como informativo y no se vende hasta autorización expresa.</p>
+            )}
+
+            <div className="mt-4 flex flex-col gap-y-1">
+              <label htmlFor="editorial-commercial-mode" className={labelClass}>Modalidad comercial</label>
+              <select
+                id="editorial-commercial-mode"
+                aria-label="Modalidad comercial"
+                className={selectClass}
+                value={draft.commercial_mode}
+                disabled={saving}
+                onChange={(event) => void changeCommercialMode(event.target.value as CommercialMode)}
+              >
+                <option value="catalog_only">Informativo (solo catálogo)</option>
+                <option value="sellable">Vendible</option>
+              </select>
+            </div>
+
+            <div className="mt-4" aria-live="polite">
+              {draft.commercial_mode === "sellable" ? (
+                sellableRequirements.length > 0 ? (
+                  <div className="text-sm">
+                    <Text size="small" weight="plus">Requisitos pendientes para vender</Text>
+                    <ul className="mt-1 list-disc pl-5">
+                      {sellableRequirements.map((code) => <li key={code}>{SELLABLE_REQUIREMENT_LABELS[code] ?? code}</li>)}
+                    </ul>
+                  </div>
+                ) : (
+                  <Text size="small" className="text-ui-fg-subtle">Requisitos comerciales completos según la información disponible; la venta sigue sujeta a validación del servidor.</Text>
+                )
+              ) : (
+                <Text size="small" className="text-ui-fg-subtle">Este producto puede publicarse en el catálogo corporativo, pero no se puede añadir al carrito ni comprar.</Text>
+              )}
+            </div>
+          </section>
 
           <section aria-labelledby="editorial-content-heading" className="border-ui-border-base rounded-lg border p-4">
             <Heading id="editorial-content-heading" level="h3">Presentación editorial</Heading>

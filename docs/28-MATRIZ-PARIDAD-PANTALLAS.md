@@ -3,6 +3,12 @@
 **Corte:** 2026-11-17. **Alcance:** paridad **por pantalla** de las 13 opciones del menú
 histórico (`admin-webjovy`) contra el Admin real de `apps/backend` (Medusa 2.22.6).
 
+**Estado vigente del menú:** el grupo «JovyCandy CMS» tiene **11 entradas**; Productos y
+Usuarios son ya solo superficies nativas (`/app/products` y `/app/settings/users`), sin las
+antiguas rutas `/app/jovy/products` ni `/app/jovy/users`. La última bandeja se llama
+«Catálogo — Solicitudes». Modelo comercial y permisos en
+[docs/30](30-MODELO-COMERCIAL-Y-PERMISOS.md).
+
 **Relación con otras matrices:** `docs/24-MATRIZ-PARIDAD-ADMIN.md` sigue siendo la matriz
 **técnica por funcionalidad** (modelo, API, workflow, prueba); este documento es la matriz
 **por pantalla** (menú, ruta, CRUD visible y E2E). `docs/29-PARIDAD-VISUAL-FUNCIONAL-CMS.md`
@@ -41,12 +47,13 @@ registrada en `docs/21`; **esta revisión documental no re-ejecutó la suite**.
 
 ## Menú anterior (13 opciones) vs sidebar nuevo real
 
-Tras la tercera ola (2026-11-17) el sidebar **reproduce las 13 entradas históricas en orden** dentro
-del grupo **JovyCandy CMS**: Dashboard (`/app/jovy/dashboard`), Productos (solo cambió el label de
-nav; el heading sigue «Productos editoriales» y Product Module no se tocó), Categorías, Nuevos
-Lanzamientos, Casa Jovy Galería, Logos (`/app/jovy/logos`, ruta separada nueva), Anuncios de portada,
-Novedades, Usuarios (`/app/jovy/users`, con redirect al gestor nativo `/app/settings/users`, sin
-sistema de identidad paralelo) y las cuatro bandejas `/app/jovy/contacts-*`. Las cuatro funciones
+Tras la tercera ola (2026-11-17) el sidebar reproducía las 13 entradas históricas en orden;
+el **estado vigente** del grupo **JovyCandy CMS** tiene **11 entradas**: Dashboard
+(`/app/jovy/dashboard`), Categorías, Nuevos Lanzamientos, Casa Jovy Galería, Logos
+(`/app/jovy/logos`), Anuncios de portada, Novedades y las cuatro bandejas
+`/app/jovy/contacts-*` (la última, «Catálogo — Solicitudes»). Productos y Usuarios ya no
+tienen entrada: son solo `Products` (`/app/products`) y `Settings → Users`
+(`/app/settings/users`), sin identidad paralela. Las cuatro funciones
 aditivas (Contenido, Marketing, Eventos y Contactos consolidados) se movieron al grupo hermano
 **JovyCandy · Herramientas**, con rutas `/app/jovy-herramientas/{content,events,marketing,contacts}`;
 sus componentes compartidos (`banner-manager`, `contact-inbox`, `ordering`) también viven ahí y se
@@ -57,25 +64,25 @@ las rutas hijas bajo el padre del grupo; el campo oficial `nested` solo admite r
 | # | Menú histórico | Sidebar nuevo (etiqueta real) | Ruta | Rank |
 | ---: | --- | --- | --- | ---: |
 | 1 | Dashboard | Dashboard | `/app/jovy/dashboard` | 1 |
-| 2 | Productos | Productos (heading «Productos editoriales») + `Products` nativo + widget en el detalle | `/app/jovy/products` · `/app/products` | 2 |
+| 2 | Productos | Solo nativo: `Products` (`/app/products`) + widget editorial `product.details`; ya no hay entrada en el menú CMS | `/app/products` | — |
 | 3 | Categorías | Categorías del catálogo | `/app/jovy/catalogue` | 3 |
 | 4 | Nuevos lanzamientos | Nuevos lanzamientos | `/app/jovy/launches` | 4 |
 | 5 | Casa Jovy · Galería | Casa Jovy Galería | `/app/jovy/brand` | 5 |
 | 6 | Logos | Logos | `/app/jovy/logos` | 6 |
 | 7 | Anuncios de portada | Anuncios de portada (+ Marketing Jovy → Banners en Herramientas) | `/app/jovy/announcements` · `/app/jovy-herramientas/marketing?tab=banners&slot=promo` | 7 |
 | 8 | Novedades | Novedades | `/app/jovy/novelties` | 8 |
-| 9 | Usuarios | Usuarios (redirect a `Settings` → `Users` nativo, sin sistema de identidad paralelo) | `/app/jovy/users` → `/app/settings/users` | 9 |
+| 9 | Usuarios | Solo nativo: `Settings → Users` (`/app/settings/users`), sin identidad paralela; ya no hay entrada en el menú CMS | `/app/settings/users` | — |
 | 10 | Solicitudes · Ventas nacionales | Ventas Nacionales | `/app/jovy/contacts-national-sales` | 10 |
 | 11 | Solicitudes · Ventas internacionales | Ventas Internacionales | `/app/jovy/contacts-international-sales` | 11 |
 | 12 | Solicitudes · Atención al cliente | Atención al Cliente | `/app/jovy/contacts-customer-service` | 12 |
-| 13 | Solicitudes · Catálogo | Catálogo | `/app/jovy/contacts-catalogue` | 13 |
+| 13 | Solicitudes · Catálogo | Catálogo — Solicitudes | `/app/jovy/contacts-catalogue` | 13 |
 
-**Nota (tercera ola, 2026-11-17):** los labels y los ranks del sidebar reproducen ahora la secuencia
-histórica de 13 entradas de esta tabla (columna «#»). La fila 1 ya no es la única con entrada
-«Dashboard»: existe la ruta dedicada `/app/jovy/dashboard`. Las cuatro funciones aditivas que antes
-aparecían aquí (Contenido, Marketing, Eventos y Contactos consolidados) están en el grupo hermano
-«JovyCandy · Herramientas» (`/app/jovy-herramientas/*`). Ver `docs/29` §«Tercera ola — navegación del
-sidebar».
+**Nota (tercera ola, 2026-11-17; registro histórico):** en esa ola los labels y los ranks del
+sidebar reproducían la secuencia histórica de 13 entradas de esta tabla (columna «#»). El estado
+vigente tiene **11 entradas**: las filas 2 y 9 (Productos, Usuarios) son ya solo superficies
+nativas y no figuran en el menú CMS. La fila 1 usa la ruta dedicada `/app/jovy/dashboard`. Las
+cuatro funciones aditivas están en el grupo hermano «JovyCandy · Herramientas»
+(`/app/jovy-herramientas/*`). Ver `docs/29` §«Tercera ola» y `docs/30`.
 
 Las cuatro funciones aditivas sin equivalente 1:1 en el menú histórico —**Contenido Jovy**,
 **Marketing Jovy**, **Eventos Jovy** y **Contactos Jovy** (vista consolidada de las cuatro
@@ -90,9 +97,9 @@ Observaciones del menú real:
   consolidada «Contactos Jovy» pasó al grupo Herramientas (`/app/jovy-herramientas/contacts`). Las
   cuatro bandejas comparten componente, endpoint y tabla; solo cambia el `contact_type` fijado por
   ruta.
-- La etiqueta **«Catálogo»** (bandeja de solicitudes de catálogo) convive con **«Categorías del
-  catálogo»**. Son pantallas distintas sobre datos distintos y la etiqueta corta puede confundir;
-  se documenta como riesgo de usabilidad, no como defecto funcional.
+- La etiqueta **«Catálogo — Solicitudes»** (bandeja de solicitudes de catálogo) convive con
+  **«Categorías del catálogo»**. Son pantallas distintas sobre datos distintos; se documenta
+  como riesgo de usabilidad, no como defecto funcional.
 - `Contenido Jovy`, `Marketing Jovy`, `Eventos Jovy` y `Contactos Jovy` no aparecen en la lista
   histórica de 13 opciones porque el histórico resolvía esos contenidos en otras pantallas o
   directamente en la web; en Medusa son pantallas propias del grupo «JovyCandy · Herramientas».
@@ -102,18 +109,18 @@ Observaciones del menú real:
 | Pantalla original | Funciones requeridas | Destino Medusa | Visible en menú (sí/no y etiqueta) | CRUD operativo (qué operaciones, no "sí") | Datos relacionados | E2E (spec) | Estado |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1. Dashboard | Tablero con métricas del CMS (visitas, productos top) y accesos | `/app/jovy/dashboard` (nuevo; reutiliza el dashboard) | Sí — «Dashboard» | Sin CRUD: lectura de `GET /admin/jovy/dashboard` (401 sin sesión) y enlaces. H1 «Dashboard», marca «JovyCandy CMS», KPIs en grilla 1/3 responsive, conteos de productos, categorías, páginas, hero, banners, eventos, galería, logos y solicitudes pendientes, tarjetas de acceso y sección de analítica. La edición ocurre en cada pantalla enlazada. | Product Module, `jovy_content`, `jovy_marketing`, `jovy_events`, `jovy_brand`, `jovy_contacts`. Sin fuente de analítica web. | `jovy-cms-navigation.spec.ts` | `Funcionalmente parcial` |
-| 2. Productos | Catálogo editorial: familia, gramaje, certificaciones, imágenes, publicación, orden y restauración, sin duplicar datos comerciales | `Products` nativo + `/app/jovy/products` («Productos editoriales») + widget «Ficha editorial Jovy» en `product.details` | Sí — «Productos» (+ «Products» nativo; heading «Productos editoriales») | Comercial (nativo): alta, edición y borrado de producto, variantes, precios, stock e imágenes. Editorial: listado de tarjetas 1/2/3/4/5 con búsqueda y filtros; crear/actualizar ficha (`PUT /admin/jovy/products/:id/editorial`), publicar, archivar, restaurar (`POST .../editorial/restore`), ordenar por `sort_order`; el widget agrupa la edición y confirma guardar, restaurar, publicar, archivar y eliminar. No escribe SKU, precio, stock ni variantes. `published_at` es set-once. El Store solo publica fichas `published` cuyo producto comercial siga `published` (`product_status`). | `product.product`, `jovy_product_editorial`, Module Link `jovy_product_family ⇄ product.product`, `jovy_catalogue_category.medusa_category_id` | `jovy-product-editorial.spec.ts` (listado, editor, gramaje, certificaciones, novedad, orden, publicar/archivar, Store); `Products` nativo sin E2E | `Funcionalmente parcial` |
+| 2. Productos | Catálogo editorial: familia, gramaje, certificaciones, imágenes, publicación, orden y restauración, sin duplicar datos comerciales | `Products` nativo (`/app/products`) + widget «Ficha editorial Jovy» en `product.details`; sin entrada en el menú CMS | No (solo nativo) | Comercial (nativo): alta, edición y borrado de producto, variantes, precios, stock e imágenes. Editorial: edición exclusiva vía widget `product.details` en el detalle nativo; agregado en `GET /admin/jovy/products/editorial`; crear/actualizar ficha (`PUT /admin/jovy/products/:id/editorial`), publicar, archivar, restaurar (`POST .../editorial/restore`), ordenar por `sort_order`; el widget agrupa la edición y confirma guardar, restaurar, publicar, archivar y eliminar. No escribe SKU, precio, stock ni variantes. `published_at` es set-once. El Store solo publica fichas `published` cuyo producto comercial siga `published` (`product_status`). | `product.product`, `jovy_product_editorial`, Module Link `jovy_product_family ⇄ product.product`, `jovy_catalogue_category.medusa_category_id` | `jovy-product-editorial.spec.ts` (gramaje, certificaciones, novedad, orden, publicar/archivar, Store); `Products` nativo sin E2E | `Funcionalmente parcial` |
 | 3. Categorías | Seis tarjetas de presentación con nombre, descripción, orden, publicación, «próximamente», bloqueo de interacción, imagen y vínculo comercial | `/app/jovy/catalogue` | Sí — «Categorías del catálogo» | Leer las 6 tarjetas en grid 1/3, editar en formulario separado con contenido `lg:col-span-8` y configuración `lg:col-span-4`, reordenar (`POST .../reorder`) y sembrar claves ausentes (`POST .../seed`). Sin alta ni borrado: el conjunto de claves es fijo, igual que el histórico. | `jovy_catalogue_category` (6 claves), File Module para la imagen, Product Category vía `medusa_category_id`, `jovy_product_family` | `jovy-catalogue-admin.spec.ts` (seis tarjetas, proporción 8/4, edición, «Próximamente», reactivación, imagen, reorden, vínculo comercial, ocultar) | `Completa funcional (sin paridad visual)` |
 | 4. Nuevos lanzamientos | Lista ordenada y activa con producto, imagen y color de fondo global | `/app/jovy/launches` | Sí — «Nuevos lanzamientos» | Crear, leer, actualizar, borrar lógicamente **sin restore expuesto**, reordenar y activar/desactivar (`GET/POST /admin/jovy/launches`, `GET/PUT/DELETE .../:id`, `POST .../reorder`); ajuste global `GET/PUT .../launches/settings` (color por defecto `#00AFAA`). UI con tarjetas 1/2/4, modal histórico de alta/edición (portal, `role=dialog`, foco y Escape, «Nuevo Slide», «Opciones adicionales» plegables), ocho presets y hex, y confirmaciones de color/eliminar. Sin DnD: el orden usa flechas. | `jovy_launch`, `jovy_launch_settings`, Product Module (`product_id`), File Module | `jovy-launches-admin.spec.ts` (producto, imagen, orden, visibilidad, preset, hex válido e inválido) | `Funcionalmente parcial` |
 | 5. Casa Jovy · Galería | Imagen, orden y reordenamiento, borrado con confirmación, máximo 4 visibles, ventana de programación | `/app/jovy/brand`, pestaña «Galería» | Sí — «Casa Jovy Galería» | Crear con PNG/JPEG/WebP real, carga múltiple secuencial con confirmación, editar, publicar/archivar, reordenar con confirmación y **borrado físico** con confirmación (la ruta ejecuta `deleteJovyGalleryItems`; no hay restore); contador `n/4`, agenda/solapes y lightbox. El límite de 4 simultáneas lo aplica el Locking Module. | `jovy_gallery_item`, File Module, Locking Module | `jovy-brand.spec.ts` (alta, carga múltiple, cupo, lightbox, edición, publicación/archivo, reorden con persistencia y borrado con confirmación) | `Completa funcional (sin paridad visual)` |
 | 6. Logos | Logo por familia, orden y reordenamiento, recorte no destructivo | `/app/jovy/logos` (ruta separada) | Sí — «Logos» | Crear, editar en panel separado, activar/desactivar, reordenar y eliminar con **borrado físico** y confirmación (sin restore); selector de familias reales filtrado por categoría; recorte en modal accesible con pan/zoom/guía/reset como metadatos (`zoom`, `offset_x`, `offset_y`) sin transformar el original, y carril propio `POST /admin/jovy/brand/logos/media` de 20 MB para PNG/JPEG/WebP/GIF (SVG bloqueado por XSS); el carril general de marketing sigue en 5 MB. | `jovy_brand_logo`, `jovy_brand_logo_family`, `jovy_product_family`, File Module | `jovy-brand.spec.ts` (logo, crop, confirmaciones, desactivación en Store) y `jovy-brand-families.spec.ts` (vínculo real). Reorden sin E2E | `Funcionalmente parcial` |
 | 7. Anuncios de portada | Modal promocional de portada y mensaje corporativo bilingüe | `/app/jovy/announcements` + `/app/jovy-herramientas/marketing?tab=banners&slot=promo` (slot `promo`) | Sí — «Anuncios de portada» | Mensaje: reemplazo completo ES/EN (`GET/PUT /admin/jovy/announcements/settings`). Modal: resumen real de banners `promo`, previews, ventana calculada y enlace al CRUD de Banners con búsqueda, filtros, formulario agrupado y confirmaciones de ciclo de vida; no duplica formulario ni tabla. | `jovy_announcement_settings`, `jovy_marketing_banner` (slot `promo`), File Module | `jovy-announcements-admin.spec.ts`; modal cubierto por `jovy-banners.spec.ts` | `Funcionalmente parcial` |
 | 8. Novedades | Bandeja multimedia (imagen, GIF o video) con vista previa, reemplazo/retiro, prioridad/orden y activo | `/app/jovy/novelties`, sobre `jovy_events` | Sí — «Novedades» | Grid multimedia 1/2/3/5, búsqueda y filtros de estado, tipo y activo, enlace al evento exacto; adjuntar/reemplazar/retirar medio y editar prioridad y activo sobre eventos existentes; imagen por `/admin/jovy/marketing/media` y video por `/admin/jovy/events/media/video` (≤100 MB, firma real). No crea, borra ni restaura el evento: eso vive en Eventos Jovy, donde el borrado es **lógico** desde el fix de backend, pero su restore aún no está expuesto en Novedades. | `jovy_event` (`media_file_id`, `media_url`, `media_type`), File Module | `jovy-novelties.spec.ts` (video real, persistencia, prioridad, activo, retiro, borrador, evento exacto, Store) | `Funcionalmente parcial` |
-| 9. Usuarios | Login, gestión de usuarios, bloqueo y roles internos CMS/ventas | `/app/jovy/users` → `/app/settings/users` (redirect al gestor nativo) | Sí — «Usuarios», con redirect a «Settings → Users» | Alta, edición y baja de usuarios nativas. No se replican roles, filtros, estados, bloqueo ni hard delete históricos: `@medusajs/rbac` es Enterprise y no está licenciado/registrado; cualquier `user` autenticado es admin pleno. | `user` de Medusa; sin tablas propias | Sin E2E propio; el login lo ejercitan las specs que inician sesión | `Bloqueada por decisión comercial/licencia` |
+| 9. Usuarios | Login, gestión de usuarios, bloqueo y roles internos CMS/ventas | `/app/settings/users` (solo nativo) | No (solo nativo; `Settings → Users`) | Alta, edición y baja de usuarios nativas. No se replican roles, filtros, estados, bloqueo ni hard delete históricos: `@medusajs/rbac` es Enterprise y no está licenciado/registrado; cualquier `user` autenticado es admin pleno. | `user` de Medusa; sin tablas propias | Sin E2E propio; el login lo ejercitan las specs que inician sesión | `Bloqueada por decisión comercial/licencia` |
 | 10. Solicitudes · Ventas nacionales | Tabla del tipo, filtros, contadores, detalle, estado, notas, borrado lógico y exportación | `/app/jovy/contacts-national-sales` | Sí — «Ventas Nacionales» | Tabla de seis columnas (Fecha, Cliente, Contacto, Ubicación, Mensaje, Acciones), tabs Todos/Pendiente/Atendido/Papelera con counts, búsqueda por nombre/apellido/email/teléfono/ciudad/país/CP, fechas, páginas 10/20/50, detalle/edición/auditoría en modales, atender/volver, soft delete + restore (`POST .../:id/restore`), export CSV por bandeja (`GET .../export`) y polling cada 30 s. | `jovy_contact_request` (una tabla para los cuatro tipos), `jovy_contact_audit_log`; migración `Migration20261114120000` | `jovy-contact-inboxes.spec.ts` (cuatro bandejas, tabla, filtros, tabs, fechas, modales, papelera, restore, export) y `jovy-contacts.spec.ts` | `Completa funcional (sin paridad visual)` |
 | 11. Solicitudes · Ventas internacionales | Ídem, con tipo internacional fijado por la ruta | `/app/jovy/contacts-international-sales` | Sí — «Ventas Internacionales» | Ídem con `contact_type` internacional; el servidor revalida el enum y responde `400` fuera de él. Incluye papelera, restore y export CSV. | Ídem | `jovy-contact-inboxes.spec.ts` | `Completa funcional (sin paridad visual)` |
 | 12. Solicitudes · Atención al cliente | Ídem, con tipo atención al cliente | `/app/jovy/contacts-customer-service` | Sí — «Atención al Cliente» | Ídem con `contact_type` de atención al cliente, incluida papelera, restore y export CSV. | Ídem | `jovy-contact-inboxes.spec.ts` | `Completa funcional (sin paridad visual)` |
-| 13. Solicitudes · Catálogo | Ídem, con tipo catálogo | `/app/jovy/contacts-catalogue` | Sí — «Catálogo» | Ídem con `contact_type` de catálogo, incluida papelera, restore y export CSV. | Ídem | `jovy-contact-inboxes.spec.ts` | `Completa funcional (sin paridad visual)` |
+| 13. Solicitudes · Catálogo | Ídem, con tipo catálogo | `/app/jovy/contacts-catalogue` | Sí — «Catálogo — Solicitudes» | Ídem con `contact_type` de catálogo, incluida papelera, restore y export CSV. | Ídem | `jovy-contact-inboxes.spec.ts` | `Completa funcional (sin paridad visual)` |
 
 Notas de fila:
 
@@ -178,7 +185,7 @@ declaran aquí para no contarlas dos veces:
 
 | Función histórica | Destino actual | Estado | Evidencia / límite |
 | --- | --- | --- | --- |
-| Roles y permisos internos (RBAC) | Medusa RBAC (Enterprise) | `Bloqueada por decisión comercial/licencia` | `@medusajs/rbac` existe en 2.22.6 pero no está registrado ni licenciado. `authorize`/`hasPermission` son no-op. Diseño en `docs/19`. |
+| Roles y permisos internos (RBAC) | Medusa RBAC (Enterprise) | `Bloqueada por decisión comercial/licencia` | `@medusajs/rbac` existe en 2.22.6 pero no está registrado ni licenciado. `authorize`/`hasPermission` son no-op. Recursos, roles y alternativa sin licencia: **diseño no implementado** en `docs/19` y `docs/30`. |
 | Analítica de dashboard (visitas, productos top) | UI declarativa sin fuente | `Pendiente` | No hay código de analytics; el tablero muestra «No disponible: falta fuente analítica». `docs/13` la excluyó hasta definir fuente y privacidad. |
 | Exportación CSV/XLSX de solicitudes | `GET /admin/jovy/contacts/export` | `Completa funcional (sin paridad visual)` | CSV por bandeja, límite de 5 000 filas, escaping y auditoría por logger. No hay XLSX. |
 | Restauración de CMS más allá de la ficha editorial | `POST /admin/jovy/products/:id/editorial/restore` y `POST /admin/jovy/contacts/:id/restore` | `Funcionalmente parcial` | Lanzamientos y familias de catálogo tienen soft delete **sin restore expuesto**. Páginas, Hero, banners, galería, logos y tipos de evento se borran **físicamente**, así que no hay fila que restaurar. Eventos usa soft delete desde el fix de backend, sin restore expuesto. |
@@ -253,11 +260,11 @@ Corrida consolidada del 2026-11-17 (registrada en `docs/21` y `docs/29`):
 | --- | --- |
 | `pnpm lint` | 0 |
 | `pnpm typecheck` | 0 |
-| `test:unit` | 31 suites / 301 pruebas |
+| `test:unit` | 32 suites / 325 pruebas |
 | `test:integration:modules` | 6 suites / 37 pruebas |
-| `test:integration:http` | 10 suites / 70 pruebas |
+| `test:integration:http` | 11 suites / 76 pruebas |
 | `pnpm build` | OK |
-| `test:e2e` | 29 pruebas / 0 fallos / 4,9 min en un solo comando |
+| `test:e2e` | 29 pruebas / 0 fallos / 4,1 min en un solo comando |
 
 Specs E2E (14): `content`, `hero`, `banners`, `events`, `brand`, `brand-families`, `contacts`,
 `contact-inboxes`, `cms-navigation`, `catalogue-admin`, `launches-admin`, `announcements-admin`,

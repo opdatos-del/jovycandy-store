@@ -8,8 +8,8 @@ import { ContactInbox } from "../../jovy-herramientas/contacts/components/contac
  * catalogue inbox owns `/app/jovy/contacts-catalogue` instead of a sibling name.
  */
 const CatalogueInbox = () => (
-  <ContactInbox title="Catálogo" contactType="catalogue" description="Solicitudes de catálogo impreso o digital." />
+  <ContactInbox title="Catálogo — Solicitudes" contactType="catalogue" description="Solicitudes de catálogo impreso o digital." />
 )
 
-export const config = defineRouteConfig({ label: "Catálogo", icon: Tag, rank: 13 })
+export const config = defineRouteConfig({ label: "Catálogo — Solicitudes", icon: Tag, rank: 11 })
 export default CatalogueInbox

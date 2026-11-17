@@ -176,27 +176,37 @@ test("JovyCandy CMS: dashboard real, rangos honestos y navegación por tarjetas"
     await expect(page.getByTestId("jovy-stat-products")).toBeVisible({ timeout: 15_000 })
   }
 
-  // Estructura del sidebar: 13 entradas canónicas y herramientas en grupo aparte.
+  // Estructura del sidebar: 11 entradas canónicas del CMS corporativo, sin
+  // duplicados comerciales. Productos y Usuarios viven en la experiencia nativa.
   const sidebar = page.getByRole("navigation").first()
   await expect(sidebar.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible()
   const cmsLinks = sidebar.locator('a[href^="/app/jovy/"]')
   const cmsLabels = (await cmsLinks.allTextContents()).map((label) => label.trim())
-  expect(cmsLabels.slice(0, 13)).toEqual([
+  expect(cmsLabels.slice(0, 11)).toEqual([
     "Dashboard",
-    "Productos",
     "Categorías",
     "Nuevos Lanzamientos",
     "Casa Jovy Galería",
     "Logos",
     "Anuncios de portada",
     "Novedades",
-    "Usuarios",
     "Ventas Nacionales",
     "Ventas Internacionales",
     "Atención al Cliente",
-    "Catálogo",
+    "Catálogo — Solicitudes",
   ])
-  expect(cmsLabels).toHaveLength(13)
+  expect(cmsLabels).toHaveLength(11)
+  expect(cmsLabels).not.toContain("Productos")
+  expect(cmsLabels).not.toContain("Usuarios")
+
+  // La gestión comercial y la alta de usuarios siguen accesibles en el Admin nativo.
+  const nativeProducts = sidebar.getByRole("link", { name: "Products", exact: true })
+  await expect(nativeProducts).toBeVisible()
+  await expect(nativeProducts).toHaveAttribute("href", "/app/products")
+  // Settings está al pie del sidebar, fuera del <nav> (es hermano, no hijo) y
+  // del viewport: se valida presencia del enlace nativo, no visibilidad.
+  // Products sí se comprueba visible y su href dentro del <nav>.
+  await expect(page.getByRole("complementary").locator('a[href="/app/settings"]')).toHaveCount(1)
 
   const toolLabels = ["Contenido Jovy", "Eventos Jovy", "Marketing Jovy", "Contactos Jovy"]
   for (const label of toolLabels) expect(cmsLabels).not.toContain(label)

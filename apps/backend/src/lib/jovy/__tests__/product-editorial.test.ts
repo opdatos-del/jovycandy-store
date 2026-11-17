@@ -72,6 +72,20 @@ describe("validación de la ficha editorial", () => {
   it("no inyecta valores por defecto en un guardado parcial", () => {
     expect(productEditorialInputSchema.parse({ is_new: true })).toEqual({ is_new: true })
   })
+
+  it("acepta commercial_mode opcional, null y los dos valores del enum", () => {
+    expect(productEditorialInputSchema.safeParse({}).success).toBe(true)
+    expect(productEditorialInputSchema.parse({ commercial_mode: null })).toEqual({ commercial_mode: null })
+    expect(productEditorialInputSchema.parse({ commercial_mode: "catalog_only" }).commercial_mode).toBe("catalog_only")
+    expect(productEditorialInputSchema.parse({ commercial_mode: "sellable" }).commercial_mode).toBe("sellable")
+  })
+
+  it("rechaza commercial_mode fuera del enum y claves comerciales", () => {
+    for (const value of ["SELLABLE", "", "draft", 1, {}]) {
+      expect(productEditorialInputSchema.safeParse({ commercial_mode: value }).success).toBe(false)
+    }
+    expect(productEditorialInputSchema.safeParse({ product_id: "prod_1" }).success).toBe(false)
+  })
 })
 
 describe("familia efectiva del producto", () => {

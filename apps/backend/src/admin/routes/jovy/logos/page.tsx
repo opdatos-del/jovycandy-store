@@ -19,7 +19,7 @@ const LogosPage = () => (
 export const config = defineRouteConfig({
   label: "Logos",
   icon: Swatch,
-  rank: 6,
+  rank: 5,
 })
 
 export default LogosPage

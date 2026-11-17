@@ -10,6 +10,36 @@ para seis pantallas porque su función histórica está cubierta y tienen E2E pr
 Admin histórico (servidor local, login real) y la mayoría de esas pantallas tiene comparación
 visual pareada contra ella; el estado de `docs/28` no cambia por sí solo.
 
+## Actualización de cierre (2026-11-17) — CMS/Commerce, modalidad y permisos
+
+Esta sección fija el **estado vigente**; la fase de fidelidad visual y su sidebar de 13
+entradas, más abajo, quedan como **registro histórico** de la comparación. No altera los
+conteos de regresión de este documento.
+
+- **Menú de 11 entradas.** «JovyCandy CMS» muestra Dashboard, Categorías, Nuevos
+  Lanzamientos, Casa Jovy Galería, Logos, Anuncios de portada, Novedades, Ventas
+  Nacionales, Ventas Internacionales, Atención al Cliente y **Catálogo — Solicitudes**. Se
+  eliminaron las entradas duplicadas Productos y Usuarios: `/app/jovy/products` y
+  `/app/jovy/users` ya no existen. Productos se gestiona en el módulo nativo `Products`
+  (`/app/products`) y Usuarios en `Settings → Users` (`/app/settings/users`), sin identidad
+  paralela. `jovy_product_editorial` sigue siendo extensión del producto comercial (widget
+  `product.details`); las funciones aditivas viven en «JovyCandy · Herramientas».
+- **Modalidad comercial.** Campo `commercial_mode` en `jovy_product_editorial`; migración
+  aditiva `Migration20261117120000`, sin backfill, aplicada en local el 2026-11-17; `null`
+  equivale a `CATALOG_ONLY` y nunca se reclasifica automáticamente. `sellableRequirements`
+  es informativo, el widget exige confirmación para pasar a `sellable` y
+  `/store/jovy/products` expone la modalidad derivada sin precios ni inventario.
+- **Seguridad comercial.** Hooks `validate` de `addToCartWorkflow`,
+  `updateLineItemInCartWorkflow` y `completeCartWorkflow` en
+  `src/workflows/hooks/jovy-commercial-mode.ts`: resuelven `variant_id → product_id` con
+  `query.graph`, nunca confían en `metadata` ni en `product_id` del cliente y rechazan con
+  `MedusaError(NOT_ALLOWED)` lo que no sea `SELLABLE`. `manage_inventory=false` y ocultar
+  el botón «Comprar» no son seguridad.
+- **Permisos.** `@medusajs/rbac@2.22.6` es Enterprise, no está licenciado ni registrado;
+  `authorize`/`hasPermission` son no-op. Recursos, roles y alternativa sin licencia son
+  **diseño no implementado**. Detalle en
+  [docs/30](30-MODELO-COMERCIAL-Y-PERMISOS.md).
+
 ## Fase de fidelidad visual con admin histórico real (2026-11-17)
 
 Esta fase sustituye la limitación anterior («no existe ninguna captura histórica») por una
@@ -143,9 +173,11 @@ como sustituciones explícitas. Esto documenta coincidencia estructural, **no un
   del tour «?» del histórico y, en Lanzamientos, opciones adicionales y validaciones visibles.
   Reproducible con `current-capture-modals.cjs` y `compose-real-modals.py` en esa carpeta.
 
-### Tercera ola — navegación del sidebar (2026-11-17)
+### Tercera ola — navegación del sidebar (2026-11-17, registro histórico)
 
-Se reordenó el sidebar del Admin para que el grupo «JovyCandy CMS» muestre **exactamente las 13
+Estado descrito en esa ola; el menú vigente tiene 11 entradas (ver «Actualización de
+cierre» al inicio y `docs/30`). Se reordenó el sidebar del Admin para que el grupo
+«JovyCandy CMS» mostrara **exactamente las 13
 entradas históricas en orden**: 1 Dashboard (`/app/jovy/dashboard`, ruta nueva que reutiliza el
 dashboard), 2 Productos (`/app/jovy/products`, solo cambió el label de nav; el heading sigue
 «Productos editoriales» y no se tocó Product Module), 3 Categorías (`/app/jovy/catalogue`),
@@ -166,7 +198,7 @@ y el composite
 [`comparisons-real/sidebar-cms-1440.png`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/sidebar-cms-1440.png),
 con etiquetas «HISTÓRICO REAL · Sidebar CMS» / «MEDUSA · Sidebar CMS». Verificado visualmente: ambos
 paneles muestran las 13 entradas en el mismo orden. El E2E `jovy-cms-navigation.spec.ts` verifica los
-13 textos en orden y que las cuatro herramientas **no** están en el grupo CMS. Quedan diferencias
+11 textos en orden y que las cuatro herramientas **no** están en el grupo CMS. Quedan diferencias
 visibles: tema oscuro/claro, el histórico pone icono en cada entrada y Medusa solo en la cabecera
 del grupo, las entradas de Medusa están anidadas bajo «JovyCandy CMS» y aparecen después de los
 enlaces nativos (Search/Orders/Products/Inventory/Customers/Promotions/Price Lists), y el histórico
@@ -197,7 +229,7 @@ repositorio o ambas; la comparación visual real documenta apariencia, no lógic
 | Pantalla | Referencia utilizada | Evidencia visual | Diferencias detectadas | Diferencias corregidas | Funciones comprobadas | Pruebas ejecutadas | Estado final |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Dashboard | Admin histórico real en localhost, capturado con browse; comparación pareada real (composite `dashboard-1440`, 1440 × 1000). | Histórico real: [`dashboard-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/dashboard-1440.png). Actual: [`dashboard-1440`](../apps/backend/.test-results/audit-visual-pair/current/dashboard-1440.png). Composite real: [`dashboard-1440.png`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/dashboard-1440.png), etiquetas «HISTÓRICO REAL · Dashboard» / «MEDUSA · Dashboard». Capturas actuales previas en `audit-visual/dashboard/` y `audit-final/03-dashboard.png`, `20-dashboard-recargado.png`. | Diferencias visibles confirmadas: tema oscuro del shell histórico frente al claro de Medusa; el histórico muestra una fila compacta de 3 KPIs (Productos 111, Eventos 6, Usuarios 6) con icono a la derecha, mientras Medusa agrupa tarjetas por dominio con enlaces «Abrir…»; el histórico muestra VISITAS 0 con ojo rojo, «Sin datos» y «Grenetina Chamoy 2», mientras Medusa declara analítica sin fuente y no muestra ceros ni estimados; «Refrescar» dentro del bloque de rangos en el histórico frente a «Actualizar» en el header de Medusa, con refresco automático 60 s pausado en pestaña oculta. | Ninguna (diferencias declaradas). | Conteos reales del CMS, fecha de generación, KPIs 1/3 responsive, rangos como selector de periodo, refresco manual y automático pausado en pestaña oculta, enlaces operativos. | `jovy-cms-navigation.spec.ts` dentro de la corrida E2E confirmada 29/29 del 2026-11-17; sin prueba visual automatizada | Comparación visual realizada contra admin histórico real; quedan diferencias visibles (no réplica aceptada) |
-| Productos | Admin histórico real en localhost, capturado con browse | Histórico real: [`productos-listado-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/productos-listado-1440.png), [`productos-listado-375`](../apps/backend/.test-results/audit-visual-pair/historical-real/productos-listado-375.png), [`productos-form-editar-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/productos-form-editar-1440.png). Composites reales: [`productos-listado-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/productos-listado-1440.png), [`productos-listado-375`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/productos-listado-375.png), [`productos-form-editar-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/productos-form-editar-1440.png). | El histórico real aparece en tema oscuro (shell/tema), con grid de tarjetas y menú de acciones por fila; Medusa en claro, con tarjetas editoriales y enlaces. Arquitectura Medusa nativo + widget editorial frente a formulario histórico propio; sin paginación backend ni menú de fila; densidades y agrupaciones distintas. | Ninguna en esta fase; la separación es deliberada. | Listado 1/2/3/4/5, búsqueda, filtros, ficha editorial, `is_new`, `sort_order`, publicar, archivar, restaurar y eliminar; datos comerciales permanecen en Product Module. | `jovy-product-editorial.spec.ts` dentro de E2E 29/29 (confirmada el 2026-11-17). | Comparación visual realizada contra admin histórico real; quedan diferencias visibles (no réplica aceptada) |
+| Productos | Admin histórico real en localhost, capturado con browse | Histórico real: [`productos-listado-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/productos-listado-1440.png), [`productos-listado-375`](../apps/backend/.test-results/audit-visual-pair/historical-real/productos-listado-375.png), [`productos-form-editar-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/productos-form-editar-1440.png). Composites reales: [`productos-listado-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/productos-listado-1440.png), [`productos-listado-375`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/productos-listado-375.png), [`productos-form-editar-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/productos-form-editar-1440.png). | El histórico real aparece en tema oscuro (shell/tema), con grid de tarjetas y menú de acciones por fila; Medusa en claro, con tarjetas editoriales y enlaces. Arquitectura Medusa nativo + widget editorial frente a formulario histórico propio; sin paginación backend ni menú de fila; densidades y agrupaciones distintas. | Ninguna en esta fase; la separación es deliberada. | Edición exclusiva vía widget `product.details` en el detalle nativo; agregado en `GET /admin/jovy/products/editorial`; ficha editorial, `is_new`, `sort_order`, publicar, archivar, restaurar y eliminar; datos comerciales permanecen en Product Module. | `jovy-product-editorial.spec.ts` dentro de E2E 29/29 (confirmada el 2026-11-17). | Comparación visual realizada contra admin histórico real; quedan diferencias visibles (no réplica aceptada) |
 | Categorías | Admin histórico real en localhost, capturado con browse | Histórico real: [`categorias-listado-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/categorias-listado-1440.png), [`categorias-listado-375`](../apps/backend/.test-results/audit-visual-pair/historical-real/categorias-listado-375.png), [`categorias-form-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/categorias-form-1440.png), [`categorias-confirmacion-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/categorias-confirmacion-1440.png). Composites reales: [`categorias-listado-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/categorias-listado-1440.png), [`categorias-listado-375`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/categorias-listado-375.png), [`categorias-form-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/categorias-form-1440.png), [`categorias-confirmacion-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/categorias-confirmacion-1440.png). | Tema oscuro del histórico real (shell/tema). La tarjeta histórica muestra el switch «Próximamente» dentro del panel de clave; la UI actual lo expone también en la tarjeta junto al badge. Título actual «Categorías del catálogo» frente a «Categorias»; shell/sidebar de Medusa; botones «Subir/Bajar» visibles aunque el histórico solo editaba orden en el formulario; campos comerciales adicionales; el placeholder de imagen roto reservaba 128 px. | Imagen solo si carga, sin hueco; tarjeta con gradiente pastel por clave. **Switch «Próximamente» en la tarjeta: diferencia detectada y corregida** | Seis tarjetas, edición, `coming_soon`, `interaction_locked`, imagen, orden, vínculo comercial, seed de claves y ocultación en Store. | `jovy-catalogue-admin.spec.ts` dentro de E2E 29/29; integración HTTP `catalogue-launches.spec.ts` para validación de imagen. | Comparación visual realizada contra admin histórico real; quedan diferencias visibles (no réplica aceptada) |
 | Nuevos lanzamientos | Admin histórico real en localhost, capturado con browse | Histórico real: [`lanzamientos-listado-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/lanzamientos-listado-1440.png), [`lanzamientos-listado-375`](../apps/backend/.test-results/audit-visual-pair/historical-real/lanzamientos-listado-375.png), [`lanzamientos-modal-nuevo-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/lanzamientos-modal-nuevo-1440.png). Composites reales: [`lanzamientos-listado-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/lanzamientos-listado-1440.png), [`lanzamientos-listado-375`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/lanzamientos-listado-375.png), [`lanzamientos-modal-nuevo-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/lanzamientos-modal-nuevo-1440.png). | Histórico real en tema oscuro (shell/tema), con modal `xl` para el alta; Medusa reproduce el modal, pero quedan sin DnD (orden con flechas), tema claro, opciones adicionales y validaciones visibles, y un límite real de 5 MB frente al texto histórico de 20/100 MB. | Modal histórico reproducido (portal, `role=dialog`, foco y Escape, «Nuevo Slide», «Opciones adicionales» plegables); antes el alta vivía en un panel separado. | Producto, imagen, orden, `active`, color global, ocho presets, hex válido/inválido, publicar/ocultar y eliminar con confirmación. | `jovy-launches-admin.spec.ts` dentro de E2E 29/29; integración HTTP `catalogue-launches.spec.ts`. | Comparación visual realizada contra admin histórico real; quedan diferencias visibles (no réplica aceptada) |
 | Casa Jovy · Galería | Admin histórico real en localhost, capturado con browse | Histórico real: [`galeria-listado-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/galeria-listado-1440.png). Composite real: [`galeria-listado-1440`](../apps/backend/.test-results/audit-visual-pair/comparisons-real/galeria-listado-1440.png). Sin 375 ni estados en `comparisons-real`. | Histórico real en tema oscuro (shell/tema). Se mantiene la diferencia conocida: grid multimedia en vez de tabla con miniaturas; cupo/agenda como contador. Sin par para formularios, estados ni 375. | Ninguna. | Carga múltiple secuencial, previews, cupo de 4 con concurrencia, agenda/solapes, edición, publicar/archivar, reorden, lightbox y borrado físico con confirmación. | `jovy-brand.spec.ts` dentro de E2E 29/29. Sin prueba visual pareada de estados. | Comparación visual realizada contra admin histórico real (solo listado 1440); PENDIENTE DE COMPARACIÓN en 375, formularios y estados |
@@ -210,12 +242,15 @@ repositorio o ambas; la comparación visual real documenta apariencia, no lógic
 | Solicitudes · Atención al cliente | Admin histórico real en localhost, capturado con browse (captura histórica disponible; sin composite lado a lado). | Misma [`solicitudes-listado-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/solicitudes-listado-1440.png) del histórico real (referencia local con PII real; no redistribuir); sin composite propio. Captura previa `audit-final/14-bandeja-servicio.png`. | Sin comparación pareada, **bloqueada por PII**: misma captura con PII real y única sin distinción por tipo; no puede haber composite compartido ni propagarse. Misma brecha visual. Histórico real en tema oscuro (shell/tema). | Ninguna. | Tabla, filtros, modales, papelera, restore, export y polling con `contact_type=customer-service`. | `jovy-contact-inboxes.spec.ts` dentro de E2E 29/29; HTTP `contacts-admin.spec.ts`. | PENDIENTE DE COMPARACIÓN (BLOQUEADO POR PII) |
 | Solicitudes · Catálogo | Admin histórico real en localhost, capturado con browse (captura histórica disponible; sin composite lado a lado). | Misma [`solicitudes-listado-1440`](../apps/backend/.test-results/audit-visual-pair/historical-real/solicitudes-listado-1440.png) del histórico real (referencia local con PII real; no redistribuir); sin composite propio. Captura previa `audit-final/15-bandeja-catalogo.png`. | Sin comparación pareada, **bloqueada por PII**: misma captura con PII real y única sin distinción por tipo; no puede haber composite compartido ni propagarse. Misma brecha visual. Histórico real en tema oscuro (shell/tema). | Ninguna. | Tabla, filtros, modales, papelera, restore, export y polling con `contact_type=catalogue`. | `jovy-contact-inboxes.spec.ts` dentro de E2E 29/29; HTTP `contacts-admin.spec.ts`. | PENDIENTE DE COMPARACIÓN (BLOQUEADO POR PII) |
 
-**Nota de navegación (tercera ola):** el sidebar «JovyCandy CMS» ya no deja el tablero como única
-entrada «Dashboard»: la fila 1 usa la ruta dedicada `/app/jovy/dashboard`. Los labels y los ranks del
-sidebar reproducen ahora la secuencia histórica de 13 entradas y las cuatro funciones aditivas
-(Contenido, Marketing, Eventos y Contactos consolidados) están en el grupo hermano «JovyCandy ·
-Herramientas» (`/app/jovy-herramientas/*`), no en este grupo. Ver la subsección «Tercera ola —
-navegación del sidebar».
+**Nota de navegación (tercera ola) — REGISTRO HISTÓRICO:** describe la ola anterior, no el estado
+vigente. Entonces el sidebar «JovyCandy CMS» ya no dejaba el tablero como única entrada
+«Dashboard»: la fila 1 usaba la ruta dedicada `/app/jovy/dashboard`. Los labels y los ranks del
+sidebar reproducían la secuencia histórica de 13 entradas y las cuatro funciones aditivas
+(Contenido, Marketing, Eventos y Contactos consolidados) estaban en el grupo hermano «JovyCandy ·
+Herramientas» (`/app/jovy-herramientas/*`), no en este grupo. **Estado vigente:** el menú tiene
+11 entradas por la separación CMS/Commerce (Productos y Usuarios son solo superficies nativas),
+descrita en la sección de cierre «Actualización de cierre (2026-11-17) — CMS/Commerce, modalidad y
+permisos» al inicio de este documento. Ver la subsección «Tercera ola — navegación del sidebar».
 
 ## Diferencias detectadas contra el histórico real
 
@@ -356,22 +391,27 @@ Verificación consolidada del 2026-11-17 sobre el árbol de trabajo:
 | --- | --- | --- |
 | Lint | `pnpm lint` | OK; sin incidencias. |
 | Tipos | `pnpm typecheck` | 0 en la verificación final del 2026-11-17. |
-| Unitarias backend | `pnpm --dir apps/backend test:unit` | 31 suites / 301 pruebas; incluye `media.test.ts` y pruebas nuevas de contactos. |
+| Unitarias backend | `pnpm --dir apps/backend test:unit` | 32 suites / 325 pruebas; incluye `media.test.ts` y pruebas nuevas de contactos. |
 | Integración de módulos | `pnpm --dir apps/backend test:integration:modules` | 6 suites / 37 pruebas. |
-| Integración HTTP | `pnpm --dir apps/backend test:integration:http` | 10 suites / 70 pruebas; incluye validación de `image_file_id` y `X-Export-Count`. |
+| Integración HTTP | `pnpm --dir apps/backend test:integration:http` | 11 suites / 76 pruebas; incluye validación de `image_file_id` y `X-Export-Count`. |
 | Build | `pnpm build` | OK (corrida consolidada del 2026-11-17). |
-| E2E | `pnpm --dir apps/backend test:e2e` | 29/29 en 4,9 min, re-ejecutado el 2026-11-17; incluye el test nuevo de filtros de logos, la aserción de cinco columnas y la prueba del switch de tarjeta con cancelación sin mutar. Reporte: `28 passed` + `1 flaky` en `jovy-announcements-admin.spec.ts` por un warning `createRoot()` durante reinicios del watcher; re-ejecutada esa spec aislada → 1 passed. Al corregir los modales se ejecutaron además por separado `jovy-brand.spec.ts` (6/6) y `jovy-launches-admin.spec.ts` (2/2). |
+| E2E | `pnpm --dir apps/backend test:e2e` | 29/29 sin flaky en 4,1 min, corrida final agrupada y secuencial del 2026-11-17; incluye la navegación del sidebar de 11 entradas, el producto editorial desde el detalle nativo, el test de filtros de logos, la aserción de cinco columnas y la prueba del switch de tarjeta con cancelación sin mutar. Nota histórica: en corridas anteriores con el watcher en reinicio apareció un flaky en `jovy-announcements-admin.spec.ts` por un warning `createRoot()`, resuelto al re-ejecutar esa spec aislada (1/1). |
 | Switch Próximamente en tarjeta | Corregido y verificado | Incluido en la corrida E2E 29/29 del 2026-11-17; cancelación sin mutar y persistencia tras recarga. |
 
 **Conteos:** la corrida final de regresión del 2026-11-17 cerró con lint 0, typecheck 0,
-unitarias 31 suites / 301 pruebas, integración de módulos 6 / 37, integración HTTP 10 / 70,
-build OK y E2E 29/29. El reporte E2E consignó `28 passed` y `1 flaky` en
-`jovy-announcements-admin.spec.ts` por un warning `createRoot()` durante reinicios del watcher;
-esa spec re-ejecutada de forma aislada pasó **1/1**. La corrección del switch de Categorías está
+unitarias 32 suites / 325 pruebas, integración de módulos 6 / 37, integración HTTP 11 / 76,
+build OK y E2E 29/29 sin flaky en 4,1 min, agrupado y secuencial. La corrección del switch de Categorías está
 incluida en esa corrida E2E 29/29. Tras el reorden del sidebar, el arreglo se verificó en
 navegador con el composite `comparisons-real/sidebar-cms-1440.png` y la navegación
 (`jovy-cms-navigation.spec.ts`) se re-ejecutó **1/1**. La revisión independiente de esta tercera
 ola está **pendiente**; no se declara aprobada.
+
+**Nota honesta sobre la corrida final del 2026-11-17:** el E2E se ejecutó agrupado y
+secuencialmente con 29/29 sin flaky, en 4,1 min; la migración `Migration20261117120000` quedó
+aplicada en el PostgreSQL local; la validación de modalidad se probó además con 6 escenarios
+HTTP del spec `commercial-mode.spec.ts`, incluido el rechazo en `completeCart` sin creación de
+orden. Las menciones anteriores a `1 flaky` corresponden a corridas previas con el watcher en
+reinicio, no a esta corrida final.
 
 ## Criterios de aceptación para una comparación futura
 
@@ -464,10 +504,13 @@ de evaluar los seis criterios. La existencia del par real no equivale a fidelida
 - **Migraciones append-only.** `Migration20261114120000` amplía el check de auditoría de
   contactos; no se reescriben migraciones aplicadas.
 - **Rutas planas.** El CMS ya no agrupa todo bajo una sola ruta plana: el grupo «JovyCandy CMS»
-  muestra las 13 entradas históricas en orden (con `/app/jovy/dashboard`, `/app/jovy/logos` y
-  `/app/jovy/users` como rutas dedicadas; Productos solo cambió el label de nav) y las funciones
-  aditivas viven en el grupo separado «JovyCandy · Herramientas» (`/app/jovy-herramientas/*`).
-  La estructura vigente está en [docs/28](28-MATRIZ-PARIDAD-PANTALLAS.md).
+  muestra las **11 entradas vigentes** (Dashboard, Categorías, Nuevos Lanzamientos, Casa Jovy
+  Galería, Logos, Anuncios de portada, Novedades y las cuatro bandejas de contactos, terminando
+  en «Catálogo — Solicitudes»). `/app/jovy/products` y `/app/jovy/users` ya no existen:
+  Productos y Usuarios son solo superficies nativas. Las funciones aditivas viven en el grupo
+  «JovyCandy · Herramientas» (`/app/jovy-herramientas/*`). Estructura vigente y modelo de
+  permisos en [docs/28](28-MATRIZ-PARIDAD-PANTALLAS.md) y
+  [docs/30](30-MODELO-COMERCIAL-Y-PERMISOS.md).
 
 ## Correcciones de backend verificadas en esta fase
 

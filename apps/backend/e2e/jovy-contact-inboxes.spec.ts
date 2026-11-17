@@ -30,7 +30,7 @@ const INBOXES = [
   { type: "national-sales", label: "Ventas Nacionales", path: "/app/jovy/contacts-national-sales" },
   { type: "international-sales", label: "Ventas Internacionales", path: "/app/jovy/contacts-international-sales" },
   { type: "customer-service", label: "Atención al Cliente", path: "/app/jovy/contacts-customer-service" },
-  { type: "catalogue", label: "Catálogo", path: "/app/jovy/contacts-catalogue" },
+  { type: "catalogue", label: "Catálogo — Solicitudes", path: "/app/jovy/contacts-catalogue" },
 ] as const
 
 type Inbox = (typeof INBOXES)[number]
