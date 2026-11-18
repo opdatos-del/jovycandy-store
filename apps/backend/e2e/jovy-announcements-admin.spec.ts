@@ -182,7 +182,8 @@ test("resume el modal promo desde el sidebar, enlaza al gestor y persiste el men
 
     await expect(page.getByRole("heading", { name: "A. Modal de portada" })).toBeVisible()
     await expect(page.getByRole("heading", { name: "B. Mensaje corporativo" })).toBeVisible()
-    await expect(page.getByRole("heading", { name: "Gestión del modal (slot promo)" })).toBeVisible()
+    // El título «Gestión del modal (slot promo)» se retiró para no duplicar el
+    // encabezado de la sección A; el gestor embebido se verifica por su contenedor.
     await expect(page.getByTestId("banner-manager")).toBeVisible()
     await expect(page.getByLabel("Filtro por slot")).toHaveValue("promo")
 

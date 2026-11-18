@@ -56,6 +56,7 @@ const fallbackAccent: Accent = {
   badge: "grey",
 }
 
+const countLabel = (count: number) => `${count} ${count === 1 ? "producto" : "productos"}`
 
 const CategoryStatus = ({ category }: { category: CatalogueCategory }) => {
   if (category.coming_soon) return <Badge color="orange">Próximamente</Badge>
@@ -67,6 +68,8 @@ export const CatalogueCategoryCard = ({
   category,
   position,
   total,
+  families,
+  medusaCategories,
   reordering,
   comingSoonPending,
   onEdit,
@@ -80,6 +83,8 @@ export const CatalogueCategoryCard = ({
   const [imageFailed, setImageFailed] = useState(false)
   useEffect(() => setImageFailed(false), [category.image_resolved_url])
   const showImage = Boolean(category.image_resolved_url) && !imageFailed
+  const linkedCategory = medusaCategories.find((item) => item.id === category.medusa_category_id)
+  const productCount = families.reduce((count, family) => count + family.product_ids.length, 0)
   const access = category.coming_soon || category.interaction_locked ? "Bloqueado" : "Disponible"
 
   return (
@@ -163,6 +168,37 @@ export const CatalogueCategoryCard = ({
             </span>
           </div>
         </div>
+
+        {/* Los datos comerciales quedan plegados para no competir con la clave y el
+            switch: se consultan a demanda y no ocupan espacio en reposo. */}
+        <details className="jovy-card-details">
+          <summary>
+            Detalles comerciales
+            {(linkedCategory || productCount > 0) && (
+              <span className="text-ui-fg-subtle">
+                {` · ${families.length}/${countLabel(productCount)}`}
+              </span>
+            )}
+          </summary>
+          <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Categoría comercial
+              </Text>
+              <Text size="small" className="truncate">
+                {linkedCategory?.name ?? "Sin vincular"}
+              </Text>
+            </div>
+            <div className="text-right">
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Familias / productos
+              </Text>
+              <Text size="small">
+                {families.length} / {countLabel(productCount)}
+              </Text>
+            </div>
+          </div>
+        </details>
 
         <div className="jovy-actions mt-auto flex flex-wrap gap-2 border-t border-ui-border-base pt-3">
           <Button

@@ -1,5 +1,5 @@
 import { ArrowDownMini, ArrowUpMini } from "@medusajs/icons"
-import { Badge, Button, Container, Heading, Input, Text, Textarea, usePrompt } from "@medusajs/ui"
+import { Badge, Button, Container, DropdownMenu, Heading, Input, Text, Textarea, usePrompt } from "@medusajs/ui"
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import {
   GALLERY_ACCEPT,
@@ -8,7 +8,6 @@ import {
   uploadGalleryImage,
   validateGalleryImage,
 } from "./gallery-api"
-import { GalleryAgenda } from "./gallery-agenda"
 import { GalleryLightbox, type GalleryLightboxImage } from "./gallery-lightbox"
 import {
   emptyGalleryDraft,
@@ -48,7 +47,7 @@ export const BrandGalleryManager = () => {
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [reordering, setReordering] = useState(false)
 
-  const [editing, setEditing] = useState<"new" | string | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState<GalleryDraft>(emptyGalleryDraft())
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -85,14 +84,6 @@ export const BrandGalleryManager = () => {
     setForm(emptyGalleryDraft())
     setPreviewUrl(null)
     setFormError(null)
-  }
-
-  const openCreate = () => {
-    setActionError(null)
-    setForm(emptyGalleryDraft())
-    setPreviewUrl(null)
-    setFormError(null)
-    setEditing("new")
   }
 
   const openEdit = (item: GalleryItem) => {
@@ -135,7 +126,7 @@ export const BrandGalleryManager = () => {
 
   const save = async (event: FormEvent) => {
     event.preventDefault()
-    if (saving || uploading) return
+    if (saving || uploading || !editing) return
     if (!form.media_file_id.trim()) {
       setFormError("Selecciona una imagen antes de guardar.")
       return
@@ -145,7 +136,6 @@ export const BrandGalleryManager = () => {
       return
     }
 
-    const isCreate = editing === "new"
     const sortOrder = Number.isFinite(form.sort_order) ? Math.max(0, Math.trunc(form.sort_order)) : 0
     const payload = {
       title: form.title?.trim() || null,
@@ -161,11 +151,11 @@ export const BrandGalleryManager = () => {
     setSaving(true)
     setFormError(null)
     try {
-      await galleryRequest(
-        isCreate || !editing ? "/admin/jovy/brand/gallery" : `/admin/jovy/brand/gallery/${editing}`,
-        { method: isCreate || !editing ? "POST" : "PUT", body: JSON.stringify(payload) },
-      )
-      setNotice(isCreate ? "Elemento creado." : "Elemento actualizado.")
+      await galleryRequest(`/admin/jovy/brand/gallery/${editing}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      })
+      setNotice("Elemento actualizado.")
       resetForm()
       await load(true)
     } catch (error) {
@@ -318,14 +308,13 @@ export const BrandGalleryManager = () => {
   const isFormOpen = editing !== null
 
   if (isFormOpen) {
-    const isCreate = editing === "new"
     return <Container className="p-6" data-testid="gallery-form-panel">
       <div className="border-ui-border-base mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <div ref={headingRef} tabIndex={-1}>
           <Button type="button" variant="transparent" size="small" onClick={resetForm}>
             ← Volver a la galería
           </Button>
-          <Heading level="h2">{isCreate ? "Nuevo elemento" : "Editar elemento"}</Heading>
+          <Heading level="h2">Editar elemento</Heading>
           <Text size="small" className="text-ui-fg-subtle mt-1">
             El ciclo de vida y la ventana de publicación se editan en este formulario; la lista solo
             cambia el orden y el estado rápido.
@@ -442,7 +431,7 @@ export const BrandGalleryManager = () => {
 
         <div className="flex flex-wrap gap-2 lg:col-span-2">
           <Button type="submit" isLoading={saving} disabled={uploading}>
-            {isCreate ? "Crear elemento" : "Guardar cambios"}
+            Guardar cambios
           </Button>
           <Button type="button" variant="secondary" onClick={resetForm}>Cancelar</Button>
         </div>
@@ -454,192 +443,200 @@ export const BrandGalleryManager = () => {
   const draftCount = items.filter((item) => item.status === "draft").length
 
   return <div className="flex flex-col gap-y-4" data-testid="gallery-panel">
-    <GalleryUpload
-      visibleNow={visibleNowCount}
-      draftCount={draftCount}
-      onConfirm={confirmUpload}
-      onUploadOne={uploadOne}
-      onComplete={() => load(true)}
-    />
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(20rem,0.8fr)_minmax(0,1.2fr)]">
+      <GalleryUpload
+        visibleNow={visibleNowCount}
+        draftCount={draftCount}
+        onConfirm={confirmUpload}
+        onUploadOne={uploadOne}
+        onComplete={() => load(true)}
+      />
 
-    <Container className="p-6">
-      <GalleryAgenda items={items} />
-    </Container>
-
-    <Container className="p-6" data-testid="gallery-list-panel">
-      <div className="border-ui-border-base flex flex-wrap items-end justify-between gap-3 border-b pb-4">
-        <div>
-          <Heading level="h2" className="jovy-subtitle">Elementos de galería</Heading>
-          <Text size="small" className="text-ui-fg-subtle mt-1">
-            Orden de aparición, miniatura ampliable y acciones de ciclo de vida.
-          </Text>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="small" variant="secondary" onClick={() => void load()} isLoading={loading}>
-            Actualizar
-          </Button>
-          <Button size="small" onClick={openCreate}>Nuevo elemento</Button>
-        </div>
-      </div>
-
-      {loadError && <div role="alert" className="mt-4 flex flex-wrap items-center gap-3">
-        <Text size="small" className="text-ui-fg-error">{loadError}</Text>
-        <Button size="small" variant="secondary" onClick={() => void load()}>Reintentar</Button>
-      </div>}
-      {actionError && <p role="alert" className="text-ui-fg-error mt-4 text-sm" data-testid="gallery-action-error">{actionError}</p>}
-      {notice && <p role="status" className="text-ui-fg-success mt-4 text-sm">{notice}</p>}
-
-      {loading && items.length === 0
-        ? <p role="status" className="text-ui-fg-subtle mt-6">Cargando galería…</p>
-        : items.length === 0
-          ? <div className="border-ui-border-base mt-6 rounded-md border border-dashed p-8 text-center">
-            <Heading level="h3">Aún no hay imágenes</Heading>
-            <p className="text-ui-fg-subtle mx-auto mt-2 max-w-md text-sm">
-              Usa el bloque de carga para subir una o varias imágenes. Se crean como borradores y
-              puedes publicarlas cuando quieras.
-            </p>
-            <Button
-              className="mt-4"
-              onClick={() => document.getElementById("gallery-file-input")?.focus()}
-            >
-              Cargar imágenes
+      <Container className="p-6" data-testid="gallery-list-panel">
+        <div className="border-ui-border-base flex flex-wrap items-end justify-between gap-3 border-b pb-4">
+          <div>
+            <Heading level="h2" className="jovy-subtitle">Elementos de galería</Heading>
+            <Text size="small" className="text-ui-fg-subtle mt-1">
+              Orden de aparición, miniatura ampliable y acciones de ciclo de vida.
+            </Text>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="small" variant="secondary" onClick={() => void load()} isLoading={loading}>
+              Actualizar
             </Button>
           </div>
-          : <>
-            <div className="text-ui-fg-subtle border-ui-border-base mt-4 hidden grid-cols-[7rem_minmax(0,1fr)_auto] gap-3 border-b px-3 pb-2 text-xs font-medium uppercase md:grid">
-              <span>Orden</span>
-              <span>Imagen y estado</span>
-              <span className="text-right">Acciones</span>
+        </div>
+
+        {loadError && <div role="alert" className="mt-4 flex flex-wrap items-center gap-3">
+          <Text size="small" className="text-ui-fg-error">{loadError}</Text>
+          <Button size="small" variant="secondary" onClick={() => void load()}>Reintentar</Button>
+        </div>}
+        {actionError && <p role="alert" className="text-ui-fg-error mt-4 text-sm" data-testid="gallery-action-error">{actionError}</p>}
+        {notice && <p role="status" className="text-ui-fg-success mt-4 text-sm">{notice}</p>}
+
+        {loading && items.length === 0
+          ? <p role="status" className="text-ui-fg-subtle mt-6">Cargando galería…</p>
+          : items.length === 0
+            ? <div className="border-ui-border-base mt-6 rounded-md border border-dashed p-8 text-center">
+              <Heading level="h3">Aún no hay imágenes</Heading>
+              <p className="text-ui-fg-subtle mx-auto mt-2 max-w-md text-sm">
+                Usa el bloque de carga para subir una o varias imágenes. Se crean como borradores y
+                puedes publicarlas cuando quieras.
+              </p>
+              <Button
+                className="mt-4"
+                onClick={() => document.getElementById("gallery-file-input")?.focus()}
+              >
+                Cargar imágenes
+              </Button>
             </div>
-            <ul className="divide-ui-border-base divide-y" data-testid="gallery-items" aria-label="Elementos de la galería">
-              {items.map((item, index) => {
-                const title = galleryTitle(item)
-                const state = publicationState(item)
-                const itemBusy = pendingId === item.id || reordering
-                return <li
-                  key={item.id}
-                  data-testid={`gallery-item-${item.id}`}
-                  className="jovy-container grid gap-3 px-3 py-4 md:grid-cols-[7rem_minmax(0,1fr)_auto] md:items-center"
-                  aria-busy={itemBusy}
-                >
-                  <div className="flex items-center gap-2 md:flex-col md:items-start">
-                    <span className="text-ui-fg-subtle text-xs font-medium uppercase md:hidden">Orden</span>
-                    <span className="text-sm font-medium tabular-nums">{index + 1}</span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="small"
-                        variant="secondary"
-                        className="jovy-icon-button h-7 w-7 p-0"
-                        aria-label={`Subir ${title}`}
-                        onClick={() => void move(index, -1)}
-                        disabled={itemBusy || index === 0}
-                      >
-                        <ArrowUpMini />
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="secondary"
-                        className="jovy-icon-button h-7 w-7 p-0"
-                        aria-label={`Bajar ${title}`}
-                        onClick={() => void move(index, 1)}
-                        disabled={itemBusy || index === items.length - 1}
-                      >
-                        <ArrowDownMini />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="flex min-w-0 items-start gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setLightboxId(item.id)}
-                      disabled={!item.media_url}
-                      aria-label={`Ampliar ${title}`}
-                      className="border-ui-border-base bg-ui-bg-subtle focus-visible:ring-ui-border-interactive group relative h-16 w-16 shrink-0 overflow-hidden rounded-md border focus-visible:ring-2 focus-visible:outline-none disabled:cursor-default"
-                    >
-                      {item.media_url
-                        ? <img
-                          src={item.media_url}
-                          alt=""
-                          loading="lazy"
-                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                        />
-                        : <span className="text-ui-fg-muted flex h-full items-center justify-center text-xs">Sin imagen</span>}
-                    </button>
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{title}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <Badge color={statusColor(item.status)}>{statusLabel[item.status]}</Badge>
-                        {item.status === "published" && <Badge color={publicationColor(state)}>{publicationLabel[state]}</Badge>}
-                        <span className="text-ui-fg-subtle text-xs">{item.enabled ? "Activo" : "Inactivo"}</span>
+            : <>
+              <div className="jovy-gallery-head text-ui-fg-subtle border-ui-border-base mt-4 hidden grid-cols-[7rem_minmax(0,1fr)_auto] gap-3 border-b px-3 pb-2 text-xs font-medium uppercase">
+                <span>Orden</span>
+                <span>Imagen y estado</span>
+                <span className="text-right">Acciones</span>
+              </div>
+              <ul className="jovy-gallery-list divide-ui-border-base divide-y" data-testid="gallery-items" aria-label="Elementos de la galería">
+                {items.map((item, index) => {
+                  const title = galleryTitle(item)
+                  const state = publicationState(item)
+                  const itemBusy = pendingId === item.id || reordering
+                  return <li
+                    key={item.id}
+                    data-testid={`gallery-item-${item.id}`}
+                    className="jovy-container jovy-gallery-row grid gap-3 px-3 py-3"
+                    aria-busy={itemBusy}
+                  >
+                    <div className="flex items-center gap-2 md:flex-col md:items-start">
+                      <span className="text-ui-fg-subtle text-xs font-medium uppercase md:hidden">Orden</span>
+                      <span className="text-sm font-medium tabular-nums">{index + 1}</span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          className="jovy-icon-button h-7 w-7 p-0"
+                          aria-label={`Subir ${title}`}
+                          onClick={() => void move(index, -1)}
+                          disabled={itemBusy || index === 0}
+                        >
+                          <ArrowUpMini />
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          className="jovy-icon-button h-7 w-7 p-0"
+                          aria-label={`Bajar ${title}`}
+                          onClick={() => void move(index, 1)}
+                          disabled={itemBusy || index === items.length - 1}
+                        >
+                          <ArrowDownMini />
+                        </Button>
                       </div>
-                      {item.description && <p className="text-ui-fg-subtle mt-1 line-clamp-2 text-xs">{item.description}</p>}
-                      <p className="text-ui-fg-subtle mt-1 text-xs">{formatWindow(item)}</p>
                     </div>
-                  </div>
 
-                  <div className="jovy-actions jovy-actions--end-danger flex flex-wrap gap-2 md:justify-end">
-                    <Button
-                      size="small"
-                      variant="secondary"
-                      aria-label={`Editar ${title}`}
-                      onClick={() => openEdit(item)}
-                      disabled={itemBusy}
-                    >
-                      Editar
-                    </Button>
-                    {item.status === "published"
-                      ? <Button
+                    <div className="flex min-w-0 items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setLightboxId(item.id)}
+                        disabled={!item.media_url}
+                        aria-label={`Ampliar ${title}`}
+                        className="border-ui-border-base bg-ui-bg-subtle focus-visible:ring-ui-border-interactive group relative h-16 w-16 shrink-0 overflow-hidden rounded-md border focus-visible:ring-2 focus-visible:outline-none disabled:cursor-default"
+                      >
+                        {item.media_url
+                          ? <img
+                            src={item.media_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                          />
+                          : <span className="text-ui-fg-muted flex h-full items-center justify-center text-xs">Sin imagen</span>}
+                      </button>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{title}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <Badge color={statusColor(item.status)}>{statusLabel[item.status]}</Badge>
+                          {item.status === "published" && <Badge color={publicationColor(state)}>{publicationLabel[state]}</Badge>}
+                          <span className="text-ui-fg-subtle text-xs">{item.enabled ? "Activo" : "Inactivo"}</span>
+                        </div>
+                        {item.description && <p className="text-ui-fg-subtle mt-1 line-clamp-2 text-xs">{item.description}</p>}
+                        <p className="text-ui-fg-subtle mt-1 text-xs">{formatWindow(item)}</p>
+                      </div>
+                    </div>
+
+                    <div className="jovy-actions flex flex-wrap gap-2 md:justify-end">
+                      <Button
                         size="small"
                         variant="secondary"
-                        aria-label={`Despublicar ${title}`}
-                        onClick={() => void changeStatus(item, "draft")}
-                        isLoading={pendingId === item.id}
+                        aria-label={`Editar ${title}`}
+                        onClick={() => openEdit(item)}
+                        disabled={itemBusy}
                       >
-                        Despublicar
+                        Editar
                       </Button>
-                      : <Button
-                        size="small"
-                        variant="secondary"
-                        aria-label={`Publicar ${title}`}
-                        onClick={() => void changeStatus(item, "published")}
-                        isLoading={pendingId === item.id}
-                      >
-                        Publicar
-                      </Button>}
-                    {item.status !== "archived" && <Button
-                      size="small"
-                      variant="secondary"
-                      aria-label={`Archivar ${title}`}
-                      onClick={() => void changeStatus(item, "archived")}
-                      disabled={itemBusy}
-                    >
-                      Archivar
-                    </Button>}
-                    <Button
-                      size="small"
-                      variant="secondary"
-                      aria-label={`${item.enabled ? "Desactivar" : "Activar"} ${title}`}
-                      onClick={() => void toggleEnabled(item)}
-                      disabled={itemBusy}
-                    >
-                      {item.enabled ? "Desactivar" : "Activar"}
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="danger"
-                      aria-label={`Eliminar ${title}`}
-                      onClick={() => void remove(item)}
-                      disabled={itemBusy}
-                    >
-                      Eliminar
-                    </Button>
-                  </div>
-                </li>
-              })}
-            </ul>
-          </>}
-    </Container>
+                      {item.status === "published"
+                        ? <Button
+                          size="small"
+                          variant="secondary"
+                          aria-label={`Despublicar ${title}`}
+                          onClick={() => void changeStatus(item, "draft")}
+                          isLoading={pendingId === item.id}
+                        >
+                          Despublicar
+                        </Button>
+                        : <Button
+                          size="small"
+                          variant="secondary"
+                          aria-label={`Publicar ${title}`}
+                          onClick={() => void changeStatus(item, "published")}
+                          isLoading={pendingId === item.id}
+                        >
+                          Publicar
+                        </Button>}
+                      <DropdownMenu>
+                        <DropdownMenu.Trigger asChild>
+                          <Button
+                            size="small"
+                            variant="secondary"
+                            aria-label={`Más acciones para ${title}`}
+                            data-testid={`gallery-item-actions-${item.id}`}
+                            disabled={itemBusy}
+                          >
+                            Más
+                          </Button>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Content align="end">
+                          {item.status !== "archived" && <DropdownMenu.Item
+                            aria-label={`Archivar ${title}`}
+                            onSelect={() => void changeStatus(item, "archived")}
+                            disabled={itemBusy}
+                          >
+                            Archivar
+                          </DropdownMenu.Item>}
+                          <DropdownMenu.Item
+                            aria-label={`${item.enabled ? "Desactivar" : "Activar"} ${title}`}
+                            onSelect={() => void toggleEnabled(item)}
+                            disabled={itemBusy}
+                          >
+                            {item.enabled ? "Desactivar" : "Activar"}
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Separator />
+                          <DropdownMenu.Item
+                            className="text-ui-fg-error"
+                            aria-label={`Eliminar ${title}`}
+                            onSelect={() => void remove(item)}
+                            disabled={itemBusy}
+                          >
+                            Eliminar
+                          </DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                      </DropdownMenu>
+                    </div>
+                  </li>
+                })}
+              </ul>
+            </>}
+      </Container>
+    </div>
 
     <GalleryLightbox
       images={lightboxImages}

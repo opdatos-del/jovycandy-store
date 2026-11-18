@@ -50,6 +50,22 @@ async function cancelPrompt(page: Page, title: string, cancelText = "Cancelar") 
   await expect(dialog).toBeHidden()
 }
 
+/**
+ * Abre el menú «Más» de un elemento y ejecuta una acción secundaria por su nombre accesible.
+ *
+ * El disparador queda deshabilitado mientras hay una mutación en curso (`reordering` o
+ * `pendingId`), así que primero se espera a que esté habilitado y luego a que el ítem del
+ * menú esté visible; sin esto el clic puede perderse bajo carga y el test cae por timeout.
+ */
+async function clickGalleryMoreAction(page: Page, id: string, accessibleName: string) {
+  const trigger = page.getByTestId(`gallery-item-actions-${id}`)
+  await expect(trigger).toBeEnabled()
+  await trigger.click()
+  const item = page.getByRole("menuitem", { name: accessibleName, exact: true })
+  await expect(item).toBeVisible()
+  await item.click()
+}
+
 async function login(page: import("@playwright/test").Page, request: import("@playwright/test").APIRequestContext) {
   const admin = values(".admin.local.env")
   await page.goto("/app/login")
@@ -182,7 +198,7 @@ test("Galería: carga múltiple, previews, contador, lightbox y responsive", asy
 
     await page.goto("/app/jovy/brand")
     await expect(page.getByRole("heading", { name: "Elementos de galería" })).toBeVisible()
-    await expect(page.getByTestId("gallery-quota-limit")).toContainText("4")
+    await expect(page.getByTestId("gallery-upload-quota")).toContainText("Visibles ahora: 0 de 4")
     await expect(page.getByTestId("gallery-quota-now")).toHaveText("0 de 4")
 
     const nameA = `${runId}-a.png`
@@ -266,6 +282,11 @@ test("Galería: carga múltiple, previews, contador, lightbox y responsive", asy
 })
 
 test("Galería: orden con persistencia y eliminación con confirmación", async ({ page, request }) => {
+  // La prueba encadena login, creación de elementos, reordenamiento persistido, dos
+  // aperturas de menú, eliminación y capturas en dos viewports. Son varias operaciones de
+  // red y un Admin en desarrollo, así que 60 s no alcanzan bajo la carga de la suite completa.
+  test.setTimeout(90_000)
+
   const runId = `e2e-gallery-order-${Date.now()}`
   const pageErrors: string[] = []
   const ids: string[] = []
@@ -313,14 +334,14 @@ test("Galería: orden con persistencia y eliminación con confirmación", async 
     await page.screenshot({ path: galleryShot("gallery-order-1440.png"), fullPage: true })
 
     // Cancelar el borrado mantiene el registro.
-    await page.getByRole("button", { name: `Eliminar ${titleA}` }).click()
+    await clickGalleryMoreAction(page, itemA.id, `Eliminar ${titleA}`)
     await expect(page.getByRole("heading", { name: "Eliminar elemento de galería" })).toBeVisible()
     await page.keyboard.press("Escape")
     await expect(page.getByRole("heading", { name: "Eliminar elemento de galería" })).toBeHidden()
     current = await listGallery(request, headers)
     expect(current.some((item) => item.id === itemA.id)).toBe(true)
 
-    await page.getByRole("button", { name: `Eliminar ${titleA}` }).click()
+    await clickGalleryMoreAction(page, itemA.id, `Eliminar ${titleA}`)
     await page.getByRole("button", { name: "Eliminar elemento" }).click()
     await expect(page.getByText("Elemento eliminado.", { exact: true })).toBeVisible({ timeout: 15_000 })
     await expect.poll(async () => {
@@ -363,7 +384,7 @@ test("Galería: límite de cuatro simultáneos y error de backend legible", asyn
     }
 
     await page.goto("/app/jovy/brand")
-    await expect(page.getByTestId("gallery-quota-limit")).toContainText("4")
+    await expect(page.getByTestId("gallery-upload-quota")).toContainText("Visibles ahora: 0 de 4")
     await expect(page.getByTestId("gallery-quota-now")).toHaveText("0 de 4")
 
     for (const title of titles.slice(0, 4)) {
@@ -375,7 +396,7 @@ test("Galería: límite de cuatro simultáneos y error de backend legible", asyn
     }
 
     await expect(page.getByTestId("gallery-quota-now")).toHaveText("4 de 4")
-    await expect(page.getByTestId("gallery-quota-peak")).toHaveText("4 de 4")
+    await expect(page.getByTestId("gallery-upload-quota")).toContainText("Visibles ahora: 4 de 4")
 
     // El quinto elemento solapa con los cuatro publicados: el backend rechaza y la UI lo muestra.
     await page.getByRole("button", { name: `Publicar ${titles[4]}` }).click()
@@ -386,7 +407,7 @@ test("Galería: límite de cuatro simultáneos y error de backend legible", asyn
     }).toBe("draft")
 
     await page.setViewportSize({ width: 1440, height: 1000 })
-    await page.getByRole("heading", { name: "Agenda de cupo" }).scrollIntoViewIfNeeded()
+    await page.getByRole("heading", { name: "Cargar imágenes" }).scrollIntoViewIfNeeded()
     await page.screenshot({ path: galleryShot("gallery-quota-1440.png"), fullPage: true })
     await page.getByRole("heading", { name: "Elementos de galería" }).scrollIntoViewIfNeeded()
     await page.screenshot({ path: galleryShot("gallery-quota-error-1440.png"), fullPage: true })

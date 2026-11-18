@@ -61,6 +61,36 @@
   min-inline-size: 0;
 }
 
+/* Galería: la lista manda sobre el ancho de su columna, no sobre el viewport.
+   En columnas estrechas cada elemento se apila; al ensancharse se reparte en
+   tres columnas sin dejar que los botones de acción desplacen el texto. */
+[data-jovy-quality] [data-testid="gallery-list-panel"] {
+  container: gallery / inline-size;
+}
+
+[data-jovy-quality] .jovy-gallery-row {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--jovy-space-3);
+}
+
+[data-jovy-quality] .jovy-gallery-head {
+  display: none;
+}
+
+@container gallery (min-width: 38rem) {
+  [data-jovy-quality] .jovy-gallery-row {
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--jovy-space-4);
+  }
+
+  [data-jovy-quality] .jovy-gallery-head {
+    display: grid;
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+    column-gap: var(--jovy-space-4);
+  }
+}
+
 /* La multimedia nunca desborda. `block-size: auto` solo en `.jovy-media`,
   para no romper las miniaturas con `object-cover` y altura fija. */
 [data-jovy-quality] img,

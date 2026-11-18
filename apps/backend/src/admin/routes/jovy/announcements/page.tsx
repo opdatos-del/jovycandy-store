@@ -407,11 +407,11 @@ const AnnouncementsPage = () => {
         )}
 
         <div className="border-ui-border-base mt-5 border-t pt-4">
+          {/* La sección A ya titula el bloque: sin título propio no se duplica el encabezado. */}
           <BannerManager
             initialSlot="promo"
             defaultSlotFilter="promo"
-            heading="Gestión del modal (slot promo)"
-            headingLevel="h2"
+            heading=""
             onBannersChange={loadPromoBanners}
           />
         </div>

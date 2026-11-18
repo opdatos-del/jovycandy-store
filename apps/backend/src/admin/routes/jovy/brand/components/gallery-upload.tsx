@@ -152,7 +152,7 @@ export const GalleryUpload = ({ visibleNow, draftCount, onConfirm, onUploadOne, 
     </div>
 
     <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="gallery-upload-quota">
-      <Badge color={visibleNow >= 4 ? "orange" : "green"}>Visibles ahora: {visibleNow} de 4</Badge>
+      <Badge color={visibleNow >= 4 ? "orange" : "green"}>Visibles ahora: <span data-testid="gallery-quota-now">{visibleNow} de 4</span></Badge>
       <Badge color="grey">Borradores: {draftCount}</Badge>
       <Text size="xsmall" className="text-ui-fg-subtle">
         Cuatro es el máximo simultáneo publicado, no el total de filas.
@@ -174,7 +174,7 @@ export const GalleryUpload = ({ visibleNow, draftCount, onConfirm, onUploadOne, 
         addFiles(event.dataTransfer.files)
       }}
     >
-      <div className="flex flex-col items-center gap-3 px-2 py-6 text-center">
+      <div className="flex flex-col items-center gap-3 px-2 py-4 text-center">
         <span className="bg-ui-bg-base text-ui-fg-subtle flex h-11 w-11 items-center justify-center rounded-full">
           <Photo />
         </span>

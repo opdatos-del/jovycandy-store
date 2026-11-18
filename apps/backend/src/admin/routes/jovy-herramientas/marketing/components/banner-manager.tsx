@@ -492,7 +492,8 @@ export const BannerManager = ({
       <Container className="p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Heading level={headingLevel}>{heading}</Heading>
+            {/* El anfitrión puede ocultar el título (`heading=""`) cuando su sección ya titula el bloque. */}
+            {heading.trim() !== "" && <Heading level={headingLevel}>{heading}</Heading>}
             <Text size="small" className="text-ui-fg-subtle mt-1">
               Dos slots históricos: <span className="font-medium">promo</span> es el modal de portada y{" "}
               <span className="font-medium">hint</span> la franja bajo el logo. La frecuencia y la

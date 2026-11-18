@@ -174,7 +174,7 @@ pero los artefactos no se versionan; para reproducirlos hay que volver a captura
 | integración de módulos | 6 suites / 37 pruebas |
 | integración HTTP | 11 suites / 76 pruebas |
 | build | OK |
-| E2E (agrupada y secuencial) | **29/29 en 5,4 min** |
+| E2E (agrupada y secuencial) | **29/29 en 4,5 min** |
 
 Revisión visual: 8 pantallas × 2 viewports, antes y después, con 16 composites
 pareados. No hay desbordamiento horizontal nuevo en ninguna de las 16
@@ -210,7 +210,7 @@ flujo ni de sistema visual.
   `capture-after.cjs` y `compose.py`. Métricas: 6 tarjetas y mismos anchos
   (388/351 px), overflow 0 y diff de píxeles del 0.188% (1440) y 0.328% (375).
 - **Verificación.** E2E de Categorías 4/4; lint 0, typecheck 0 y build OK; suite
-  E2E completa 29/29 en 5,4 min, agrupada y secuencial.
+  E2E completa 29/29 en 4,5 min, agrupada y secuencial.
 
 ## 9. Reducción de ruido y UX de Categorías (2026-11-18)
 
@@ -241,7 +241,7 @@ Continúa la sección 8 sin cambiar flujos ni sistema visual.
   (−13.7 %) a 375; a 375 la página baja 2749 → 2550 px (−7.2 %). En 1440 el
   promedio global está enmascarado por una imagen nueva en la tarjeta #1, no por
   la compactación.
-- **Verificación.** E2E de Categorías 4/4; suite E2E completa 29/29 en 5,4 min,
+- **Verificación.** E2E de Categorías 4/4; suite E2E completa 29/29 en 4,5 min,
   agrupada y secuencial; lint, typecheck y build en 0. Contraste oscuro preservado
   (2/102 fallos, ambos controles deshabilitados exentos).
 
@@ -272,10 +272,84 @@ altura de la miniatura sin cambiar flujos ni sistema visual.
 - **Conservado.** Contenido, switches, badges, `<details>`, botones y flujos
   intactos. Las dos imágenes DEMO que aparecen en la comparación se deben a un
   cambio de datos, no de estilo.
-- **Verificación.** E2E de Categorías 4/4; suite completa 29/29 en 5,4 min,
+- **Verificación.** E2E de Categorías 4/4; suite completa 29/29 en 4,5 min,
   agrupada y secuencial; typecheck, lint y build en 0.
 
-## 11. Estado
+## 11. Rediseño de Casa Jovy Galería (2026-11-18)
+
+Rediseño de `/app/jovy/brand` centrado en quitar ruido y en repartir mejor el
+espacio entre carga y listado. No cambia flujos más allá de eliminar la creación
+desde la UI.
+
+- **Alcance.** Se eliminó por completo «Logos» de esta pantalla: el grupo
+  «Galería Casa Jovy | Logos», el título «Marca Jovy» y la mención a logos en el
+  párrafo. Los logos siguen en su entrada propia del sidebar `/app/jovy/logos`,
+  que no se tocó. También se eliminó el botón «Nuevo elemento» y la ruta de
+  creación desde la UI; la edición de los elementos existentes sigue disponible
+  por «Editar …».
+- **Layout.** «Cargar imágenes» y «Elementos de galería» se reparten en dos
+  columnas a partir de `xl` (`minmax(20rem,0.8fr)` + `minmax(0,1.2fr)`) y se
+  apilan en móvil. Las filas usan consultas de contenedor (`container: gallery /
+  inline-size`, umbral `38rem`) para pasar de 3 columnas a 1 según el ancho real
+  de la columna y no el del viewport.
+- **Ruido eliminado.** Se retiró el bloque «Agenda de cupo»: límite, visibles
+  ahora, pico programado, borradores, archivados, ocupan cupo y ventanas que
+  solapan. La información esencial de cupo queda en el badge «Visibles ahora: N
+  de 4» del panel de carga (`gallery-quota-now`).
+- **Acciones.** Por elemento quedan 4 acciones primarias visibles (Subir/Bajar
+  compactos, Ampliar, Editar, Publicar/Despublicar) y un `DropdownMenu` «Más
+  acciones para …» (Radix de `@medusajs/ui`, sin polyfills) con Archivar,
+  Activar/Desactivar y Eliminar. Se pasó de 8 botones a 5 controles por fila.
+- **Guías.** `menu`: se descartó el menú nativo con `focusgroup`, anchor
+  positioning y `commandfor` por soporte limitado y necesidad de polyfills; se
+  usó el componente oficial ya instalado. `content-first-noise-reduction`:
+  eliminar contenido secundario que no aporta a la tarea. `responsive-design`:
+  consultas de contenedor. El bloque `details` y la agenda no se reintroducen.
+- **Evidencia.** Bajo
+  [`audit-gallery-ux/`](../apps/backend/.test-results/audit-gallery-ux/):
+  `after/`, `comparisons/`, `metrics.json`, `report.txt` y `capture-gallery.cjs`.
+  Medidas: a 1440 el panel de carga va en x=232 con 472 px y el listado en x=720
+  con 708 px (misma fila, Δy=0); antes el listado empezaba en y≈639. A 375 los
+  paneles quedan apilados (Δx=0, Δy≈593) sin overflow. Filas a 1440:
+  `96px + 1fr + auto`; a 375: 1 columna.
+- **Verificación.** E2E de Brand 5/5; suite completa 29/29 en 4,5 min, agrupada y
+  secuencial; lint, typecheck y build en 0. El test largo de orden y eliminación
+  se estabilizó con `test.setTimeout(90_000)` y un helper que espera
+  `toBeEnabled` del trigger y `toBeVisible` del menú; no se añadieron sleeps ni
+  retries.
+- **Regresión corregida durante la validación.** El bloque `<details>` de datos
+  comerciales de Categorías había desaparecido en una edición previa; se
+  restauró y la E2E de Categorías volvió a 4/4. Se documenta como incidencia de
+  validación, no como parte de este rediseño.
+
+## 12. Títulos duplicados eliminados (2026-11-18)
+
+Eliminación de encabezados redundantes en dos pantallas, sin cambios de flujo ni
+de sistema visual.
+
+- **Logos.** La ruta `/app/jovy/logos` renderizaba el `h1` «Logos» de la página y
+  el gestor repetía un `h2` «Logos». Se retiró el `h2` del gestor y se
+  conservaron la descripción, «Nuevo logo», «Buscar» y los filtros. Verificado en
+  navegador: exactamente un `h1` «Logos» y cero `h2` «Logos» a 1440 y 375.
+- **Anuncios de portada.** El `BannerManager` embebido repetía «Gestión del modal
+  (slot promo)» bajo «A. Modal de portada». El título del gestor pasó a ser
+  opcional y se invoca con `heading=""`, de modo que no se renderiza, conservando
+  su descripción, botones y listado. Jerarquía verificada: `h1` «Anuncios de
+  portada», `h2` «A. Modal de portada», `h2` «B. Mensaje corporativo», sin el
+  título intermedio; el gestor mantiene su `h2` interno «Banners» del listado.
+- **Guía aplicada.** `content-first-noise-reduction` de `modern-web-guidance`:
+  eliminar contenido redundante que no aporta a la tarea. Sin dependencias ni
+  polyfills.
+- **Evidencia.** Bajo
+  [`audit-headings/`](../apps/backend/.test-results/audit-headings/): capturas
+  1440/375 de ambas pantallas y `report.txt`/`report.json`; **28/28 comprobaciones
+  PASS**, sin overflow ni errores de consola.
+- **E2E ajustada.** La aserción de «Gestión del modal (slot promo)» pasa a
+  verificar `data-testid="banner-manager"`; el resto queda intacto.
+- **Verificación.** E2E enfocada de announcements+brand+banners 8/8; suite
+  completa 29/29 en 4,5 min; lint, typecheck y build en 0.
+
+## 13. Estado
 
 `VALIDADO` **con revisión pendiente**. No se declara «réplica aceptada» ni
 paridad total: este trabajo es de pulido visual local, no de equalización con el

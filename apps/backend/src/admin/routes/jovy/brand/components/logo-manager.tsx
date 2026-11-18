@@ -738,7 +738,7 @@ export function BrandLogoManager() {
   </>
 
   return <Container className="p-6" data-testid="jovy-logos-panel">
-    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-ui-border-base pb-4"><div><Heading level="h2">Logos</Heading><p className="text-ui-fg-subtle text-sm">Activos corporativos, familias canónicas y orden de aparición.</p></div><Button onClick={openCreate}>Nuevo logo</Button></div>
+    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-ui-border-base pb-4"><div><p className="text-ui-fg-subtle text-sm">Activos corporativos, familias canónicas y orden de aparición.</p></div><Button onClick={openCreate}>Nuevo logo</Button></div>
     {error && <p role="alert" className="mt-4 text-ui-fg-error">{error}</p>}
     {notice && <p role="status" className="mt-4 text-ui-fg-success">{notice}</p>}
     <section aria-label="Filtros de logos" className="mt-4 rounded-md border border-ui-border-base bg-ui-bg-subtle p-3">
