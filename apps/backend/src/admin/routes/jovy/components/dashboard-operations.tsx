@@ -26,7 +26,12 @@ export function RequestsSection({ contacts }: { contacts: JovyDashboard["contact
           Abrir bandeja de contactos
         </a>
       </div>
-      <div className="overflow-x-auto">
+      <div
+        className="jovy-scroll overflow-x-auto"
+        role="region"
+        tabIndex={0}
+        aria-label="Tabla de solicitudes por tipo, desplazable horizontalmente"
+      >
         <Table>
           <Table.Header>
             <Table.Row>
@@ -160,7 +165,7 @@ export function OptionalModulesSection({ modules }: { modules: JovyDashboard["op
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {modules.map((module) => (
-            <div key={module.key} className="border-ui-border-base rounded-lg border p-4">
+            <div key={module.key} className="jovy-card border-ui-border-base rounded-lg border p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Text weight="plus">{module.label}</Text>
                 <Badge color={module.installed ? "green" : "grey"}>
@@ -224,7 +229,7 @@ export function AccessSection() {
       </Text>
       <ul className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {ACCESS_LINKS.map((item) => (
-          <li key={item.to} className="border-ui-border-base rounded-lg border p-4">
+          <li key={item.to} className="jovy-card border-ui-border-base rounded-lg border p-4">
             <a
               href={adminHref(item.to)}
               className="text-ui-fg-interactive focus-visible:ring-ui-border-interactive rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none"

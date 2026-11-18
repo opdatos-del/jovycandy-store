@@ -1,0 +1,270 @@
+/**
+ * Calidad visual de las extensiones JovyCandy del Admin.
+ *
+ * Todo queda bajo [data-jovy-quality] para no alterar el shell nativo de Medusa.
+ * La paleta, los degradados de categoría y los presets de color históricos no se
+ * tocan: este archivo solo homogeniza jerarquía, radios, espaciado, foco y
+ * objetivos táctiles. Las propiedades `text-wrap` y `scrollbar-color` son
+ * mejoras progresivas: se ignoran donde no estén soportadas.
+ */
+
+[data-jovy-quality] {
+  --jovy-radius-sm: 4px;
+  --jovy-radius-md: 8px;
+  --jovy-radius-lg: 12px;
+
+  --jovy-space-1: 4px;
+  --jovy-space-2: 8px;
+  --jovy-space-3: 12px;
+  --jovy-space-4: 16px;
+
+  --jovy-elevation-1: 0 1px 2px rgb(24 24 27 / 0.05), 0 1px 3px rgb(24 24 27 / 0.04);
+  --jovy-focus: var(--ui-border-interactive, #52525b);
+}
+
+/* Jerarquía: h1 20px/600, h2 16px/600; se conservan nivel y texto semántico. */
+[data-jovy-quality] .jovy-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+[data-jovy-quality] .jovy-subtitle {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  text-wrap: balance;
+}
+
+[data-jovy-quality] p {
+  text-wrap: pretty;
+}
+
+/*Radio md, borde, padding uniforme y elevación moderada. El color del borde lo
+  sigue aportando la clase `border-ui-border-base` de @medusajs/ui.*/
+[data-jovy-quality] .jovy-card {
+  border-radius: var(--jovy-radius-md);
+  border-width: 1px;
+  border-style: solid;
+  padding: var(--jovy-space-4);
+  box-shadow: var(--jovy-elevation-1);
+}
+
+/* Contenedor de consulta: los hijos flex/grid no imponen su ancho mínimo. */
+[data-jovy-quality] .jovy-container {
+  container-type: inline-size;
+}
+
+[data-jovy-quality] .jovy-container,
+[data-jovy-quality] .jovy-container * {
+  min-inline-size: 0;
+}
+
+/* La multimedia nunca desborda. `block-size: auto` solo en `.jovy-media`,
+  para no romper las miniaturas con `object-cover` y altura fija. */
+[data-jovy-quality] img,
+[data-jovy-quality] video {
+  max-inline-size: 100%;
+}
+
+[data-jovy-quality] .jovy-media {
+  border-radius: var(--jovy-radius-sm);
+}
+
+[data-jovy-quality] .jovy-media img,
+[data-jovy-quality] .jovy-media video,
+[data-jovy-quality] img.jovy-media,
+[data-jovy-quality] video.jovy-media {
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+/* Miniatura de tarjeta: el aspecto 4/1 da 129px en una columna de 515px, pero
+   el tope de 48px evita que la tarjeta crezca ~128px extra y obligue a hacer
+   scroll. Con object-fit: cover se recorta sin distorsionar. */
+[data-jovy-quality] .jovy-card-media {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 4 / 1;
+  max-block-size: 3rem;
+  object-fit: cover;
+}
+
+[data-jovy-quality] .jovy-wrap-text {
+  overflow-wrap: anywhere;
+}
+
+/* Scroll horizontal con foco de teclado y pista visual asociada. */
+[data-jovy-quality] .jovy-scroll {
+  overflow-x: auto;
+  max-inline-size: 100%;
+  scrollbar-color: var(--jovy-focus) transparent;
+}
+
+[data-jovy-quality] .jovy-scroll:focus-visible {
+  outline: 2px solid var(--jovy-focus);
+  outline-offset: 2px;
+}
+
+/* Acciones envueltas con separación uniforme. */
+[data-jovy-quality] .jovy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jovy-space-2);
+}
+
+/* Objetivos táctiles: 24px y 44px en puntero grueso. */
+[data-jovy-quality] .jovy-icon-button {
+  min-inline-size: 24px;
+  min-block-size: 24px;
+}
+
+@media (pointer: coarse) {
+  [data-jovy-quality] .jovy-icon-button {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+  }
+}
+
+/* Categorías: el switch «Próximamente» mantiene su aspecto, pero su nombre
+   accesible se distingue con aria-describedby; aquí solo se amplía su área. */
+[data-jovy-quality] .jovy-switch-hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 24px;
+  min-block-size: 24px;
+  position: relative;
+}
+
+[data-jovy-quality] .jovy-switch-hit::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  /* No intercepta clics: el botón del switch sigue recibiendo el toggle. */
+  pointer-events: none;
+}
+
+@media (pointer: coarse) {
+  [data-jovy-quality] .jovy-switch-hit::after {
+    inset: -10px;
+  }
+}
+
+/* Foco visible del switch de Categorías; se restringe al envoltorio de la
+   tarjeta para no afectar switches de otras pantallas Jovy. */
+[data-jovy-quality] .jovy-switch-hit [role="switch"]:focus-visible {
+  outline: 2px solid var(--jovy-focus);
+  outline-offset: 4px;
+}
+
+/* Estado vacío intencional: la descripción ausente tiene jerarquía propia.
+   El color lo aporta `text-ui-fg-subtle` (token adaptable al tema); fijarlo aquí
+   con --fg-muted anulaba la clase y rompía el contraste en modo oscuro. */
+[data-jovy-quality] .jovy-empty-note {
+  font-style: italic;
+}
+
+/* Categorías: la clave se lee en una línea sin caja. El tamaño xsmall y el
+   color atenuado los aportan los <Text> hijos (`text-ui-fg-subtle`), tokens
+   adaptables al tema que no deben fijarse aquí. */
+[data-jovy-quality] .jovy-card-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jovy-space-1) var(--jovy-space-2);
+  line-height: 1.4;
+}
+
+/* Datos comerciales plegados: separación uniforme con la fila del switch y
+   resumen claramente interactivo, con foco visible para teclado. */
+[data-jovy-quality] .jovy-card-details {
+  padding-top: var(--jovy-space-3);
+}
+
+[data-jovy-quality] .jovy-card-details > summary {
+  border-radius: var(--jovy-radius-sm);
+  cursor: pointer;
+  width: fit-content;
+}
+
+[data-jovy-quality] .jovy-card-details > summary:focus-visible {
+  outline: 2px solid var(--jovy-focus);
+  outline-offset: 4px;
+}
+
+/* Modo oscuro: los tonos pastel fijos de Tailwind no reaccionan al tema y dejan
+   el texto claro sobre fondos claros. La tarjeta usa superficie sólida del tema;
+   la identidad de color de cada categoría vive en la franja superior y el borde.
+   Medusa no compila `dark:`, de ahí el selector .dark y CSS scoped. El modo claro
+   conserva sus clases originales. */
+.dark [data-jovy-quality] [data-jovy-accent] {
+  background-color: var(--bg-base);
+  background-image: none;
+  border-color: var(--jovy-accent-border);
+}
+
+.dark [data-jovy-quality] [data-jovy-accent-marker] {
+  background-color: var(--jovy-accent-marker);
+}
+
+/* Un valor por clave de categoría. Definidos bajo .dark para no alterar el
+   modo claro: allí siguen mandando accent.card / accent.marker. */
+.dark [data-jovy-quality] [data-jovy-accent="sazonador"] {
+  --jovy-accent-border: rgba(251, 146, 60, 0.45);
+  --jovy-accent-marker: #fb923c;
+}
+
+.dark [data-jovy-quality] [data-jovy-accent="chamoy"] {
+  --jovy-accent-border: rgba(251, 113, 133, 0.45);
+  --jovy-accent-marker: #fb7185;
+}
+
+.dark [data-jovy-quality] [data-jovy-accent="gomitas_almidon"] {
+  --jovy-accent-border: rgba(250, 204, 21, 0.4);
+  --jovy-accent-marker: #facc15;
+}
+
+.dark [data-jovy-quality] [data-jovy-accent="dulces_paletas"] {
+  --jovy-accent-border: rgba(244, 114, 182, 0.45);
+  --jovy-accent-marker: #f472b6;
+}
+
+.dark [data-jovy-quality] [data-jovy-accent="pinatero"] {
+  --jovy-accent-border: rgba(96, 165, 250, 0.45);
+  --jovy-accent-marker: #60a5fa;
+}
+
+.dark [data-jovy-quality] [data-jovy-accent="gomitas_grenetina"] {
+  --jovy-accent-border: rgba(52, 211, 153, 0.45);
+  --jovy-accent-marker: #34d399;
+}
+
+/* Alto Contraste: el gradiente no es fiable; el borde usa el color del sistema. */
+@media (forced-colors: active) {
+  [data-jovy-quality] [data-jovy-accent],
+  [data-jovy-quality] [data-jovy-accent-marker] {
+    background-image: none;
+    border-color: CanvasText;
+  }
+}
+
+/* En contenedores estrechos, la acción destructiva final ocupa su propia fila
+  completa en lugar de quedar aislada. Consulta de contenedor antes que media
+  query: el criterio es el ancho de la tarjeta, no el del viewport. */
+@container (max-width: 28rem) {
+  [data-jovy-quality] .jovy-actions--end-danger > :last-child {
+    flex: 0 0 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-jovy-quality] *,
+  [data-jovy-quality] *::before,
+  [data-jovy-quality] *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

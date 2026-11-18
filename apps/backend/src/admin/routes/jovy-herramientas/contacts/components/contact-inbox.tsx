@@ -627,11 +627,11 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
             }
 
   return (
-    <div className="flex flex-col gap-y-4" data-testid="jovy-contact-inbox">
+    <div className="flex flex-col gap-y-4" data-jovy-quality data-testid="jovy-contact-inbox">
       <Container className="p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <Heading level="h1">{title}</Heading>
+            <Heading level="h1" className="jovy-title">{title}</Heading>
             {description && (
               <Text size="small" className="text-ui-fg-subtle mt-1">
                 {description}

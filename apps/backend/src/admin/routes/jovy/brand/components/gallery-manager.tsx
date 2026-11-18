@@ -376,7 +376,7 @@ export const BrandGalleryManager = () => {
             {previewUrl && <img
               src={previewUrl}
               alt="Vista previa de galería"
-              className="border-ui-border-base mt-3 h-40 w-full max-w-xs rounded-md border object-cover"
+              className="jovy-media border-ui-border-base mt-3 h-40 w-full max-w-xs rounded-md border object-cover"
             />}
           </div>
         </section>
@@ -469,7 +469,7 @@ export const BrandGalleryManager = () => {
     <Container className="p-6" data-testid="gallery-list-panel">
       <div className="border-ui-border-base flex flex-wrap items-end justify-between gap-3 border-b pb-4">
         <div>
-          <Heading level="h2">Elementos de galería</Heading>
+          <Heading level="h2" className="jovy-subtitle">Elementos de galería</Heading>
           <Text size="small" className="text-ui-fg-subtle mt-1">
             Orden de aparición, miniatura ampliable y acciones de ciclo de vida.
           </Text>
@@ -519,7 +519,7 @@ export const BrandGalleryManager = () => {
                 return <li
                   key={item.id}
                   data-testid={`gallery-item-${item.id}`}
-                  className="grid gap-3 px-3 py-4 md:grid-cols-[7rem_minmax(0,1fr)_auto] md:items-center"
+                  className="jovy-container grid gap-3 px-3 py-4 md:grid-cols-[7rem_minmax(0,1fr)_auto] md:items-center"
                   aria-busy={itemBusy}
                 >
                   <div className="flex items-center gap-2 md:flex-col md:items-start">
@@ -529,7 +529,7 @@ export const BrandGalleryManager = () => {
                       <Button
                         size="small"
                         variant="secondary"
-                        className="h-7 w-7 p-0"
+                        className="jovy-icon-button h-7 w-7 p-0"
                         aria-label={`Subir ${title}`}
                         onClick={() => void move(index, -1)}
                         disabled={itemBusy || index === 0}
@@ -539,7 +539,7 @@ export const BrandGalleryManager = () => {
                       <Button
                         size="small"
                         variant="secondary"
-                        className="h-7 w-7 p-0"
+                        className="jovy-icon-button h-7 w-7 p-0"
                         aria-label={`Bajar ${title}`}
                         onClick={() => void move(index, 1)}
                         disabled={itemBusy || index === items.length - 1}
@@ -578,7 +578,7 @@ export const BrandGalleryManager = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 md:justify-end">
+                  <div className="jovy-actions jovy-actions--end-danger flex flex-wrap gap-2 md:justify-end">
                     <Button
                       size="small"
                       variant="secondary"

@@ -75,7 +75,7 @@ export const NoveltyCard = ({
     <article
       data-testid={`novelty-card-${event.id}`}
       aria-labelledby={titleId}
-      className={`bg-ui-bg-base flex min-w-0 flex-col overflow-hidden rounded-lg border shadow-elevation-card-rest transition-shadow ${
+      className={`jovy-container bg-ui-bg-base flex min-w-0 flex-col overflow-hidden rounded-lg border shadow-elevation-card-rest transition-shadow ${
         highlighted ? "border-ui-border-interactive ring-ui-border-interactive ring-2" : "border-ui-border-base"
       }`}
     >
@@ -215,7 +215,7 @@ export const NoveltyCard = ({
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="jovy-actions flex flex-wrap gap-2">
           <Button
             size="small"
             variant="secondary"
@@ -282,7 +282,7 @@ export const NoveltyCard = ({
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="jovy-actions flex flex-wrap gap-2">
             <Button size="small" variant="secondary" disabled={busy} onClick={onEdit}>
               Editar novedad
             </Button>
@@ -291,7 +291,7 @@ export const NoveltyCard = ({
             </Button>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="jovy-actions jovy-actions--end-danger flex flex-wrap gap-2">
             {event.status !== "published" && (
               <Button size="small" variant="secondary" disabled={busy} onClick={onPublish}>
                 Publicar

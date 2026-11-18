@@ -1,3 +1,5 @@
+// eslint-disable-next-line no-restricted-imports -- el Vite del Admin no resuelve el alias @jovy para CSS; la hoja vive en src/admin/styles
+import "../../styles/jovy-quality.css"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Calendar,
@@ -29,6 +31,7 @@ export const DashboardPage = () => {
   return (
     <div
       className="flex flex-col gap-y-5"
+      data-jovy-quality
       data-testid="jovy-dashboard"
       aria-busy={isLoading || isRefreshing}
     >

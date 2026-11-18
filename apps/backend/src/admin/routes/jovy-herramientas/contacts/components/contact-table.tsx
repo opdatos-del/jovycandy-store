@@ -66,7 +66,7 @@ function RowAction({
       isLoading={busy}
       disabled={disabled}
       onClick={onClick}
-      className="text-ui-fg-subtle hover:text-ui-fg-base focus-visible:ring-ui-border-interactive h-8 w-8 p-0 focus-visible:ring-2 focus-visible:outline-none"
+      className="jovy-icon-button text-ui-fg-subtle hover:text-ui-fg-base focus-visible:ring-ui-border-interactive h-8 w-8 p-0 focus-visible:ring-2 focus-visible:outline-none"
     >
       {children}
     </Button>
@@ -98,7 +98,13 @@ export function ContactTable({
   onRestore,
 }: ContactTableProps) {
   return (
-    <div className="overflow-x-auto" data-testid="contacts-table-scroll">
+    <div
+      className="jovy-scroll overflow-x-auto"
+      data-testid="contacts-table-scroll"
+      role="region"
+      tabIndex={0}
+      aria-label="Tabla de solicitudes, desplazable horizontalmente"
+    >
       <table
         className="w-full min-w-[1100px] table-fixed text-left text-sm"
         aria-label={tableLabel}

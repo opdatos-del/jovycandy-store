@@ -54,7 +54,12 @@ export const CatalogueStorefrontPreview = ({ categories }: { categories: Catalog
 
       <details className="border-ui-border-base rounded-md border">
         <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Ver JSON exacto de la respuesta</summary>
-        <pre className="border-ui-border-base max-h-80 overflow-auto border-t p-3 font-mono text-xs">
+        <pre
+          className="jovy-scroll border-ui-border-base max-h-80 overflow-auto border-t p-3 font-mono text-xs"
+          role="region"
+          tabIndex={0}
+          aria-label="Respuesta JSON del catálogo, desplazable horizontalmente"
+        >
           {JSON.stringify({ categories: visible }, null, 2)}
         </pre>
       </details>

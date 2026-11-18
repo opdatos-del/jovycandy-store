@@ -243,11 +243,11 @@ const AnnouncementsPage = () => {
   ]
 
   return (
-    <div className="flex flex-col gap-y-4" data-testid="jovy-announcements-page">
+    <div className="flex flex-col gap-y-4" data-jovy-quality data-testid="jovy-announcements-page">
       <Container className="p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Heading level="h1">Anuncios de portada</Heading>
+            <Heading level="h1" className="jovy-title">Anuncios de portada</Heading>
             <Text size="small" className="text-ui-fg-subtle mt-1">
               Dos anuncios distintos conviven en la portada: el modal promocional y el mensaje corporativo bajo la
               animación. Cada bloque se edita en su propia pantalla.
@@ -272,7 +272,7 @@ const AnnouncementsPage = () => {
       <Container className="p-4 sm:p-6" data-testid="announcements-promo-block">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Heading level="h2">A. Modal de portada</Heading>
+            <Heading level="h2" className="jovy-subtitle">A. Modal de portada</Heading>
             <Text size="small" className="text-ui-fg-subtle mt-1">
               Ventana promocional con imagen, título bilingüe, CTA, frecuencia y apertura automática. Se administra
               aquí con el mismo gestor del slot <code className="font-mono">promo</code> que usa Marketing; no hay
@@ -287,7 +287,7 @@ const AnnouncementsPage = () => {
             <span className="sr-only">Consultando el estado del modal…</span>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
               {[0, 1, 2, 3, 4, 5].map((index) => (
-                <div key={index} className="border-ui-border-base rounded-lg border p-3">
+                <div key={index} className="jovy-card border-ui-border-base rounded-lg border p-3">
                   <Skeleton className="h-3 w-2/3" />
                   <Skeleton className="mt-2 h-6 w-12" />
                 </div>
@@ -301,7 +301,7 @@ const AnnouncementsPage = () => {
               aria-label="Resumen operativo del modal promocional"
             >
               {stats.map((stat) => (
-                <div key={stat.key} className="border-ui-border-base rounded-lg border p-3">
+                <div key={stat.key} className="jovy-card border-ui-border-base rounded-lg border p-3">
                   <dt className="text-ui-fg-subtle text-xs font-medium">{stat.label}</dt>
                   <dd
                     className="mt-1 text-xl font-semibold tabular-nums"
@@ -423,7 +423,7 @@ const AnnouncementsPage = () => {
       </Container>
 
       <Container className="p-4 sm:p-6" data-testid="announcements-corporate-block">
-        <Heading level="h2">B. Mensaje corporativo</Heading>
+        <Heading level="h2" className="jovy-subtitle">B. Mensaje corporativo</Heading>
         <Text size="small" className="text-ui-fg-subtle mt-1">
           Texto bajo la animación de portada, en español e inglés. Se guarda como reemplazo completo: ambos idiomas
           viajan juntos y un campo vacío oculta el mensaje en ese idioma.

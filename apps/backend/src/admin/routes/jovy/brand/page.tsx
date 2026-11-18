@@ -8,11 +8,11 @@ import { BrandLogoManager } from "./components/logo-manager"
 const BrandPage = () => {
   const [section, setSection] = useState<"gallery" | "logos">("gallery")
 
-  return <div className="flex flex-col gap-y-4">
+  return <div className="flex flex-col gap-y-4" data-jovy-quality>
     <Container className="p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Heading level="h1">Marca Jovy</Heading>
+          <Heading level="h1" className="jovy-title">Marca Jovy</Heading>
           <p className="text-ui-fg-subtle text-sm">
             Galería Casa Jovy y logos corporativos administrados desde Medusa.
           </p>

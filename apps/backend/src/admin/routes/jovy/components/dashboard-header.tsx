@@ -29,7 +29,7 @@ export function DashboardHeader({ generatedAt, isRefreshing, onRefresh }: Dashbo
               JovyCandy CMS
             </Text>
           </div>
-          <Heading level="h1" className="mt-2">
+          <Heading level="h1" className="jovy-title mt-2">
             Dashboard
           </Heading>
           <Text size="small" className="text-ui-fg-subtle mt-1">

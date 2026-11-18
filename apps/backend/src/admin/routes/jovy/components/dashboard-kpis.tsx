@@ -91,7 +91,7 @@ export function KpiGroup({ title, description, children }: KpiGroupProps) {
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
       <div>
-        <h2 id={headingId} className="text-ui-fg-base text-base font-semibold">
+        <h2 id={headingId} className="jovy-subtitle text-ui-fg-base text-base font-semibold">
           {title}
         </h2>
         {description && (
@@ -100,7 +100,7 @@ export function KpiGroup({ title, description, children }: KpiGroupProps) {
           </Text>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">{children}</div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))]">{children}</div>
     </section>
   )
 }

@@ -8,9 +8,9 @@ import { BrandLogoManager } from "../brand/components/logo-manager"
  * de la marca; no duplica lógica ni endpoints.
  */
 const LogosPage = () => (
-  <div className="flex flex-col gap-y-4">
+  <div className="flex flex-col gap-y-4" data-jovy-quality>
     <Container className="p-6">
-      <Heading level="h1">Logos</Heading>
+      <Heading level="h1" className="jovy-title">Logos</Heading>
     </Container>
     <BrandLogoManager />
   </div>

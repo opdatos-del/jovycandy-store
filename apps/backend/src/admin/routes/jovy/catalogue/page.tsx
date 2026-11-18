@@ -298,17 +298,13 @@ const CataloguePage = () => {
     )
   }
 
-  const missing = Math.max(CATALOGUE_CARD_COUNT - categories.length, 0)
-  const activeCount = categories.filter((category) => category.active && !category.coming_soon).length
-  const comingSoonCount = categories.filter((category) => category.coming_soon).length
-  const linkedCount = categories.filter((category) => category.medusa_category_id).length
 
   return (
-    <div className="flex flex-col gap-y-4" data-testid="jovy-catalogue-page">
+    <div className="flex flex-col gap-y-4" data-jovy-quality data-testid="jovy-catalogue-page">
       <Container className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Heading level="h1">Categorías del catálogo</Heading>
+            <Heading level="h1" className="jovy-title">Categorías del catálogo</Heading>
             <Text size="small" className="text-ui-fg-subtle mt-1">
               Seis tarjetas de presentación para Store. Cada clave pública es fija; el contenido y estado se editan por separado.
             </Text>
@@ -342,7 +338,7 @@ const CataloguePage = () => {
         </Container>
       ) : categories.length === 0 ? (
         <Container className="p-6">
-          <Heading level="h2">Todavía no hay tarjetas</Heading>
+          <Heading level="h2" className="jovy-subtitle">Todavía no hay tarjetas</Heading>
           <Text size="small" className="text-ui-fg-subtle mt-1">
             Las tarjetas se crean únicamente con el seed manual; cargar esta pantalla nunca modifica configuración.
           </Text>
@@ -352,29 +348,6 @@ const CataloguePage = () => {
         </Container>
       ) : (
         <>
-          <Container className="p-6">
-            <section aria-label="Resumen de categorías" className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div className="border-ui-border-base bg-ui-bg-base rounded-lg border p-4">
-                <Text size="xsmall" className="text-ui-fg-subtle uppercase">
-                  Categorías activas
-                </Text>
-                <Text className="mt-1 text-2xl font-semibold tabular-nums">{activeCount}</Text>
-              </div>
-              <div className="border-ui-border-base bg-ui-bg-base rounded-lg border p-4">
-                <Text size="xsmall" className="text-ui-fg-subtle uppercase">
-                  Próximamente
-                </Text>
-                <Text className="mt-1 text-2xl font-semibold tabular-nums">{comingSoonCount}</Text>
-              </div>
-              <div className="border-ui-border-base bg-ui-bg-base rounded-lg border p-4">
-                <Text size="xsmall" className="text-ui-fg-subtle uppercase">
-                  Vínculos comerciales
-                </Text>
-                <Text className="mt-1 text-2xl font-semibold tabular-nums">{linkedCount}</Text>
-              </div>
-            </section>
-          </Container>
-
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {categories.map((category, index) => {
               const categoryFamilies = families.filter(
@@ -397,28 +370,6 @@ const CataloguePage = () => {
               )
             })}
           </div>
-
-          <Container className="p-6">
-            <div className="border-ui-border-base flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
-              <div>
-                <Text size="small" weight="plus">
-                  Mantenimiento manual
-                </Text>
-                <Text size="xsmall" className="text-ui-fg-subtle mt-1">
-                  {missing > 0
-                    ? `Faltan ${missing} ${missing === 1 ? "tarjeta" : "tarjetas"}; el seed solo crea esas faltantes.`
-                    : "Las seis tarjetas existen. El seed no cambia tarjetas ya creadas."}
-                </Text>
-              </div>
-              <Button size="small" variant="secondary" onClick={() => void seed()} isLoading={seeding}>
-                {missing > 0 ? "Sembrar tarjetas faltantes" : "Verificar seed manual"}
-              </Button>
-            </div>
-          </Container>
-
-          <Container className="p-6">
-            <CatalogueStorefrontPreview categories={categories} />
-          </Container>
         </>
       )}
     </div>

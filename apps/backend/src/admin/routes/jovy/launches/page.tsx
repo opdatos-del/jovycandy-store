@@ -267,11 +267,11 @@ const LaunchesPage = () => {
       : null
 
   return (
-    <div className="flex flex-col gap-y-4" data-testid="jovy-launches-page">
+    <div className="flex flex-col gap-y-4" data-jovy-quality data-testid="jovy-launches-page">
       <Container className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Heading level="h1">Nuevos lanzamientos</Heading>
+            <Heading level="h1" className="jovy-title">Nuevos lanzamientos</Heading>
             <Text size="small" className="text-ui-fg-subtle mt-1">
               Configura tarjetas de la sección de portada. Cada lanzamiento usa un producto publicado, una imagen propia
               o ambas cosas; el orden es global.
@@ -294,8 +294,8 @@ const LaunchesPage = () => {
       </Container>
 
       <Container className="p-4 sm:p-6">
-        <section aria-labelledby="launch-color-heading" className="rounded-lg border border-ui-border-base bg-ui-bg-base p-4 sm:p-5">
-          <Heading id="launch-color-heading" level="h2">Color de fondo global</Heading>
+        <section aria-labelledby="launch-color-heading" className="jovy-card rounded-lg border border-ui-border-base bg-ui-bg-base p-4 sm:p-5">
+          <Heading id="launch-color-heading" level="h2" className="jovy-subtitle">Color de fondo global</Heading>
           <Text size="small" className="text-ui-fg-subtle mt-1">
             Fondo de la sección de lanzamientos en Store. Elige uno de los colores históricos o usa un hexadecimal.
           </Text>
@@ -388,7 +388,7 @@ const LaunchesPage = () => {
 
       <Container className="p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <Heading level="h2">Lanzamientos</Heading>
+          <Heading level="h2" className="jovy-subtitle">Lanzamientos</Heading>
           {!loading && <Text size="small" className="text-ui-fg-subtle">{launches.length} en orden global</Text>}
         </div>
         {loading && launches.length === 0 ? (
@@ -403,7 +403,7 @@ const LaunchesPage = () => {
             <Button className="mt-4" size="small" onClick={startNew}>Crear primer lanzamiento</Button>
           </div>
         ) : (
-          <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Lanzamientos">
+          <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))]" aria-label="Lanzamientos">
             {launches.map((launch, index) => {
               const product = launch.product_id ? productNames[launch.product_id] : undefined
               const previewUrl = launch.image_resolved_url ?? product?.thumbnail ?? null
@@ -411,7 +411,7 @@ const LaunchesPage = () => {
                 <li
                   key={launch.id}
                   data-testid={`launch-item-${launch.id}`}
-                  className="border-ui-border-base bg-ui-bg-base flex min-w-0 flex-col overflow-hidden rounded-lg border"
+                  className="jovy-container border-ui-border-base bg-ui-bg-base flex min-w-0 max-w-[20rem] flex-col overflow-hidden rounded-lg border"
                 >
                   <div className="bg-ui-bg-subtle aspect-[4/3] overflow-hidden">
                     {previewUrl ? (
@@ -469,7 +469,7 @@ const LaunchesPage = () => {
                     </Button>
                       </div>
                     </div>
-                    <div className="mt-auto flex flex-wrap gap-2">
+                    <div className="jovy-actions jovy-actions--end-danger mt-auto flex flex-wrap gap-2">
                     <Button
                       size="small"
                       variant="secondary"

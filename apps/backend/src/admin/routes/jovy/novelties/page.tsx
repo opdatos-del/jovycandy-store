@@ -472,11 +472,11 @@ const NoveltiesPage = () => {
   }
 
   return (
-    <div className="flex flex-col gap-y-4" data-testid="jovy-novelties-page">
+    <div className="flex flex-col gap-y-4" data-jovy-quality data-testid="jovy-novelties-page">
       <Container className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Heading level="h1">Novedades</Heading>
+            <Heading level="h1" className="jovy-title">Novedades</Heading>
             <Text size="small" className="text-ui-fg-subtle mt-1">
               Carrusel horizontal de Store. Cada novedad reutiliza el evento de Eventos Jovy: aquí se administran la
               multimedia, la vigencia, el orden y la visibilidad.
@@ -659,7 +659,7 @@ const NoveltiesPage = () => {
         </Container>
       ) : events.length === 0 ? (
         <Container className="p-6">
-          <Heading level="h2">Todavía no hay novedades</Heading>
+          <Heading level="h2" className="jovy-subtitle">Todavía no hay novedades</Heading>
           <Text size="small" className="text-ui-fg-subtle mt-1">
             Crea la primera novedad con su multimedia para que aparezca en el carrusel de Store.
           </Text>
@@ -669,7 +669,7 @@ const NoveltiesPage = () => {
         </Container>
       ) : filtered.length === 0 ? (
         <Container className="p-6">
-          <Heading level="h2">Ninguna novedad coincide</Heading>
+          <Heading level="h2" className="jovy-subtitle">Ninguna novedad coincide</Heading>
           <Text size="small" className="text-ui-fg-subtle mt-1">
             Ajusta la búsqueda o limpia los filtros para volver al orden completo del carrusel.
           </Text>

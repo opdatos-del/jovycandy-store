@@ -56,7 +56,6 @@ const fallbackAccent: Accent = {
   badge: "grey",
 }
 
-const countLabel = (count: number) => `${count} ${count === 1 ? "producto" : "productos"}`
 
 const CategoryStatus = ({ category }: { category: CatalogueCategory }) => {
   if (category.coming_soon) return <Badge color="orange">Próximamente</Badge>
@@ -68,8 +67,6 @@ export const CatalogueCategoryCard = ({
   category,
   position,
   total,
-  families,
-  medusaCategories,
   reordering,
   comingSoonPending,
   onEdit,
@@ -83,22 +80,21 @@ export const CatalogueCategoryCard = ({
   const [imageFailed, setImageFailed] = useState(false)
   useEffect(() => setImageFailed(false), [category.image_resolved_url])
   const showImage = Boolean(category.image_resolved_url) && !imageFailed
-  const linkedCategory = medusaCategories.find((item) => item.id === category.medusa_category_id)
-  const productCount = families.reduce((count, family) => count + family.product_ids.length, 0)
   const access = category.coming_soon || category.interaction_locked ? "Bloqueado" : "Disponible"
 
   return (
     <article
       data-testid={`catalogue-card-${category.key}`}
+      data-jovy-accent={category.key}
       aria-labelledby={titleId}
-      className={`flex min-w-0 flex-col overflow-hidden rounded-xl border shadow-elevation-card-rest ${accent.card}`}
+      className={`jovy-container flex min-w-0 flex-col overflow-hidden rounded-xl border shadow-elevation-card-rest ${accent.card}`}
     >
-      <div className={`h-1.5 w-full ${accent.marker}`} aria-hidden />
+      <div data-jovy-accent-marker className={`h-1.5 w-full ${accent.marker}`} aria-hidden />
       {showImage && category.image_resolved_url && (
         <img
           src={category.image_resolved_url}
           alt={`Imagen de ${category.name}`}
-          className="h-32 w-full object-cover"
+          className="jovy-card-media"
           onError={() => setImageFailed(true)}
         />
       )}
@@ -119,66 +115,56 @@ export const CatalogueCategoryCard = ({
           </Button>
         </div>
 
-        <Text size="small" leading="compact" className="text-ui-fg-subtle min-h-10">
+        <Text
+          size="small"
+          leading="compact"
+          className={`min-h-10 ${
+            category.description ? "text-ui-fg-subtle" : "jovy-empty-note text-ui-fg-subtle"
+          }`}
+        >
           {category.description || "Sin descripción."}
         </Text>
 
-        <div className="border-ui-border-base bg-ui-bg-base/75 grid grid-cols-2 gap-x-3 gap-y-3 rounded-md border p-3">
-          <div className="min-w-0">
-            <Text size="xsmall" className="text-ui-fg-subtle uppercase">
-              Clave
-            </Text>
-            <Text size="small" weight="plus" className="truncate font-mono">
-              {category.key}
-            </Text>
-          </div>
-          <div className="min-w-0 text-right">
-            <Text size="xsmall" className="text-ui-fg-subtle uppercase">
-              Acceso Store
-            </Text>
-            <Text size="small" weight="plus">
-              {access}
-            </Text>
-          </div>
-          {/* Jerarquía del admin histórico: etiqueta + indicador + switch dentro del panel de la clave. */}
-          <div className="border-ui-border-base col-span-2 flex items-center justify-between gap-3 border-t pt-3">
-            <Text size="xsmall" className="text-ui-fg-subtle uppercase">
-              {"Próximamente:"}
-            </Text>
-            <div className="flex items-center gap-2">
-              <Badge color={category.coming_soon ? "orange" : "grey"}>
-                {category.coming_soon ? "SÍ" : "NO"}
-              </Badge>
+        {/* La clave sigue siendo identidad contractual de las seis tarjetas, pero
+            pasa a una línea atenuada en lugar de un panel de dos columnas. */}
+        <div
+          role="group"
+          aria-label={`Clave ${category.key}, acceso Store ${access}`}
+          className="jovy-card-meta flex flex-wrap items-center gap-x-2"
+        >
+          <Text size="xsmall" weight="plus" className="font-mono">
+            {category.key}
+          </Text>
+          <span aria-hidden className="text-ui-fg-subtle">
+            ·
+          </span>
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            {access}
+          </Text>
+        </div>
+
+        {/* Jerarquía del admin histórico: etiqueta + indicador + switch. */}
+        <div className="flex items-center justify-between gap-3 border-t border-ui-border-base pt-3">
+          <Text size="xsmall" className="text-ui-fg-subtle uppercase">
+            {"Próximamente:"}
+          </Text>
+          <div className="flex items-center gap-4">
+            <Badge color={category.coming_soon ? "orange" : "grey"}>
+              {category.coming_soon ? "SÍ" : "NO"}
+            </Badge>
+            <span className="jovy-switch-hit">
               <Switch
                 aria-label="Próximamente"
+                aria-describedby={titleId}
                 checked={category.coming_soon}
                 disabled={comingSoonPending}
                 onCheckedChange={onToggleComingSoon}
               />
-            </div>
+            </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Categoría comercial
-            </Text>
-            <Text size="small" className="truncate">
-              {linkedCategory?.name ?? "Sin vincular"}
-            </Text>
-          </div>
-          <div className="text-right">
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Familias / productos
-            </Text>
-            <Text size="small">
-              {families.length} / {countLabel(productCount)}
-            </Text>
-          </div>
-        </div>
-
-        <div className="mt-auto flex flex-wrap gap-2 border-t border-ui-border-base pt-3">
+        <div className="jovy-actions mt-auto flex flex-wrap gap-2 border-t border-ui-border-base pt-3">
           <Button
             size="small"
             variant="secondary"

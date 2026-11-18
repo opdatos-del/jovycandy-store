@@ -142,7 +142,7 @@ export const GalleryUpload = ({ visibleNow, draftCount, onConfirm, onUploadOne, 
   return <Container className="p-6" data-testid="gallery-upload-panel">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <Heading level="h2">Cargar imágenes</Heading>
+        <Heading level="h2" className="jovy-subtitle">Cargar imágenes</Heading>
         <Text size="small" className="text-ui-fg-subtle mt-1">
           Selecciona una o varias. Cada archivo se sube de forma secuencial y se crea como borrador;
           no ocupa el cupo de cuatro hasta que lo publiques.

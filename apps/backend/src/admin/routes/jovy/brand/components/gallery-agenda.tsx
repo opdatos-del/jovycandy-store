@@ -41,7 +41,7 @@ export const GalleryAgenda = ({ items }: { items: GalleryItem[] }) => {
   const full = summary.peak >= MAX_VISIBLE_GALLERY_ITEMS
 
   return <section
-    className="border-ui-border-base bg-ui-bg-base rounded-lg border p-4"
+    className="jovy-card jovy-container border-ui-border-base bg-ui-bg-base rounded-lg border p-4"
     aria-labelledby="gallery-agenda-heading"
     data-testid="gallery-agenda"
   >
@@ -99,7 +99,7 @@ export const GalleryAgenda = ({ items }: { items: GalleryItem[] }) => {
       </div>
     </div>
 
-    <div className="mt-4 grid gap-4 md:grid-cols-2">
+    <div className="jovy-container mt-4 grid gap-4 md:grid-cols-2">
       <div>
         <Text size="small" weight="plus">Ocupan cupo ahora</Text>
         {summary.visible.length === 0
@@ -107,7 +107,7 @@ export const GalleryAgenda = ({ items }: { items: GalleryItem[] }) => {
           : <ul className="mt-2 flex flex-col gap-2" data-testid="gallery-quota-occupants">
             {summary.visible.map((item) => <li
               key={item.id}
-              className="bg-ui-bg-component rounded-md px-3 py-2"
+              className="jovy-container bg-ui-bg-component rounded-md px-3 py-2"
             >
               <p className="truncate text-sm font-medium">{galleryTitle(item)}</p>
               <p className="text-ui-fg-subtle text-xs">{formatWindow(item)}</p>
@@ -123,9 +123,9 @@ export const GalleryAgenda = ({ items }: { items: GalleryItem[] }) => {
           : <ul className="mt-2 flex flex-col gap-2" data-testid="gallery-window-overlaps">
             {summary.groups.slice(0, 3).map((group) => <li
               key={group.ids.join("-")}
-              className="bg-ui-bg-component rounded-md px-3 py-2"
+              className="jovy-container bg-ui-bg-component rounded-md px-3 py-2"
             >
-              <p className="text-sm font-medium">
+              <p className="jovy-wrap-text text-sm font-medium">
                 {group.ids.map((id) => summary.titles.get(id) ?? "Sin título").join(" ∩ ")}
               </p>
               <p className="text-ui-fg-subtle text-xs">{formatGroupRange(group)}</p>

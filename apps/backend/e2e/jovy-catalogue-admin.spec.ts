@@ -129,8 +129,17 @@ test("muestra seis tarjetas y edita estado en formulario separado con confirmaci
     await page.reload()
 
     await expect(page.getByTestId(/^catalogue-card-/)).toHaveCount(6)
-    await expect(page.getByLabel("Resumen de categorías")).toBeVisible()
-    await expect(page.getByTestId("catalogue-card-chamoy").getByText("Acceso Store")).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Categorías del catálogo", level: 1 })).toBeVisible()
+    // El bloque «Resumen de categorías» y el panel de clave de dos columnas se
+    // retiraron como ruido visual. La clave sigue verificándose: ahora vive en
+    // la línea meta compacta junto al acceso, y los datos comerciales se pliegan.
+    const chamoyCard = page.getByTestId("catalogue-card-chamoy")
+    const chamoyMeta = chamoyCard.locator(".jovy-card-meta")
+    await expect(chamoyMeta).toContainText("chamoy")
+    await expect(chamoyMeta).toContainText("Disponible")
+    const chamoyDetails = chamoyCard.locator("details.jovy-card-details")
+    await expect(chamoyDetails).not.toHaveAttribute("open", "")
+    await expect(chamoyCard.getByText("Categoría comercial")).not.toBeVisible()
     // Sin imagen la tarjeta no reserva el bloque gris roto del placeholder.
     await expect(page.getByTestId("catalogue-card-chamoy").locator("img")).toHaveCount(0)
     await expectNoHorizontalOverflow(page)
@@ -419,6 +428,9 @@ test("vincula categoría comercial, cancela formulario y conserva reordenamiento
     const form = page.getByTestId("catalogue-category-form")
     await form.getByLabel("Categoría comercial de Medusa").selectOption(temporaryCategoryId)
     await form.getByRole("button", { name: "Guardar cambios" }).click()
+    // El dato comercial vive en <details> cerrado por defecto: se abre el
+    // resumen para verificar el mismo valor sin debilitar la aserción.
+    await chamoy.locator("details.jovy-card-details summary").click()
     await expect(chamoy.getByText(`DEMO Comercial ${stamp}`)).toBeVisible()
     expect((await categoryByKey(request, headers, "chamoy")).medusa_category_id).toBe(temporaryCategoryId)
 
