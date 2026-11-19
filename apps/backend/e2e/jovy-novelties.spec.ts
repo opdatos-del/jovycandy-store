@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test"
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test"
 import { mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { collectPageProblems, demoValue, readEnvFile, signIn, waitForServer } from "./jovy-block2-helpers"
@@ -111,6 +111,28 @@ async function answerPrompt(page: Page, title: string, action: string) {
 }
 
 /**
+ * Prioridad y orden viven plegados en «Detalles»: la tarjeta en reposo no
+ * reserva ese espacio. El resumen es el control accesible de apertura.
+ */
+async function openCardDetails(card: Locator) {
+  const details = card.locator("details.jovy-card-details")
+  await details.locator("summary").click()
+  await expect(details).toHaveAttribute("open", "")
+  return details
+}
+
+/**
+ * Las acciones secundarias (mover, archivar, multimedia, evento, eliminar) se
+ * agrupan en el menú «Más». Se devuelve el menú abierto para elegir el ítem.
+ */
+async function openCardMenu(page: Page, card: Locator, eventId: string) {
+  await card.getByTestId(`novelty-actions-${eventId}`).click()
+  const menu = page.getByRole("menu")
+  await expect(menu).toBeVisible()
+  return menu
+}
+
+/**
  * `medusa develop` puede reiniciarse si otra sesión toca el repositorio. El
  * helper compartido ya espera `/health`, pero un reinicio puede ocurrir justo
  * entre esa espera y el primer render del login; se reintenta el acceso.
@@ -184,16 +206,18 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
     await expect(card.getByTestId(`novelty-preview-${eventId}`)).toBeVisible()
     await expect(card.getByText("Borrador", { exact: true })).toBeVisible()
     await expect(card.getByTestId(`novelty-store-state-${eventId}`)).toHaveText("Fuera de Store")
-    // Densidad histórica: cinco columnas fijas también a 1440 (breakpoint xl).
+    // Misma densidad que Logos: cuatro columnas a 1440, sin la quinta histórica.
     await expect.poll(async () => page
       .locator('section[aria-label="Novedades del carrusel"]')
-      .evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length)).toBe(5)
+      .evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length)).toBe(4)
+    await expect(page.getByRole("heading", { name: "Novedades del carrusel", level: 2 })).toHaveCount(1)
     await expect.poll(() => page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
     )).toBe(true)
     await page.screenshot({ path: screenshot("02-desktop-grid-borrador.png"), fullPage: true })
     await card.screenshot({ path: screenshot("02b-card-borrador.png") })
 
+    await openCardDetails(card)
     await card.getByLabel(`Prioridad de ${title}`).fill("9")
     await card.getByRole("button", { name: "Guardar orden" }).click()
     await expect.poll(async () => (await adminEvent(request, headers, eventId))?.priority).toBe(9)
@@ -202,7 +226,8 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
     await expect(page.getByRole("heading", { name: "Novedades", level: 1 })).toBeVisible()
     const persistedCard = page.getByTestId(`novelty-card-${eventId}`)
     await expect(persistedCard.getByTestId(`novelty-preview-${eventId}`)).toBeVisible()
-    await expect(persistedCard.getByText("video", { exact: true })).toBeVisible()
+    await expect(persistedCard.getByText("Vídeo", { exact: true })).toBeVisible()
+    await openCardDetails(persistedCard)
     await expect(persistedCard.getByLabel(`Prioridad de ${title}`)).toHaveValue("9")
 
     await persistedCard.getByRole("button", { name: "Editar novedad" }).click()
@@ -239,7 +264,8 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
     await page.getByLabel("Estado").selectOption("all")
     await page.getByLabel("Tipo de medio").selectOption("all")
 
-    await page.getByTestId(`novelty-card-${eventId}`).getByRole("button", { name: "Archivar" }).click()
+    const archiveMenu = await openCardMenu(page, page.getByTestId(`novelty-card-${eventId}`), eventId)
+    await archiveMenu.getByRole("menuitem", { name: "Archivar" }).click()
     await answerPrompt(page, "Archivar novedad", "Archivar")
     await expect.poll(async () => (await storeEvent(request, eventId)) === undefined).toBe(true)
     const archivedCard = page.getByTestId(`novelty-card-${eventId}`)
@@ -252,17 +278,15 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
     await page.screenshot({ path: screenshot("05-archivada-con-filtros.png"), fullPage: true })
 
     await page.getByRole("button", { name: "Limpiar filtros" }).first().click()
-    await page
-      .getByTestId(`novelty-card-${eventId}`)
-      .getByRole("link", { name: "Editar este evento" })
-      .click()
-    await expect(page).toHaveURL(/\/app\/jovy-herramientas\/events\?event=/)
+    // El menú de la tarjeta ya no enlaza a Eventos: la novedad se edita en su
+    // modal. El enlace profundo y la vuelta desde Eventos conservan cobertura.
+    await page.goto(`/app/jovy-herramientas/events?event=${encodeURIComponent(eventId)}`)
     await expect.poll(() => new URL(page.url()).searchParams.get("event")).toBe(eventId)
     await expect(page.getByRole("heading", { name: "Editar evento" })).toBeVisible()
     await expect(page.getByLabel("Título evento")).toHaveValue(title)
     await expect(page.getByRole("link", { name: "Gestionar multimedia en Novedades" })).toBeVisible()
     await expect(page.locator('#event-editor video[aria-label="Vista previa evento"]')).toBeVisible()
-    await page.screenshot({ path: screenshot("06-evento-exacto-desde-novedades.png"), fullPage: true })
+    await page.screenshot({ path: screenshot("06-evento-exacto-deep-link.png"), fullPage: true })
     await page.locator("#event-editor").screenshot({ path: screenshot("06b-evento-exacto-formulario.png") })
 
     await page.getByRole("link", { name: "Gestionar multimedia en Novedades" }).click()
@@ -270,7 +294,8 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
     const removalCard = page.getByTestId(`novelty-card-${eventId}`)
     await expect(removalCard).toBeVisible()
 
-    await removalCard.getByRole("button", { name: "Retirar medio" }).click()
+    const removeMenu = await openCardMenu(page, removalCard, eventId)
+    await removeMenu.getByRole("menuitem", { name: "Retirar medio" }).click()
     const dialog = page.getByRole("alertdialog")
     await expect(dialog.getByText("Retirar multimedia", { exact: true })).toBeVisible()
     await dialog.getByRole("button", { name: "Cancelar", exact: true }).click()
@@ -279,10 +304,11 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
     expect((await adminEvent(request, headers, eventId))?.media_file_id).toBeTruthy()
     await page.screenshot({ path: screenshot("07-retiro-cancelado-sin-persistir.png"), fullPage: true })
 
-    await removalCard.getByRole("button", { name: "Retirar medio" }).click()
+    const removeMenuAgain = await openCardMenu(page, removalCard, eventId)
+    await removeMenuAgain.getByRole("menuitem", { name: "Retirar medio" }).click()
     await answerPrompt(page, "Retirar multimedia", "Retirar medio")
     await expect.poll(async () => (await adminEvent(request, headers, eventId))?.media_file_id).toBeNull()
-    await expect(removalCard.getByText("sin medio", { exact: true })).toBeVisible()
+    await expect(removalCard.getByText("Sin medio", { exact: true })).toBeVisible()
     await expect(removalCard.getByTestId(`novelty-preview-${eventId}`)).toHaveCount(0)
 
     await page.setViewportSize({ width: 375, height: 812 })
@@ -376,7 +402,8 @@ test("muestra el borrador como borrador y cancela el retiro de multimedia sin pe
     await page.screenshot({ path: screenshot("09-mobile-borrador.png"), fullPage: true })
     await card.screenshot({ path: screenshot("09b-mobile-borrador-card.png") })
 
-    await card.getByRole("button", { name: "Retirar medio" }).click()
+    const removeMenu = await openCardMenu(page, card, eventId)
+    await removeMenu.getByRole("menuitem", { name: "Retirar medio" }).click()
     const dialog = page.getByRole("alertdialog")
     await expect(dialog.getByText("Retirar multimedia", { exact: true })).toBeVisible()
     await dialog.getByRole("button", { name: "Cancelar", exact: true }).click()

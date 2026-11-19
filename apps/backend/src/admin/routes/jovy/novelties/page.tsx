@@ -125,22 +125,9 @@ const NoveltiesPage = () => {
     })
   }, [events, loading, highlightedId])
 
-  useEffect(() => {
-    if (!editorOpen) return
-    const frame = requestAnimationFrame(() => {
-      document.getElementById("novelty-editor")?.scrollIntoView({ behavior: "smooth", block: "start" })
-      document.getElementById("novelty-title")?.focus({ preventScroll: true })
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [editorOpen, editingId])
-
   const filtered = useMemo(() => filterNovelties(events, filters), [events, filters])
   const filtersActive = hasActiveFilters(filters)
 
-  const withMedia = events.filter((event) => event.media_type || event.media_file_id).length
-  const publishedCount = events.filter((event) => event.status === "published").length
-  const draftCount = events.filter((event) => event.status === "draft").length
-  const archivedCount = events.filter((event) => event.status === "archived").length
   const storeVisibleCount = events.filter((event) => noveltyStoreState(event).visible).length
 
   const openCreate = () => {
@@ -167,6 +154,9 @@ const NoveltiesPage = () => {
   }
 
   const changeDraft = (patch: Partial<NoveltyDraft>) => {
+    // Un cambio del usuario invalida el mensaje anterior: mantenerlo visible
+    // haría creer que el campo sigue mal aunque ya se haya corregido.
+    setFormError(null)
     setDraft((current) => (current ? { ...current, ...patch } : current))
   }
 
@@ -495,23 +485,15 @@ const NoveltiesPage = () => {
           </div>
         </div>
 
+        {/* Dos cifras bastan para situar la bandeja: el desglose por estado ya
+            vive en la insignia de cada tarjeta y en los filtros. */}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Badge color="purple">
             {events.length} {events.length === 1 ? "novedad" : "novedades"}
           </Badge>
-          <Badge color="blue">{withMedia} con multimedia</Badge>
           <Badge color="green">
-            {publishedCount} {publishedCount === 1 ? "publicada" : "publicadas"}
+            {storeVisibleCount} {storeVisibleCount === 1 ? "visible ahora" : "visibles ahora"}
           </Badge>
-          <Badge color="orange">
-            {draftCount} {draftCount === 1 ? "borrador" : "borradores"}
-          </Badge>
-          <Badge color="grey">
-            {archivedCount} {archivedCount === 1 ? "archivada" : "archivadas"}
-          </Badge>
-          <Text size="small" className="text-ui-fg-subtle">
-            {storeVisibleCount} visibles ahora en el carrusel
-          </Text>
         </div>
 
         {loadError && (
@@ -680,8 +662,11 @@ const NoveltiesPage = () => {
       ) : (
         <section
           aria-label="Novedades del carrusel"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
         >
+          {/* Encabezado real de la sección: evita saltar de h1 a los h3 de cada
+              tarjeta sin añadir ruido visual. */}
+          <h2 className="sr-only">Novedades del carrusel</h2>
           {filtered.map((event) => (
             <NoveltyCard
               key={event.id}

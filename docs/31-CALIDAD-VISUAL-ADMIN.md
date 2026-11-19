@@ -531,7 +531,54 @@ Corrección del reordenamiento en las tarjetas de banner del gestor de
 - **Verificación.** E2E de Banners **3/3**; suite completa **31/31 en 6,1 min**;
   typecheck, lint y build en **0**.
 
-## 18. Estado
+## 18. Novedades: editor modal y modo oscuro (2026-11-19)
+
+Reescritura de la edición de `/app/jovy/novelties`: la tarjeta ya era compacta,
+pero abrir el editor insertaba un formulario inline al inicio de la página y el
+usuario perdía el contexto. Sin cambios de contrato, de backend ni de reglas de
+negocio.
+
+- **Editor modal.** `NoveltyForm` se monta con `createPortal` sobre
+  `document.body`: `role="dialog"`, `aria-modal`, título y descripción
+  asociados, foco inicial en «Título en español», trampa de foco con
+  Tab/Shift+Tab, cierre con Escape (bloqueado mientras se guarda),
+  `body.overflow: hidden` y restauración del foco al disparador. El panel mide
+  `max-w-5xl` y `max-h 88vh` en escritorio y hoja inferior `94vh` a 375 px, con
+  scroll interno y pie fijo que mantiene «Cancelar» y «Crear/Guardar novedad»
+  siempre visibles.
+- **Sin salto de página.** Se eliminó el `scrollIntoView` de
+  `novelties/page.tsx`; abrir el editor ya no mueve el scroll (la posición se
+  conserva antes y después de abrir y de cerrar).
+- **Formulario responsive.** Dos columnas en `lg` (contenido 8/12 y
+  publicación + multimedia 4/12) y una sola columna con pares
+  `sm:grid-cols-2`. Se conservaron labels, `aria-label`, `data-testid` y textos
+  que usa la E2E.
+- **Validación sin ruido.** Título y slug ya no usan `required` nativo: al abrir
+  «Nueva novedad» aparecía el anillo rojo `:invalid` antes de escribir nada. La
+  validación sigue en `save()` con un mensaje `role="alert"` que se limpia al
+  editar un campo.
+- **Un solo editor.** Se retiró «Editar este evento» del menú «Más» de la
+  tarjeta: salía de Novedades y abría el formulario general de Eventos, lo que
+  se confundía con «Editar novedad». La novedad se edita solo en el modal. El
+  enlace profundo `events?event=<id>` y la vuelta con «Gestionar multimedia en
+  Novedades» siguen disponibles desde Eventos Jovy.
+- **Desborde del slug.** En la rejilla de cuatro columnas el `dd` inline no
+  podía truncar y se salía ~6 px de la tarjeta. Ahora es un `dd` de bloque
+  dentro de un contenedor flex con `min-w-0`, truncado con elipsis.
+- **Modo oscuro.** `color-scheme: dark` bajo `.dark [data-jovy-quality]` corrige
+  los glifos nativos de `select`, `datetime-local` y `input[type=file]`; el
+  placeholder pasa de `ui-fg-muted` (2,97:1) a `fg-subtle` (5,59:1). El panel
+  del modal lleva `data-jovy-quality` porque el portal queda fuera del árbol de
+  la pantalla. Ratios medidos en superficies y textos del listado, detalles,
+  menú y editor: entre 5,53:1 y 14,61:1; consola sin errores en claro y oscuro.
+- **Evidencia.** Bajo
+  [`audit-novelties/`](../.test-results/audit-novelties/): `report-after.txt`,
+  `metrics-after.json`, `comparisons/` y `modal/` (`report.md` y capturas claras
+  y oscuras a 1440 y 375).
+- **Verificación.** E2E de Novedades **2/2**; suite completa **31/31 en 7,2 min**;
+  typecheck, lint y build en **0**.
+
+## 19. Estado
 
 `VALIDADO` **con revisión pendiente**. No se declara «réplica aceptada» ni
 paridad total: este trabajo es de pulido visual local, no de equalización con el

@@ -1,4 +1,7 @@
-import { Badge, Button, Container, Heading, Input, Switch, Text, Textarea } from "@medusajs/ui"
+import { XMark } from "@medusajs/icons"
+import { Badge, Button, Heading, Input, Switch, Text, Textarea } from "@medusajs/ui"
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react"
+import { createPortal } from "react-dom"
 import {
   NOVELTY_MEDIA_ACCEPT,
   STATUS_META,
@@ -38,12 +41,22 @@ const STATUS_OPTIONS: Array<{ value: NoveltyStatus; label: string }> = [
   { value: "cancelled", label: "Cancelado (fuera de Store)" },
 ]
 
+const FOCUSABLE =
+  "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), " +
+  "textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+
 const numberValue = (value: string, max?: number) => {
   const parsed = Number(value)
   const base = Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0
   return max === undefined ? base : Math.min(max, base)
 }
 
+/**
+ * Editor de Novedades como diálogo modal: se monta sobre el listado en un
+ * portal, atrapa el foco, cierra con Escape y bloquea el scroll del documento.
+ * Evita el salto al inicio de la página que provocaba el formulario inline y
+ * concentra el llenado en una sola ventana con scroll interno y pie fijo.
+ */
 export const NoveltyForm = ({
   draft,
   editing,
@@ -57,316 +70,424 @@ export const NoveltyForm = ({
   onSave,
   onCancel,
 }: Props) => {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
+  const onCancelRef = useRef(onCancel)
+  const savingRef = useRef(saving)
+  onCancelRef.current = onCancel
+  savingRef.current = saving
+
   const issues = draft.status === "published" ? publishIssues(draft) : []
+  const titleId = "novelty-editor-title"
+  const descriptionId = "novelty-editor-description"
 
-  return (
-    <Container className="p-6" id="novelty-editor">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Heading level="h2">{editing ? "Editar novedad" : "Nueva novedad"}</Heading>
-          <Text size="small" className="text-ui-fg-subtle mt-1">
-            Misma entidad que Eventos Jovy. Aquí se administran la multimedia, la vigencia, el orden y los metadatos del
-            carrusel; el contenido largo se edita en Eventos.
-          </Text>
-        </div>
-        <Badge color={STATUS_META[draft.status].color}>{STATUS_META[draft.status].label}</Badge>
-      </div>
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const frame = requestAnimationFrame(() => titleRef.current?.focus())
 
-      {error && (
-        <Text size="small" role="alert" className="text-ui-fg-error mt-3">
-          {error}
-        </Text>
-      )}
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      // El Prompt de Medusa se monta por encima; su Escape no debe cerrar el editor.
+      if (document.querySelector('[role="alertdialog"]')) return
+      // Mientras se guarda, Escape no debe abandonar el diálogo a medias.
+      if (savingRef.current) return
+      event.preventDefault()
+      onCancelRef.current()
+    }
+    window.addEventListener("keydown", onKeyDown)
 
-      <form
-        data-testid="novelty-form"
-        className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12"
-        onSubmit={(event) => {
-          event.preventDefault()
-          onSave()
-        }}
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("keydown", onKeyDown)
+      document.body.style.overflow = previousOverflow
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
+    // El diálogo se monta una vez por apertura; el cierre se lee desde el ref.
+  }, [])
+
+  const trapFocus = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return
+    const focusable = panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE)
+    if (!focusable?.length) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
+  const requestClose = () => {
+    if (!savingRef.current) onCancel()
+  }
+
+  if (typeof document === "undefined") return null
+
+  return createPortal(
+    <div
+      className="bg-black/50 fixed inset-0 z-[120] flex items-end justify-center p-0 sm:items-center sm:p-4"
+      data-testid="novelty-editor-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) requestClose()
+      }}
+    >
+      <div
+        ref={panelRef}
+        id="novelty-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        onKeyDown={trapFocus}
+        data-jovy-quality
+        className="bg-ui-bg-base border-ui-border-base flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border shadow-xl sm:max-h-[88vh] sm:rounded-lg"
       >
-        <section className="border-ui-border-base lg:col-span-8 flex min-w-0 flex-col gap-y-4 rounded-lg border p-5">
-          <Heading level="h3">Metadatos del carrusel</Heading>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-y-1">
-              <label htmlFor="novelty-title" className={labelClass}>
-                Título en español
-              </label>
-              <Input
-                id="novelty-title"
-                required
-                minLength={2}
-                maxLength={180}
-                value={draft.title}
-                onChange={(event) => onChange({ title: event.target.value })}
-                placeholder="Lanzamiento de temporada"
-              />
+        <header className="border-ui-border-base flex shrink-0 items-start justify-between gap-3 border-b px-4 py-3 sm:px-6">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Heading id={titleId} level="h2" className="text-base leading-snug font-semibold sm:text-lg">
+                {editing ? "Editar novedad" : "Nueva novedad"}
+              </Heading>
+              <Badge color={STATUS_META[draft.status].color}>{STATUS_META[draft.status].label}</Badge>
             </div>
-            <div className="flex flex-col gap-y-1">
-              <label htmlFor="novelty-title-en" className={labelClass}>
-                Título en inglés
-              </label>
-              <Input
-                id="novelty-title-en"
-                maxLength={180}
-                value={draft.title_en ?? ""}
-                onChange={(event) => onChange({ title_en: event.target.value || null })}
-                placeholder="Season launch — obligatorio para publicar"
-              />
-            </div>
+            <Text size="small" id={descriptionId} className="text-ui-fg-subtle mt-1">
+              Misma entidad que Eventos Jovy. Aquí se administran la multimedia, la vigencia, el orden y la
+              visibilidad del carrusel; el contenido largo se edita en Eventos.
+            </Text>
           </div>
+          <Button
+            type="button"
+            size="small"
+            variant="transparent"
+            aria-label="Cerrar editor"
+            disabled={saving}
+            onClick={requestClose}
+            className="h-8 w-8 shrink-0 p-0"
+          >
+            <XMark className="shrink-0" />
+          </Button>
+        </header>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-y-1">
-              <label htmlFor="novelty-slug" className={labelClass}>
-                Slug público
-              </label>
-              <Input
-                id="novelty-slug"
-                required
-                minLength={2}
-                maxLength={180}
-                pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                value={draft.slug}
-                onChange={(event) => onChange({ slug: event.target.value })}
-                placeholder="lanzamiento-temporada"
-              />
-              <Text size="xsmall" className="text-ui-fg-subtle">
-                Minúsculas, números y guiones. Se usa en la URL de Store.
-              </Text>
-            </div>
-            <div className="flex flex-col gap-y-1">
-              <label htmlFor="novelty-event-type" className={labelClass}>
-                Tipo de evento
-              </label>
-              <select
-                id="novelty-event-type"
-                className={fieldClass}
-                value={draft.event_type_id ?? ""}
-                onChange={(event) => onChange({ event_type_id: event.target.value || null })}
+        <form
+          data-testid="novelty-form"
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault()
+            onSave()
+          }}
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            {error && (
+              <div
+                role="alert"
+                className="border-ui-border-error bg-ui-bg-error text-ui-fg-error mb-4 rounded-md border px-3 py-2 text-sm"
               >
-                <option value="">Sin tipo (no se puede publicar)</option>
-                {eventTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-y-1">
-            <label htmlFor="novelty-description" className={labelClass}>
-              Descripción
-            </label>
-            <Textarea
-              id="novelty-description"
-              maxLength={2000}
-              value={draft.description ?? ""}
-              onChange={(event) => onChange({ description: event.target.value || null })}
-              placeholder="Texto breve que acompaña a la novedad."
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-y-1">
-              <label htmlFor="novelty-starts-at" className={labelClass}>
-                Inicio de vigencia
-              </label>
-              <Input
-                id="novelty-starts-at"
-                type="datetime-local"
-                value={toLocalInput(draft.starts_at)}
-                onChange={(event) => onChange({ starts_at: toIsoInput(event.target.value) })}
-              />
-            </div>
-            <div className="flex flex-col gap-y-1">
-              <label htmlFor="novelty-ends-at" className={labelClass}>
-                Fin de vigencia
-              </label>
-              <Input
-                id="novelty-ends-at"
-                type="datetime-local"
-                value={toLocalInput(draft.ends_at)}
-                onChange={(event) => onChange({ ends_at: toIsoInput(event.target.value) })}
-              />
-              <Text size="xsmall" className="text-ui-fg-subtle">
-                Sin fechas, la novedad publicada permanece visible mientras esté activa.
-              </Text>
-            </div>
-          </div>
-        </section>
-
-        <aside className="lg:col-span-4 flex min-w-0 flex-col gap-y-4">
-          <section className="border-ui-border-base flex flex-col gap-y-4 rounded-lg border p-5">
-            <Heading level="h3">Publicación y orden</Heading>
-
-            <div className="flex flex-col gap-y-1">
-              <label htmlFor="novelty-status" className={labelClass}>
-                Estado editorial
-              </label>
-              <select
-                id="novelty-status"
-                className={fieldClass}
-                value={draft.status}
-                onChange={(event) => onChange({ status: event.target.value as NoveltyStatus })}
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {issues.length > 0 && (
-              <div className="border-ui-border-base bg-ui-bg-subtle rounded-md border p-3" role="status">
-                <Text size="small" weight="plus" className="text-ui-fg-error">
-                  Para publicar falta:
-                </Text>
-                <Text size="small" className="text-ui-fg-subtle">
-                  {issues.join(", ")}.
-                </Text>
+                {error}
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <label htmlFor="novelty-enabled" className="text-sm font-medium">
-                  Activa en Store
-                </label>
-                <Text size="xsmall" className="text-ui-fg-subtle">
-                  Una novedad inactiva no aparece aunque esté publicada.
-                </Text>
-              </div>
-              <Switch
-                id="novelty-enabled"
-                aria-label="Activa en Store"
-                checked={draft.enabled}
-                disabled={saving}
-                onCheckedChange={(enabled) => onChange({ enabled })}
-              />
-            </div>
+            <div className="grid grid-cols-1 gap-x-6 gap-y-6 lg:grid-cols-12">
+              <div className="flex min-w-0 flex-col gap-y-5 lg:col-span-8">
+                <section className="flex flex-col gap-y-3">
+                  <h3 className="text-ui-fg-base border-ui-border-base border-b pb-2 text-sm font-semibold">
+                    Contenido del carrusel
+                  </h3>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-y-1">
-                <label htmlFor="novelty-priority" className={labelClass}>
-                  Prioridad
-                </label>
-                <Input
-                  id="novelty-priority"
-                  type="number"
-                  min={0}
-                  max={1000}
-                  value={draft.priority}
-                  onChange={(event) => onChange({ priority: numberValue(event.target.value, 1000) })}
-                />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-y-1">
+                      <label htmlFor="novelty-title" className={labelClass}>
+                        Título en español
+                      </label>
+                      <Input
+                        ref={titleRef}
+                        id="novelty-title"
+                        minLength={2}
+                        maxLength={180}
+                        value={draft.title}
+                        onChange={(event) => onChange({ title: event.target.value })}
+                        placeholder="Lanzamiento de temporada"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-y-1">
+                      <label htmlFor="novelty-title-en" className={labelClass}>
+                        Título en inglés
+                      </label>
+                      <Input
+                        id="novelty-title-en"
+                        maxLength={180}
+                        value={draft.title_en ?? ""}
+                        onChange={(event) => onChange({ title_en: event.target.value || null })}
+                        placeholder="Season launch (obligatorio para publicar)"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-y-1">
+                      <label htmlFor="novelty-slug" className={labelClass}>
+                        Slug público
+                      </label>
+                      <Input
+                        id="novelty-slug"
+                        minLength={2}
+                        maxLength={180}
+                        pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                        value={draft.slug}
+                        onChange={(event) => onChange({ slug: event.target.value })}
+                        placeholder="lanzamiento-temporada"
+                      />
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Minúsculas, números y guiones. Se usa en la URL de Store.
+                      </Text>
+                    </div>
+                    <div className="flex flex-col gap-y-1">
+                      <label htmlFor="novelty-event-type" className={labelClass}>
+                        Tipo de evento
+                      </label>
+                      <select
+                        id="novelty-event-type"
+                        className={fieldClass}
+                        value={draft.event_type_id ?? ""}
+                        onChange={(event) => onChange({ event_type_id: event.target.value || null })}
+                      >
+                        <option value="">Sin tipo (no se puede publicar)</option>
+                        {eventTypes.map((type) => (
+                          <option key={type.id} value={type.id}>
+                            {type.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-y-1">
+                    <label htmlFor="novelty-description" className={labelClass}>
+                      Descripción
+                    </label>
+                    <Textarea
+                      id="novelty-description"
+                      maxLength={2000}
+                      value={draft.description ?? ""}
+                      onChange={(event) => onChange({ description: event.target.value || null })}
+                      placeholder="Texto breve que acompaña a la novedad."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-y-1">
+                      <label htmlFor="novelty-starts-at" className={labelClass}>
+                        Inicio de vigencia
+                      </label>
+                      <Input
+                        id="novelty-starts-at"
+                        type="datetime-local"
+                        value={toLocalInput(draft.starts_at)}
+                        onChange={(event) => onChange({ starts_at: toIsoInput(event.target.value) })}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-y-1">
+                      <label htmlFor="novelty-ends-at" className={labelClass}>
+                        Fin de vigencia
+                      </label>
+                      <Input
+                        id="novelty-ends-at"
+                        type="datetime-local"
+                        value={toLocalInput(draft.ends_at)}
+                        onChange={(event) => onChange({ ends_at: toIsoInput(event.target.value) })}
+                      />
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Sin fechas, la novedad publicada permanece visible mientras esté activa.
+                      </Text>
+                    </div>
+                  </div>
+                </section>
               </div>
-              <div className="flex flex-col gap-y-1">
-                <label htmlFor="novelty-sort-order" className={labelClass}>
-                  Orden
-                </label>
-                <Input
-                  id="novelty-sort-order"
-                  type="number"
-                  min={0}
-                  value={draft.sort_order}
-                  onChange={(event) => onChange({ sort_order: numberValue(event.target.value) })}
-                />
-              </div>
+
+              <aside className="flex min-w-0 flex-col gap-y-5 lg:col-span-4">
+                <section className="flex flex-col gap-y-3">
+                  <h3 className="text-ui-fg-base border-ui-border-base border-b pb-2 text-sm font-semibold">
+                    Publicación y orden
+                  </h3>
+
+                  <div className="flex flex-col gap-y-1">
+                    <label htmlFor="novelty-status" className={labelClass}>
+                      Estado editorial
+                    </label>
+                    <select
+                      id="novelty-status"
+                      className={fieldClass}
+                      value={draft.status}
+                      onChange={(event) => onChange({ status: event.target.value as NoveltyStatus })}
+                    >
+                      {STATUS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {issues.length > 0 && (
+                    <div className="border-ui-border-base bg-ui-bg-subtle rounded-md border p-3" role="status">
+                      <Text size="small" weight="plus" className="text-ui-fg-error">
+                        Para publicar falta:
+                      </Text>
+                      <Text size="small" className="text-ui-fg-subtle">
+                        {issues.join(", ")}.
+                      </Text>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <label htmlFor="novelty-enabled" className="text-sm font-medium">
+                        Activa en Store
+                      </label>
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        Una novedad inactiva no aparece aunque esté publicada.
+                      </Text>
+                    </div>
+                    <Switch
+                      id="novelty-enabled"
+                      aria-label="Activa en Store"
+                      checked={draft.enabled}
+                      disabled={saving}
+                      onCheckedChange={(enabled) => onChange({ enabled })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-y-1">
+                      <label htmlFor="novelty-priority" className={labelClass}>
+                        Prioridad
+                      </label>
+                      <Input
+                        id="novelty-priority"
+                        type="number"
+                        min={0}
+                        max={1000}
+                        value={draft.priority}
+                        onChange={(event) => onChange({ priority: numberValue(event.target.value, 1000) })}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-y-1">
+                      <label htmlFor="novelty-sort-order" className={labelClass}>
+                        Orden
+                      </label>
+                      <Input
+                        id="novelty-sort-order"
+                        type="number"
+                        min={0}
+                        value={draft.sort_order}
+                        onChange={(event) => onChange({ sort_order: numberValue(event.target.value) })}
+                      />
+                    </div>
+                  </div>
+                  <Text size="xsmall" className="text-ui-fg-subtle">
+                    La Store ordena por prioridad descendente y después por orden ascendente; la prioridad siempre
+                    manda.
+                  </Text>
+                </section>
+
+                <section className="border-ui-border-base flex flex-col gap-y-3 border-t pt-4">
+                  <h3 className="text-ui-fg-base text-sm font-semibold">Multimedia</h3>
+                  <Text size="xsmall" id="novelty-form-media-help" className="text-ui-fg-subtle">
+                    PNG/JPEG/WebP hasta 5 MB o GIF/MP4/WebM hasta 100 MB. La firma real del archivo se valida en el
+                    servidor.
+                  </Text>
+
+                  <div className="border-ui-border-base bg-ui-bg-subtle relative aspect-[16/9] overflow-hidden rounded-md border">
+                    {draft.media_url && draft.media_type === "video" ? (
+                      <video
+                        data-testid="novelty-form-preview"
+                        aria-label="Vista previa de la novedad"
+                        src={draft.media_url}
+                        muted
+                        loop
+                        playsInline
+                        controls
+                        preload="metadata"
+                        className="bg-black h-full w-full object-contain"
+                      />
+                    ) : draft.media_url ? (
+                      <img
+                        data-testid="novelty-form-preview"
+                        src={draft.media_url}
+                        alt="Vista previa de la novedad"
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center px-3 text-center">
+                        <Text size="small" className="text-ui-fg-subtle">
+                          Sin multimedia asociada
+                        </Text>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-y-1">
+                    <label htmlFor="novelty-media-input" className={labelClass}>
+                      {draft.media_file_id ? "Reemplazar multimedia" : "Añadir multimedia"}
+                    </label>
+                    <Input
+                      id="novelty-media-input"
+                      type="file"
+                      accept={NOVELTY_MEDIA_ACCEPT}
+                      aria-label="Multimedia de la novedad"
+                      aria-describedby="novelty-form-media-help"
+                      disabled={uploading || saving}
+                      onClick={(event) => {
+                        event.currentTarget.value = ""
+                      }}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (file) onUpload(file)
+                      }}
+                    />
+                    {uploading && (
+                      <Text size="xsmall" className="text-ui-fg-subtle" role="status">
+                        Subiendo multimedia…
+                      </Text>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="small"
+                    variant="danger"
+                    disabled={!draft.media_file_id || saving}
+                    onClick={onRemoveMedia}
+                  >
+                    Quitar multimedia
+                  </Button>
+                </section>
+              </aside>
             </div>
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              La Store ordena por prioridad descendente y después por orden ascendente; la prioridad siempre manda.
+          </div>
+
+          <footer className="border-ui-border-base bg-ui-bg-base flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-4 py-3 sm:px-6">
+            <Text size="xsmall" className="text-ui-fg-subtle max-w-md">
+              {editing
+                ? "Los cambios de estado publicados o archivados piden confirmación."
+                : "El borrador se crea sin publicar; publicar exige título EN, tipo y fecha de inicio."}
             </Text>
-          </section>
-
-          <section className="border-ui-border-base flex flex-col gap-y-3 rounded-lg border p-5">
-            <Heading level="h3">Multimedia</Heading>
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Imagen PNG/JPEG/WebP hasta 5 MB o GIF/MP4/WebM hasta 100 MB. La firma real del archivo se valida en el
-              servidor.
-            </Text>
-
-            <div className="bg-ui-bg-subtle flex min-h-40 items-center justify-center overflow-hidden rounded-md p-2">
-              {draft.media_url && draft.media_type === "video" ? (
-                <video
-                  data-testid="novelty-form-preview"
-                  aria-label="Vista previa de la novedad"
-                  src={draft.media_url}
-                  muted
-                  loop
-                  playsInline
-                  controls
-                  preload="metadata"
-                  className="max-h-56 w-full rounded bg-black object-contain"
-                />
-              ) : draft.media_url ? (
-                <img
-                  data-testid="novelty-form-preview"
-                  src={draft.media_url}
-                  alt="Vista previa de la novedad"
-                  className="max-h-56 w-full rounded object-contain"
-                />
-              ) : (
-                <Text size="small" className="text-ui-fg-subtle">
-                  Sin multimedia asociada
-                </Text>
-              )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="secondary" disabled={saving} onClick={requestClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" isLoading={saving}>
+                {editing ? "Guardar novedad" : "Crear novedad"}
+              </Button>
             </div>
-
-            <div className="flex flex-col gap-y-1">
-              <label htmlFor="novelty-media-input" className={labelClass}>
-                {draft.media_file_id ? "Reemplazar multimedia" : "Añadir multimedia"}
-              </label>
-              <Input
-                id="novelty-media-input"
-                type="file"
-                accept={NOVELTY_MEDIA_ACCEPT}
-                aria-label="Multimedia de la novedad"
-                disabled={uploading || saving}
-                onClick={(event) => {
-                  event.currentTarget.value = ""
-                }}
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) onUpload(file)
-                }}
-              />
-              {uploading && (
-                <Text size="xsmall" className="text-ui-fg-subtle" role="status">
-                  Subiendo multimedia…
-                </Text>
-              )}
-            </div>
-
-            <Button
-              type="button"
-              size="small"
-              variant="danger"
-              disabled={!draft.media_file_id || saving}
-              onClick={onRemoveMedia}
-            >
-              Quitar multimedia
-            </Button>
-          </section>
-        </aside>
-
-        <div className="lg:col-span-12 flex flex-wrap items-center gap-2">
-          <Button type="submit" isLoading={saving}>
-            {editing ? "Guardar novedad" : "Crear novedad"}
-          </Button>
-          <Button type="button" variant="secondary" disabled={saving} onClick={onCancel}>
-            Cancelar
-          </Button>
-          <Text size="xsmall" className="text-ui-fg-subtle">
-            {editing
-              ? "Los cambios de estado publicados o archivados piden confirmación."
-              : "El borrador se crea sin publicar; publicar exige título EN, tipo y fecha de inicio."}
-          </Text>
-        </div>
-      </form>
-    </Container>
+          </footer>
+        </form>
+      </div>
+    </div>,
+    document.body,
   )
 }

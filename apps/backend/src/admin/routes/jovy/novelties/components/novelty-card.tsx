@@ -1,12 +1,12 @@
-import { Badge, Button, Heading, Input, Text } from "@medusajs/ui"
+import { Badge, Button, DropdownMenu, Input, Text } from "@medusajs/ui"
 import { useEffect, useRef, useState } from "react"
 import {
   MEDIA_COLOR,
-  MEDIA_LABEL,
   NOVELTY_MEDIA_ACCEPT,
   STATUS_META,
   formatWindow,
   type NoveltyEvent,
+  type NoveltyMediaType,
 } from "../model"
 
 type Props = {
@@ -28,6 +28,13 @@ type Props = {
   onDelete: () => void
   onReplaceMedia: (file: File) => void
   onRemoveMedia: () => void
+}
+
+/** Etiquetas legibles del medio; el valor crudo de la API no se muestra al editor. */
+const MEDIA_TITLE: Record<NoveltyMediaType, string> = {
+  image: "Imagen",
+  gif: "GIF",
+  video: "Vídeo",
 }
 
 const toNumber = (value: string, fallback: number) => {
@@ -59,6 +66,7 @@ export const NoveltyCard = ({
   const mediaInput = useRef<HTMLInputElement>(null)
   const titleId = `novelty-title-${event.id}`
   const status = STATUS_META[event.status]
+  const mediaLabel = event.media_type ? MEDIA_TITLE[event.media_type] : "Sin medio"
   const orderDirty =
     toNumber(priority, event.priority) !== event.priority ||
     toNumber(sortOrder, event.sort_order) !== event.sort_order
@@ -75,63 +83,56 @@ export const NoveltyCard = ({
     <article
       data-testid={`novelty-card-${event.id}`}
       aria-labelledby={titleId}
-      className={`jovy-container bg-ui-bg-base flex min-w-0 flex-col overflow-hidden rounded-lg border shadow-elevation-card-rest transition-shadow ${
+      className={`jovy-container bg-ui-bg-base flex min-w-0 flex-col rounded-md border p-3 shadow-elevation-card-rest transition-shadow ${
         highlighted ? "border-ui-border-interactive ring-ui-border-interactive ring-2" : "border-ui-border-base"
       }`}
     >
-      <div className="bg-ui-bg-subtle relative">
-        <div className="h-40 w-full">
-          {event.media_url && event.media_type === "video" ? (
-            <video
-              data-testid={`novelty-preview-${event.id}`}
-              aria-label={`Vista previa de novedad: ${event.title}`}
-              src={event.media_url}
-              muted
-              loop
-              playsInline
-              controls
-              preload="metadata"
-              className="h-full w-full bg-black object-contain"
-            />
-          ) : event.media_url ? (
-            <img
-              data-testid={`novelty-preview-${event.id}`}
-              src={event.media_url}
-              alt={`Vista previa de novedad: ${event.title}`}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="text-ui-fg-muted flex h-full flex-col items-center justify-center gap-1 px-3 text-center">
-              <Text size="small" weight="plus">
-                Sin multimedia
-              </Text>
-              <Text size="xsmall" className="text-ui-fg-subtle">
-                Añade una imagen, GIF o vídeo para que aparezca en el carrusel.
-              </Text>
-            </div>
-          )}
-        </div>
+      <div className="bg-ui-bg-subtle relative mb-3 aspect-[16/9] max-h-40 overflow-hidden rounded">
+        {event.media_url && event.media_type === "video" ? (
+          <video
+            data-testid={`novelty-preview-${event.id}`}
+            aria-label={`Vista previa de novedad: ${event.title}`}
+            src={event.media_url}
+            muted
+            loop
+            playsInline
+            controls
+            preload="metadata"
+            className="h-full w-full bg-black object-contain"
+          />
+        ) : event.media_url ? (
+          <img
+            data-testid={`novelty-preview-${event.id}`}
+            src={event.media_url}
+            alt={`Vista previa de novedad: ${event.title}`}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="text-ui-fg-muted flex h-full items-center justify-center px-3 text-center">
+            <Text size="xsmall" weight="plus">
+              Sin multimedia
+            </Text>
+          </div>
+        )}
 
         <div className="absolute left-2 top-2 flex flex-wrap items-center gap-1">
           <Badge size="2xsmall" color="grey">{`#${position}`}</Badge>
-          {event.media_type ? (
-            <Badge size="2xsmall" color={MEDIA_COLOR[event.media_type]}>
-              {MEDIA_LABEL[event.media_type]}
-            </Badge>
-          ) : (
-            <Badge size="2xsmall" color="grey">
-              sin medio
-            </Badge>
-          )}
+          <Badge
+            size="2xsmall"
+            color={event.media_type ? MEDIA_COLOR[event.media_type] : "grey"}
+          >
+            {mediaLabel}
+          </Badge>
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-y-3 p-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-y-2">
         <div className="min-w-0">
-          <Heading level="h3" id={titleId} className="text-base leading-snug">
+          <h3 id={titleId} className="truncate text-base leading-snug font-medium">
             {event.title}
-          </Heading>
-          <Text size="xsmall" className="text-ui-fg-subtle mt-0.5 truncate">
+          </h3>
+          <Text size="xsmall" className="text-ui-fg-subtle truncate">
             {event.title_en || "Sin título EN"}
           </Text>
         </div>
@@ -140,183 +141,199 @@ export const NoveltyCard = ({
           <Badge size="2xsmall" color={status.color}>
             {status.label}
           </Badge>
-          <Badge size="2xsmall" color={event.enabled ? "green" : "grey"}>
-            {event.enabled ? "Activa" : "Inactiva"}
-          </Badge>
           <Badge data-testid={`novelty-store-state-${event.id}`} size="2xsmall" color={store.visible ? "green" : "grey"}>
             {store.visible ? "En Store" : "Fuera de Store"}
           </Badge>
         </div>
 
-        <Text size="xsmall" className="text-ui-fg-subtle">
-          {store.reason}
-        </Text>
+        {/* El motivo sólo ocupa espacio cuando explica una ausencia; si la novedad
+            está publicada, ese mismo dato vive plegado en «Detalles». */}
+        {!store.visible && (
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            {store.reason}
+          </Text>
+        )}
 
-        <div className="border-ui-border-base grid grid-cols-1 gap-2 rounded-md border p-2.5">
-          <div className="min-w-0">
-            <Text size="xsmall" className="text-ui-fg-subtle uppercase">
-              Slug y vigencia
-            </Text>
-            <Text size="small" className="truncate font-mono">
-              /{event.slug}
-            </Text>
-            <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
-              {formatWindow(event)}
-            </Text>
-          </div>
-        </div>
+        <details className="jovy-card-details">
+          <summary className="text-ui-fg-subtle w-fit cursor-pointer text-xs">Detalles</summary>
+          <div className="mt-2 flex flex-col gap-2">
+            <dl className="text-ui-fg-subtle grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+              <div className="col-span-2 flex min-w-0 items-baseline gap-1">
+                <dt className="shrink-0">Slug: </dt>
+                <dd className="min-w-0 truncate font-mono">/{event.slug}</dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="inline">Vigencia: </dt>
+                <dd className="inline font-medium">{formatWindow(event)}</dd>
+              </div>
+              <div>
+                <dt className="inline">Estado: </dt>
+                <dd className="inline font-medium">{event.enabled ? "Activa" : "Inactiva"}</dd>
+              </div>
+              {store.visible && (
+                <div>
+                  <dt className="inline">Store: </dt>
+                  <dd className="inline font-medium">{store.reason}</dd>
+                </div>
+              )}
+            </dl>
 
-        <div className="grid grid-cols-1 gap-2">
-          <div className="flex min-w-0 flex-col gap-1">
-            <label className="text-ui-fg-subtle text-xs" htmlFor={`novelty-priority-${event.id}`}>
-              Prioridad
-            </label>
-            <Input
-              id={`novelty-priority-${event.id}`}
-              type="number"
-              min={0}
-              max={1000}
-              aria-label={`Prioridad de ${event.title}`}
-              value={priority}
-              disabled={busy}
-              onChange={(changeEvent) => setPriority(changeEvent.target.value)}
-              className="w-full"
-            />
-          </div>
-          <div className="flex min-w-0 flex-col gap-1">
-            <label className="text-ui-fg-subtle text-xs" htmlFor={`novelty-order-${event.id}`}>
-              Orden
-            </label>
-            <Input
-              id={`novelty-order-${event.id}`}
-              type="number"
-              min={0}
-              aria-label={`Orden de ${event.title}`}
-              value={sortOrder}
-              disabled={busy}
-              onChange={(changeEvent) => setSortOrder(changeEvent.target.value)}
-              className="w-full"
-            />
-          </div>
-          <Button
-            size="small"
-            variant="secondary"
-            isLoading={busy}
-            disabled={!orderDirty}
-            className="w-full"
-            onClick={() =>
-              onSaveOrder({
-                priority: toNumber(priority, event.priority),
-                sort_order: toNumber(sortOrder, event.sort_order),
-              })
-            }
-          >
-            Guardar orden
-          </Button>
-        </div>
-
-        <div className="jovy-actions flex flex-wrap gap-2">
-          <Button
-            size="small"
-            variant="secondary"
-            aria-label={`Subir ${event.title}`}
-            title={moveHint}
-            disabled={busy || !canMoveUp}
-            onClick={() => onMove(-1)}
-          >
-            Subir
-          </Button>
-          <Button
-            size="small"
-            variant="secondary"
-            aria-label={`Bajar ${event.title}`}
-            title={moveHint}
-            disabled={busy || !canMoveDown}
-            onClick={() => onMove(1)}
-          >
-            Bajar
-          </Button>
-        </div>
-
-        <div className="border-ui-border-base flex flex-col gap-2 border-t pt-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-ui-fg-subtle text-xs" id={`novelty-media-label-${event.id}`}>
-              {event.media_file_id ? "Reemplazar multimedia" : "Añadir multimedia"}
-            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex min-w-0 flex-col gap-1">
+                <label className="text-ui-fg-subtle text-xs" htmlFor={`novelty-priority-${event.id}`}>
+                  Prioridad
+                </label>
+                <Input
+                  id={`novelty-priority-${event.id}`}
+                  type="number"
+                  min={0}
+                  max={1000}
+                  aria-label={`Prioridad de ${event.title}`}
+                  value={priority}
+                  disabled={busy}
+                  onChange={(changeEvent) => setPriority(changeEvent.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex min-w-0 flex-col gap-1">
+                <label className="text-ui-fg-subtle text-xs" htmlFor={`novelty-order-${event.id}`}>
+                  Orden
+                </label>
+                <Input
+                  id={`novelty-order-${event.id}`}
+                  type="number"
+                  min={0}
+                  aria-label={`Orden de ${event.title}`}
+                  value={sortOrder}
+                  disabled={busy}
+                  onChange={(changeEvent) => setSortOrder(changeEvent.target.value)}
+                  className="w-full"
+                />
+              </div>
+            </div>
             <Button
-              type="button"
               size="small"
               variant="secondary"
+              isLoading={busy}
+              disabled={!orderDirty}
               className="w-full"
-              aria-label={`Multimedia de ${event.title}`}
-              aria-describedby={`novelty-media-label-${event.id}`}
-              disabled={busy}
-              onClick={() => mediaInput.current?.click()}
+              onClick={() =>
+                onSaveOrder({
+                  priority: toNumber(priority, event.priority),
+                  sort_order: toNumber(sortOrder, event.sort_order),
+                })
+              }
             >
-              {event.media_file_id ? "Elegir archivo" : "Añadir archivo"}
+              Guardar orden
             </Button>
-            <input
-              ref={mediaInput}
-              id={`novelty-media-${event.id}`}
-              type="file"
-              accept={NOVELTY_MEDIA_ACCEPT}
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden="true"
-              disabled={busy}
-              onClick={(changeEvent) => {
-                changeEvent.currentTarget.value = ""
-              }}
-              onChange={(changeEvent) => {
-                const file = changeEvent.target.files?.[0]
-                if (file) onReplaceMedia(file)
-              }}
-            />
-            <Text size="xsmall" className="text-ui-fg-subtle">
+            <Text size="xsmall" id={`novelty-media-help-${event.id}`} className="text-ui-fg-subtle">
               PNG/JPEG/WebP hasta 5 MB; GIF, MP4 o WebM hasta 100 MB.
             </Text>
-            {busy && (
-              <Text size="xsmall" role="status" className="text-ui-fg-subtle">
-                Procesando cambio…
-              </Text>
-            )}
           </div>
+        </details>
 
-          <div className="jovy-actions flex flex-wrap gap-2">
-            <Button size="small" variant="secondary" disabled={busy} onClick={onEdit}>
-              Editar novedad
+        <div className="jovy-actions border-ui-border-base mt-auto flex flex-wrap items-center gap-2 border-t pt-3">
+          <Button size="small" variant="secondary" disabled={busy} onClick={onEdit}>
+            Editar novedad
+          </Button>
+          {event.status !== "published" && (
+            <Button size="small" variant="secondary" disabled={busy} onClick={onPublish}>
+              Publicar
             </Button>
-            <Button asChild size="small" variant="secondary">
-              <a href={`/app/jovy-herramientas/events?event=${encodeURIComponent(event.id)}`}>Editar este evento</a>
-            </Button>
-          </div>
+          )}
+          {busy && (
+            <Text size="xsmall" role="status" className="text-ui-fg-subtle">
+              Procesando cambio…
+            </Text>
+          )}
 
-          <div className="jovy-actions jovy-actions--end-danger flex flex-wrap gap-2">
-            {event.status !== "published" && (
-              <Button size="small" variant="secondary" disabled={busy} onClick={onPublish}>
-                Publicar
+          <DropdownMenu>
+            <DropdownMenu.Trigger asChild>
+              <Button
+                size="small"
+                variant="secondary"
+                aria-label={`Más acciones para ${event.title}`}
+                data-testid={`novelty-actions-${event.id}`}
+                disabled={busy}
+              >
+                Más
               </Button>
-            )}
-            {event.status !== "archived" && (
-              <Button size="small" variant="secondary" disabled={busy} onClick={onArchive}>
-                Archivar
-              </Button>
-            )}
-            <Button size="small" variant="secondary" disabled={busy} onClick={onToggleEnabled}>
-              {event.enabled ? "Desactivar" : "Activar"}
-            </Button>
-            <Button
-              size="small"
-              variant="danger"
-              disabled={busy || !event.media_file_id}
-              onClick={onRemoveMedia}
-            >
-              Retirar medio
-            </Button>
-            <Button size="small" variant="danger" disabled={busy} onClick={onDelete}>
-              Eliminar
-            </Button>
-          </div>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="end">
+              <DropdownMenu.Item
+                aria-label={`Subir ${event.title}`}
+                title={moveHint}
+                disabled={busy || !canMoveUp}
+                onSelect={() => onMove(-1)}
+              >
+                Subir
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                aria-label={`Bajar ${event.title}`}
+                title={moveHint}
+                disabled={busy || !canMoveDown}
+                onSelect={() => onMove(1)}
+              >
+                Bajar
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator />
+              {event.status !== "archived" && (
+                <DropdownMenu.Item disabled={busy} onSelect={onArchive}>
+                  Archivar
+                </DropdownMenu.Item>
+              )}
+              <DropdownMenu.Item disabled={busy} onSelect={onToggleEnabled}>
+                {event.enabled ? "Desactivar" : "Activar"}
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator />
+              <DropdownMenu.Item
+                aria-label={`Multimedia de ${event.title}`}
+                aria-describedby={`novelty-media-help-${event.id}`}
+                disabled={busy}
+                onSelect={(selectEvent) => {
+                  // Radix cierra el menú y devuelve el foco al disparador; se evita
+                  // para que el diálogo nativo de archivos conserve el gesto.
+                  selectEvent.preventDefault()
+                  mediaInput.current?.click()
+                }}
+              >
+                {event.media_file_id ? "Reemplazar multimedia" : "Añadir multimedia"}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                disabled={busy || !event.media_file_id}
+                onSelect={onRemoveMedia}
+              >
+                Retirar medio
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator />
+              <DropdownMenu.Item
+                className="text-ui-fg-error"
+                disabled={busy}
+                onSelect={onDelete}
+              >
+                Eliminar
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu>
+
+          <input
+            ref={mediaInput}
+            id={`novelty-media-${event.id}`}
+            type="file"
+            accept={NOVELTY_MEDIA_ACCEPT}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+            aria-describedby={`novelty-media-help-${event.id}`}
+            disabled={busy}
+            onClick={(changeEvent) => {
+              changeEvent.currentTarget.value = ""
+            }}
+            onChange={(changeEvent) => {
+              const file = changeEvent.target.files?.[0]
+              if (file) onReplaceMedia(file)
+            }}
+          />
         </div>
       </div>
     </article>

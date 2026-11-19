@@ -61,6 +61,22 @@
   min-inline-size: 0;
 }
 
+/* Controles nativos en oscuro: `color-scheme` hace que los <select>, los
+   datetime-local y el input de archivo dibujen glifos y menús legibles. Sin
+   esto, el icono del calendario queda negro sobre fondo oscuro. El editor de
+   Novedades se monta en `document.body` y lleva el mismo atributo, así que
+   hereda la regla aunque esté fuera del árbol de la pantalla. */
+.dark [data-jovy-quality] {
+  color-scheme: dark;
+}
+
+/* Placeholder legible en oscuro: `ui-fg-muted` cae a ~3:1 sobre la superficie
+   del campo. Se usa `fg-subtle` (≥6:1) sin tocar el resto de la pantalla. */
+.dark [data-jovy-quality] input::placeholder,
+.dark [data-jovy-quality] textarea::placeholder {
+  color: var(--fg-subtle);
+}
+
 /* Galería: la lista manda sobre el ancho de su columna, no sobre el viewport.
    En columnas estrechas cada elemento se apila; al ensancharse se reparte en
    tres columnas sin dejar que los botones de acción desplacen el texto. */
