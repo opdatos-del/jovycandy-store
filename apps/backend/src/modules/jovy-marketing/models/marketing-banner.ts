@@ -9,7 +9,12 @@ const MarketingBanner = model
     status: model.enum(["draft", "published", "archived"]).default("draft"),
     enabled: model.boolean().default(true),
     auto_open: model.boolean().default(false),
-    frequency: model.enum(["every", "session", "daily"]).default("every"),
+    // `once` limita la aparición a una vez por navegador; el resto se repite
+    // según la ventana que decida el storefront.
+    frequency: model.enum(["every", "session", "daily", "once"]).default("every"),
+    // Duración en pantalla de cada banner, en segundos (rango 3–60).
+    // La rotación la ejecuta el storefront; el backend solo persiste el valor.
+    rotation_seconds: model.number().default(8),
     priority: model.number().default(0),
     sort_order: model.number().default(0),
     media_file_id: model.text().nullable(),

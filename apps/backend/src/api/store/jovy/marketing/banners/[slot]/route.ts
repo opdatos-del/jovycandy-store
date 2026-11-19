@@ -12,7 +12,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const visibleBanners = (await service.listMarketingBanners({ slot: slot.data }, { order: { priority: "DESC", sort_order: "ASC", created_at: "ASC" } }))
     .filter((banner) => isMarketingVisible(banner))
     .sort(compareBannerOrder)
-  const banners = await Promise.all(visibleBanners.map(async ({ id, translations, media_file_id, cta_url, auto_open, frequency, priority, sort_order }) => {
+  const banners = await Promise.all(visibleBanners.map(async ({ id, translations, media_file_id, cta_url, auto_open, frequency, rotation_seconds, priority, sort_order }) => {
     let media_url: string | null = null
     if (media_file_id) {
       try {
@@ -22,7 +22,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         // internal storage failure through the public marketing API.
       }
     }
-    return { id, translations, media_file_id, media_url, cta_url, auto_open, frequency, priority, sort_order }
+    return { id, translations, media_file_id, media_url, cta_url, auto_open, frequency, rotation_seconds, priority, sort_order }
   }))
   res.json({ banners })
 }

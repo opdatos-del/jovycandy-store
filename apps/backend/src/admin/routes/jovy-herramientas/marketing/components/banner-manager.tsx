@@ -1,17 +1,15 @@
 import {
-  ArrowDownMini,
-  ArrowUpMini,
   ExclamationCircle,
   MagnifyingGlass,
   PencilSquare,
   Photo,
   PlusMini,
-  Trash,
 } from "@medusajs/icons"
 import {
   Badge,
   Button,
   Container,
+  DropdownMenu,
   Heading,
   Input,
   Skeleton,
@@ -25,10 +23,11 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { marketingApi, toDateTimeLocal, toIso } from "./admin-api"
 
 /**
- * Administración de los banners de portada (`promo` = modal, `hint` = franja
- * bajo el logo). Reutiliza el CRUD existente `/admin/jovy/marketing/banners`:
- * no hay endpoints nuevos. Anuncios de portada monta este mismo componente con
- * `initialSlot="promo"`, así que tampoco existe un segundo formulario.
+ * Administración de los anuncios de portada: `promo` es el modal de entrada y
+ * `hint` el banner fijo bajo el logo. Es el único CRUD de los dos tipos: Anuncios
+ * de portada monta este mismo componente y Marketing ya no lo embebe.
+ * Reutiliza los endpoints existentes `/admin/jovy/marketing/banners`: no hay
+ * endpoints nuevos.
  *
  * Diferencia pendiente con el administrador histórico: el recorte interactivo
  * (`crop_zoom`, `crop_offset_x`, `crop_offset_y`, `original_src`) no existe en
@@ -38,7 +37,7 @@ import { marketingApi, toDateTimeLocal, toIso } from "./admin-api"
 
 type Status = "draft" | "published" | "archived"
 type Slot = "promo" | "hint"
-type Frequency = "every" | "session" | "daily"
+type Frequency = "every" | "session" | "daily" | "once"
 
 type LocalizedBannerContent = {
   title: string
@@ -54,6 +53,7 @@ type Banner = {
   enabled: boolean
   auto_open: boolean
   frequency: Frequency
+  rotation_seconds: number
   priority: number
   sort_order: number
   media_file_id: string | null
@@ -74,7 +74,7 @@ type StatusFilter = "all" | Status
 type WindowState = "active" | "scheduled" | "expired" | "inactive"
 
 const SLOT_LABEL: Record<Slot, string> = {
-  promo: "Modal de portada",
+  promo: "Modal de entrada",
   hint: "Bajo el logo",
 }
 
@@ -91,9 +91,10 @@ const STATUS_COLOR: Record<Status, "green" | "orange" | "grey"> = {
 }
 
 const FREQUENCY_LABEL: Record<Frequency, string> = {
-  every: "Cada visita",
+  every: "Cada recarga completa",
   session: "Una vez por sesión",
-  daily: "Una vez por día",
+  daily: "Una vez al día",
+  once: "Una vez por navegador",
 }
 
 const WINDOW_LABEL: Record<WindowState, string> = {
@@ -121,6 +122,12 @@ const ALT_MAX = 255
 const CTA_URL_MAX = 500
 const PRIORITY_MAX = 1_000
 
+// Duración en pantalla de cada anuncio cuando el lugar tiene más de uno.
+const ROTATION_MIN = 3
+const ROTATION_MAX = 60
+const ROTATION_DEFAULT = 8
+const ROTATION_PRESETS = [5, 8, 10, 15, 30]
+
 const labelClass = "text-ui-fg-subtle text-xs font-medium"
 const selectClass =
   "border-ui-border-base bg-ui-bg-base h-8 rounded-md px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ui-border-interactive"
@@ -133,6 +140,7 @@ const emptyBanner = (slot: Slot = "promo"): BannerDraft => ({
   // el modal debe abrirse solo cuando la persona administradora lo decide.
   auto_open: false,
   frequency: "every",
+  rotation_seconds: ROTATION_DEFAULT,
   priority: 0,
   sort_order: 0,
   media_file_id: null,
@@ -157,6 +165,24 @@ function formatDate(value: string | null) {
 }
 
 /**
+ * Vigencia en una línea: sin fechas el anuncio permanece hasta desactivarlo.
+ * `formatDate` puede cerrar ya con punto por el sufijo «a.m.»/«p.m.» de `es-MX`,
+ * así que la etiqueta garantiza un único punto final y quien la use no añade otro.
+ */
+function vigenciaLabel(banner: Pick<Banner, "starts_at" | "ends_at">) {
+  const label =
+    !banner.starts_at && !banner.ends_at
+      ? "Permanente"
+      : !banner.ends_at
+        ? `Desde ${formatDate(banner.starts_at)}`
+        : !banner.starts_at
+          ? `Hasta ${formatDate(banner.ends_at)}`
+          : `Del ${formatDate(banner.starts_at)} al ${formatDate(banner.ends_at)}`
+
+  return label.endsWith(".") ? label : `${label}.`
+}
+
+/**
  * Estado real del banner frente a la ventana de publicación. Un borrador con
  * fecha futura no está "programado": solo se programa lo publicado y habilitado.
  */
@@ -176,6 +202,7 @@ function draftFromBanner(banner: Banner): BannerDraft {
     enabled: banner.enabled,
     auto_open: banner.auto_open,
     frequency: banner.frequency,
+    rotation_seconds: banner.rotation_seconds ?? ROTATION_DEFAULT,
     priority: banner.priority,
     sort_order: banner.sort_order,
     media_file_id: banner.media_file_id,
@@ -209,8 +236,12 @@ function initialSlotFilter(): SlotFilter {
 export const BannerManager = ({
   initialSlot = "promo",
   headingLevel = "h1",
-  heading = "Banners y promociones",
+  heading = "Banners y anuncios",
   defaultSlotFilter,
+  showDescription = true,
+  showSlotFilter = true,
+  showStats = true,
+  listHeadingLevel = "h2",
   onBannersChange,
 }: {
   initialSlot?: Slot
@@ -218,6 +249,20 @@ export const BannerManager = ({
   heading?: string
   /** Slot preseleccionado en el filtro; sin él la URL decide y por defecto se ven todos. */
   defaultSlotFilter?: SlotFilter
+  /**
+   * Copia explicativa del gestor (descripción de slots y nota de prioridad).
+   * El anfitrión embebido la oculta cuando su propia sección ya explica el bloque.
+   */
+  showDescription?: boolean
+  /**
+   * Muestra el selector «¿Dónde aparece?». Al ocultarlo el listado queda fijado
+   * al slot de `defaultSlotFilter`.
+   */
+  showSlotFilter?: boolean
+  /** Oculta las insignias de conteo (`banner-stat-*`) en modo embebido. */
+  showStats?: boolean
+  /** Nivel del título interno del listado para no competir con el `h2` del anfitrión. */
+  listHeadingLevel?: "h2" | "h3"
   /** Se invoca después de crear, editar, publicar, archivar, reordenar o eliminar. */
   onBannersChange?: () => void
 } = {}) => {
@@ -318,6 +363,7 @@ export const BannerManager = ({
         enabled: draft.enabled,
         auto_open: draft.auto_open,
         frequency: draft.frequency,
+        rotation_seconds: draft.rotation_seconds,
         priority: draft.priority,
         sort_order: draft.sort_order,
         media_file_id: draft.media_file_id || null,
@@ -409,30 +455,6 @@ export const BannerManager = ({
     }
   }
 
-  const move = async (banner: Banner, direction: -1 | 1) => {
-    const position = items.findIndex((item) => item.id === banner.id)
-    const target = position + direction
-    if (position < 0 || target < 0 || target >= items.length || reordering) return
-
-    const ordered = [...items]
-    ;[ordered[position], ordered[target]] = [ordered[target], ordered[position]]
-
-    setReordering(true)
-    try {
-      await marketingApi("/admin/jovy/marketing/banners/reorder", {
-        method: "POST",
-        body: JSON.stringify({ ids: ordered.map((item) => item.id) }),
-      })
-      toast.success("Orden de banners actualizado.")
-      await load()
-      onBannersChange?.()
-    } catch (error) {
-      toast.error(errorText(error, "No se pudo reordenar los banners."))
-    } finally {
-      setReordering(false)
-    }
-  }
-
   const term = query.trim().toLowerCase()
   const filtered = useMemo(
     () =>
@@ -455,6 +477,77 @@ export const BannerManager = ({
     [items, slotFilter, statusFilter, term],
   )
 
+  /**
+   * Mueve el banner dentro de la vista filtrada. Con la misma prioridad alcanza
+   * con reordenar `sort_order`, pero la prioridad manda sobre él, así que mover
+   * un banner sobre otro de prioridad distinta exige intercambiar prioridades;
+   * el prompt lo declara antes de mutar nada.
+   */
+  const move = async (banner: Banner, direction: -1 | 1) => {
+    const position = filtered.findIndex((item) => item.id === banner.id)
+    const target = position + direction
+    if (reordering || position < 0 || target < 0 || target >= filtered.length) return
+    const destination = filtered[target]
+
+    if (destination.priority !== banner.priority) {
+      const confirmed = await prompt({
+        variant: "confirmation",
+        title: "Intercambiar prioridades",
+        description: `«${banner.translations.es.title}» pasará a prioridad ${priorityLabel(destination.priority)} y «${destination.translations.es.title}» a ${priorityLabel(banner.priority)}. La prioridad manda sobre el orden de la vista, así que se intercambian para que el movimiento se note.`,
+        confirmText: "Intercambiar prioridades",
+        cancelText: "Cancelar",
+      })
+      if (!confirmed) return
+
+      setReordering(true)
+      try {
+        await marketingApi(`/admin/jovy/marketing/banners/${banner.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ priority: destination.priority }),
+        })
+        await marketingApi(`/admin/jovy/marketing/banners/${destination.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ priority: banner.priority }),
+        })
+        toast.success("Prioridades intercambiadas y orden actualizado.")
+        onBannersChange?.()
+      } catch (error) {
+        toast.error(errorText(error, "No se pudo intercambiar la prioridad de los banners."))
+      } finally {
+        // El primer PUT pudo aplicarse antes del fallo: recargar deja la vista
+        // igual que el estado guardado en ambos casos.
+        await load()
+        setReordering(false)
+      }
+      return
+    }
+
+    // Solo se mueve la subsecuencia visible: los banners ocultos por los filtros
+    // conservan su sitio en el array global que se envía al endpoint.
+    const visibleIds = filtered.map((item) => item.id)
+    ;[visibleIds[position], visibleIds[target]] = [visibleIds[target], visibleIds[position]]
+    const visibleSet = new Set(visibleIds)
+    let nextVisible = 0
+    const ids = items.map((item) =>
+      visibleSet.has(item.id) ? visibleIds[nextVisible++] : item.id,
+    )
+
+    setReordering(true)
+    try {
+      await marketingApi("/admin/jovy/marketing/banners/reorder", {
+        method: "POST",
+        body: JSON.stringify({ ids }),
+      })
+      toast.success("Orden de banners actualizado.")
+      await load()
+      onBannersChange?.()
+    } catch (error) {
+      toast.error(errorText(error, "No se pudo reordenar los banners."))
+    } finally {
+      setReordering(false)
+    }
+  }
+
   const now = Date.now()
   const stats = useMemo(
     () => ({
@@ -466,19 +559,35 @@ export const BannerManager = ({
     [items],
   )
 
-  const filtersActive = slotFilter !== "all" || statusFilter !== "all" || term.length > 0
+  // Un slot fijado por el anfitrión (selector oculto) no cuenta como filtro
+  // activo: si no, «Limpiar filtros» aparecería desde el primer render.
+  const pinnedSlot = showSlotFilter ? "all" : (defaultSlotFilter ?? "all")
+  const filtersActive =
+    (showSlotFilter && slotFilter !== "all") || statusFilter !== "all" || term.length > 0
   const clearFilters = () => {
     setQuery("")
-    setSlotFilter("all")
+    setSlotFilter(pinnedSlot)
     setStatusFilter("all")
   }
+
+  const headerActions = (
+    <>
+      <Button size="small" variant="secondary" onClick={() => void load()} isLoading={loading}>
+        Actualizar
+      </Button>
+      <Button size="small" onClick={startCreate}>
+        <PlusMini />
+        Nuevo banner
+      </Button>
+    </>
+  )
 
   if (view === "form") {
     return (
       <BannerForm
         key={`${editing?.id ?? "new"}-${formVersion}`}
         initial={editing}
-        defaultSlot={initialSlot}
+        defaultSlot={slotFilter !== "all" ? slotFilter : initialSlot}
         saving={saving}
         error={formError}
         onCancel={returnToList}
@@ -489,33 +598,39 @@ export const BannerManager = ({
 
   return (
     <div className="flex flex-col gap-y-4" data-testid="banner-manager">
-      <Container className="p-4 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            {/* El anfitrión puede ocultar el título (`heading=""`) cuando su sección ya titula el bloque. */}
-            {heading.trim() !== "" && <Heading level={headingLevel}>{heading}</Heading>}
-            <Text size="small" className="text-ui-fg-subtle mt-1">
-              Dos slots históricos: <span className="font-medium">promo</span> es el modal de portada y{" "}
-              <span className="font-medium">hint</span> la franja bajo el logo. La frecuencia y la
-              auto-apertura solo aplican al modal.
-            </Text>
+      {heading.trim() !== "" || showDescription ? (
+        <Container className="p-4 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              {/* El anfitrión puede ocultar el título (`heading=""`) cuando su sección ya titula el bloque. */}
+              {heading.trim() !== "" && <Heading level={headingLevel}>{heading}</Heading>}
+              {showDescription && (
+                <Text size="small" className="text-ui-fg-subtle mt-1">
+                  Dos tipos de anuncio: el banner fijo bajo el logo y el modal de entrada. La
+                  frecuencia y la apertura automática solo aplican al modal.
+                </Text>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">{headerActions}</div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="small" variant="secondary" onClick={() => void load()} isLoading={loading}>
-              Actualizar
-            </Button>
-            <Button size="small" onClick={startCreate}>
-              <PlusMini />
-              Nuevo banner
-            </Button>
-          </div>
-        </div>
-        {loadError && (
-          <p role="alert" className="text-ui-fg-error mt-3 text-sm">
-            {loadError}
-          </p>
-        )}
-      </Container>
+          {loadError && (
+            <p role="alert" className="text-ui-fg-error mt-3 text-sm">
+              {loadError}
+            </p>
+          )}
+        </Container>
+      ) : (
+        // Sin título ni descripción (modo embebido) el `Container` quedaría vacío:
+        // las acciones pasan a una fila compacta justo encima de los filtros.
+        <>
+          {loadError && (
+            <p role="alert" className="text-ui-fg-error text-sm">
+              {loadError}
+            </p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">{headerActions}</div>
+        </>
+      )}
 
       <Container className="p-4 sm:p-6">
         <div className="flex flex-wrap items-end gap-3">
@@ -538,22 +653,24 @@ export const BannerManager = ({
             </div>
           </div>
 
-          <div className="flex flex-col gap-y-1">
-            <label htmlFor="banner-slot-filter" className={labelClass}>
-              Filtro por slot
-            </label>
-            <select
-              id="banner-slot-filter"
-              aria-label="Filtro por slot"
-              className={selectClass}
-              value={slotFilter}
-              onChange={(event) => setSlotFilter(event.target.value as SlotFilter)}
-            >
-              <option value="all">Todos los slots</option>
-              <option value="promo">Promo (modal)</option>
-              <option value="hint">Hint (bajo el logo)</option>
-            </select>
-          </div>
+          {showSlotFilter && (
+            <div className="flex flex-col gap-y-1">
+              <label htmlFor="banner-slot-filter" className={labelClass}>
+                ¿Dónde aparece?
+              </label>
+              <select
+                id="banner-slot-filter"
+                aria-label="¿Dónde aparece?"
+                className={selectClass}
+                value={slotFilter}
+                onChange={(event) => setSlotFilter(event.target.value as SlotFilter)}
+              >
+                <option value="all">Todos</option>
+                <option value="hint">Bajo el logo</option>
+                <option value="promo">Modal de entrada</option>
+              </select>
+            </div>
+          )}
 
           <div className="flex flex-col gap-y-1">
             <label htmlFor="banner-status-filter" className={labelClass}>
@@ -580,34 +697,41 @@ export const BannerManager = ({
           )}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Badge size="small" color="grey" data-testid="banner-stat-total">
-            Total {stats.total}
-          </Badge>
-          <Badge size="small" color="green" data-testid="banner-stat-published">
-            Publicados {stats.published}
-          </Badge>
-          <Badge size="small" color="blue" data-testid="banner-stat-active">
-            Activos ahora {stats.active}
-          </Badge>
-          <Badge size="small" color="purple" data-testid="banner-stat-scheduled">
-            Programados {stats.scheduled}
-          </Badge>
-          <Text size="xsmall" className="text-ui-fg-subtle">
-            {filtersActive ? `${filtered.length} de ${items.length} visibles` : "Sin filtros activos"}
-          </Text>
-        </div>
-
-        <Text size="xsmall" className="text-ui-fg-subtle mt-2">
-          La prioridad domina el orden; el reordenamiento solo ajusta <code className="font-mono">sort_order</code>{" "}
-          dentro de la misma prioridad. Si varios banners coinciden, el storefront muestra primero la
-          prioridad más alta.
+        <Text size="xsmall" className="text-ui-fg-subtle mt-3">
+          Subir/Bajar reordena la vista; si cambia de prioridad, se intercambian las prioridades.
         </Text>
+
+        {showStats && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Badge size="small" color="grey" data-testid="banner-stat-total">
+              Total {stats.total}
+            </Badge>
+            <Badge size="small" color="green" data-testid="banner-stat-published">
+              Publicados {stats.published}
+            </Badge>
+            <Badge size="small" color="blue" data-testid="banner-stat-active">
+              Activos ahora {stats.active}
+            </Badge>
+            <Badge size="small" color="purple" data-testid="banner-stat-scheduled">
+              Programados {stats.scheduled}
+            </Badge>
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              {filtersActive ? `${filtered.length} de ${items.length} visibles` : "Sin filtros activos"}
+            </Text>
+          </div>
+        )}
+
+        {showDescription && (
+          <Text size="xsmall" className="text-ui-fg-subtle mt-2">
+            La prioridad más alta se muestra primero en el storefront. Subir/Bajar mueve el banner
+            dentro de la vista; si el banner de al lado tiene otra prioridad, se intercambian.
+          </Text>
+        )}
       </Container>
 
       <Container className="p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <Heading level="h2">Banners</Heading>
+          <Heading level={listHeadingLevel}>Banners</Heading>
           {!loading && (
             <Text size="small" className="text-ui-fg-subtle">
               {filtered.length} de {items.length}
@@ -635,7 +759,7 @@ export const BannerManager = ({
             <Photo aria-hidden className="text-ui-fg-muted mx-auto h-8 w-8" />
             <Text className="mt-3">Aún no hay banners.</Text>
             <Text size="small" className="text-ui-fg-subtle mt-1">
-              Crea el primero para el modal de portada o para la franja bajo el logo.
+              Crea el primero para el modal de entrada o para el banner bajo el logo.
             </Text>
             <Button className="mt-4" size="small" onClick={startCreate}>
               Crear el primer banner
@@ -650,23 +774,25 @@ export const BannerManager = ({
           </div>
         ) : (
           <ul
-            className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
             aria-label="Banners"
           >
             {filtered.map((banner) => {
               const state = windowState(banner, now)
               const title = banner.translations.es.title
               const imageUrl = banner.media_file_id ? mediaUrls[banner.media_file_id] : null
-              const position = items.findIndex((item) => item.id === banner.id)
+              const position = filtered.findIndex((item) => item.id === banner.id)
               const busy = busyId === banner.id
+              const canMoveUp = position > 0
+              const canMoveDown = position >= 0 && position < filtered.length - 1
 
               return (
                 <li
                   key={banner.id}
                   data-testid={`banner-card-${banner.id}`}
-                  className="border-ui-border-base bg-ui-bg-base flex min-w-0 flex-col overflow-hidden rounded-lg border"
+                  className="jovy-container flex min-w-0 flex-col rounded-md border border-ui-border-base bg-ui-bg-base p-3 shadow-elevation-card-rest"
                 >
-                  <div className="bg-ui-bg-subtle border-ui-border-base relative aspect-[16/10] overflow-hidden border-b">
+                  <div className="relative mb-3 aspect-[16/9] overflow-hidden rounded bg-ui-bg-subtle">
                     {imageUrl ? (
                       <img
                         src={imageUrl}
@@ -682,40 +808,26 @@ export const BannerManager = ({
                         </Text>
                       </div>
                     )}
-                    <Badge
-                      size="2xsmall"
-                      color={banner.slot === "promo" ? "purple" : "blue"}
-                      className="absolute left-2 top-2"
-                    >
-                      {SLOT_LABEL[banner.slot]}
-                    </Badge>
                   </div>
 
-                  <div className="flex flex-1 flex-col gap-y-3 p-4">
-                    <div className="min-w-0">
-                      <Text weight="plus" className="line-clamp-2">
-                        {title || "Sin título"}
-                      </Text>
-                      <Text size="xsmall" className="text-ui-fg-subtle mt-0.5 line-clamp-1">
-                        {banner.translations.en.title || "Sin título EN"}
-                      </Text>
-                    </div>
-
+                  <div className="flex min-w-0 flex-1 flex-col gap-y-2">
                     <div className="flex flex-wrap gap-1.5">
-                      <Badge size="2xsmall" color={STATUS_COLOR[banner.status]}>
+                      <Badge color={banner.slot === "promo" ? "purple" : "blue"}>
+                        {SLOT_LABEL[banner.slot]}
+                      </Badge>
+                      <Badge color={STATUS_COLOR[banner.status]}>
                         {STATUS_LABEL[banner.status]}
                       </Badge>
-                      <Badge size="2xsmall" color={banner.enabled ? "green" : "grey"}>
-                        {banner.enabled ? "Habilitado" : "Deshabilitado"}
-                      </Badge>
-                      <Badge size="2xsmall" color={WINDOW_COLOR[state]} data-testid={`banner-window-${banner.id}`}>
+                      <Badge color={WINDOW_COLOR[state]} data-testid={`banner-window-${banner.id}`}>
                         {WINDOW_LABEL[state]}
                       </Badge>
-                      {banner.slot === "promo" && (
-                        <Badge size="2xsmall" color={banner.auto_open ? "purple" : "grey"}>
-                          {banner.auto_open ? "Auto-apertura" : "Sin auto-apertura"}
-                        </Badge>
-                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <h3 className="truncate font-medium">{title || "Sin título"}</h3>
+                      <Text size="xsmall" className="text-ui-fg-subtle line-clamp-1">
+                        {banner.translations.en.title || "Sin título EN"}
+                      </Text>
                     </div>
 
                     {banner.translations.es.description && (
@@ -724,38 +836,51 @@ export const BannerManager = ({
                       </Text>
                     )}
 
-                    <dl className="text-xs text-ui-fg-subtle grid grid-cols-2 gap-x-3 gap-y-1">
-                      <div>
-                        <dt className="inline">Prioridad: </dt>
-                        <dd className="inline font-medium">
-                          {banner.priority} ({priorityLabel(banner.priority)})
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="inline">Orden: </dt>
-                        <dd className="inline font-medium">{banner.sort_order}</dd>
-                      </div>
-                      {banner.slot === "promo" && (
-                        <div className="col-span-2">
-                          <dt className="inline">Frecuencia: </dt>
-                          <dd className="inline font-medium">{FREQUENCY_LABEL[banner.frequency]}</dd>
-                        </div>
-                      )}
-                      <div className="col-span-2">
-                        <dt className="inline">Ventana: </dt>
-                        <dd className="inline font-medium">
-                          {formatDate(banner.starts_at)} → {formatDate(banner.ends_at)}
-                        </dd>
-                      </div>
-                      {banner.cta_url && (
-                        <div className="col-span-2 min-w-0">
-                          <dt className="inline">CTA: </dt>
-                          <dd className="inline truncate font-mono">{banner.cta_url}</dd>
-                        </div>
-                      )}
-                    </dl>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      {`Prioridad ${banner.priority} (${priorityLabel(banner.priority)}) · Orden ${banner.sort_order} · ${vigenciaLabel(banner)}`}
+                    </Text>
 
-                    <div className="mt-auto flex flex-wrap items-center gap-1.5">
+                    <details className="jovy-card-details">
+                      <summary className="text-ui-fg-subtle w-fit cursor-pointer text-xs">Detalles</summary>
+                      <dl className="text-ui-fg-subtle mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                        <div className="col-span-2">
+                          <dt className="inline">Duración: </dt>
+                          <dd className="inline font-medium">{banner.rotation_seconds ?? ROTATION_DEFAULT} s</dd>
+                        </div>
+                        {banner.slot === "promo" && (
+                          <div className="col-span-2">
+                            <dt className="inline">Frecuencia: </dt>
+                            <dd className="inline font-medium">{FREQUENCY_LABEL[banner.frequency]}</dd>
+                          </div>
+                        )}
+                        <div className="col-span-2">
+                          <dt className="inline">Ventana: </dt>
+                          <dd className="inline font-medium">
+                            {formatDate(banner.starts_at)} → {formatDate(banner.ends_at)}
+                          </dd>
+                        </div>
+                        {banner.cta_url && (
+                          <div className="col-span-2 min-w-0">
+                            <dt className="inline">CTA: </dt>
+                            <dd className="inline truncate font-mono">{banner.cta_url}</dd>
+                          </div>
+                        )}
+                        {banner.slot === "promo" && (
+                          <div>
+                            <dt className="inline">Auto-apertura: </dt>
+                            <dd className="inline font-medium">{banner.auto_open ? "Sí" : "No"}</dd>
+                          </div>
+                        )}
+                        <div>
+                          <dt className="inline">Estado: </dt>
+                          <dd className="inline font-medium">
+                            {banner.enabled ? "Habilitado" : "Deshabilitado"}
+                          </dd>
+                        </div>
+                      </dl>
+                    </details>
+
+                    <div className="jovy-actions jovy-actions--end-danger mt-auto flex flex-wrap gap-2 border-t border-ui-border-base pt-3">
                       <Button
                         size="small"
                         variant="secondary"
@@ -791,48 +916,51 @@ export const BannerManager = ({
                         </Button>
                       )}
 
-                      <Button
-                        size="small"
-                        variant="secondary"
-                        aria-label={`Archivar ${title}`}
-                        disabled={busy || reordering || banner.status === "archived"}
-                        onClick={() => void changeStatus(banner, "archived")}
-                      >
-                        Archivar
-                      </Button>
-
-                      <div className="ml-auto flex items-center gap-1">
-                        <Button
-                          size="small"
-                          variant="secondary"
-                          aria-label={`Subir ${title}`}
-                          disabled={busy || reordering || position <= 0}
-                          onClick={() => void move(banner, -1)}
-                        >
-                          <ArrowUpMini />
-                          Subir
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="secondary"
-                          aria-label={`Bajar ${title}`}
-                          disabled={busy || reordering || position === items.length - 1}
-                          onClick={() => void move(banner, 1)}
-                        >
-                          <ArrowDownMini />
-                          Bajar
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="danger"
-                          aria-label={`Eliminar ${title}`}
-                          disabled={busy || reordering}
-                          onClick={() => void remove(banner)}
-                        >
-                          <Trash />
-                          Eliminar
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenu.Trigger asChild>
+                          <Button
+                            size="small"
+                            variant="secondary"
+                            aria-label={`Más acciones para ${title}`}
+                            data-testid={`banner-actions-${banner.id}`}
+                            disabled={busy || reordering}
+                          >
+                            Más
+                          </Button>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Content align="end">
+                          <DropdownMenu.Item
+                            aria-label={`Archivar ${title}`}
+                            disabled={busy || reordering || banner.status === "archived"}
+                            onSelect={() => void changeStatus(banner, "archived")}
+                          >
+                            Archivar
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item
+                            aria-label={`Subir ${title}`}
+                            disabled={busy || reordering || !canMoveUp}
+                            onSelect={() => void move(banner, -1)}
+                          >
+                            Subir
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item
+                            aria-label={`Bajar ${title}`}
+                            disabled={busy || reordering || !canMoveDown}
+                            onSelect={() => void move(banner, 1)}
+                          >
+                            Bajar
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Separator />
+                          <DropdownMenu.Item
+                            className="text-ui-fg-error"
+                            aria-label={`Eliminar ${title}`}
+                            disabled={busy || reordering}
+                            onSelect={() => void remove(banner)}
+                          >
+                            Eliminar
+                          </DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </li>
@@ -858,6 +986,7 @@ type FieldErrors = Partial<
     | "ctaUrl"
     | "startsAt"
     | "endsAt"
+    | "rotationSeconds"
     | "priority"
     | "sortOrder",
     string
@@ -876,6 +1005,7 @@ const FIELD_ORDER: Array<keyof FieldErrors> = [
   "ctaUrl",
   "startsAt",
   "endsAt",
+  "rotationSeconds",
   "priority",
   "sortOrder",
 ]
@@ -892,6 +1022,7 @@ const FIELD_ID: Record<keyof FieldErrors, string> = {
   ctaUrl: "banner-cta-url",
   startsAt: "banner-starts-at",
   endsAt: "banner-ends-at",
+  rotationSeconds: "banner-rotation-seconds",
   priority: "banner-priority",
   sortOrder: "banner-sort-order",
 }
@@ -949,6 +1080,13 @@ function validateDraft(draft: BannerDraft): FieldErrors {
 
   if (!Number.isInteger(draft.priority) || draft.priority < 0 || draft.priority > PRIORITY_MAX) {
     errors.priority = `La prioridad debe ser un entero entre 0 y ${PRIORITY_MAX}.`
+  }
+  if (
+    !Number.isInteger(draft.rotation_seconds) ||
+    draft.rotation_seconds < ROTATION_MIN ||
+    draft.rotation_seconds > ROTATION_MAX
+  ) {
+    errors.rotationSeconds = `La duración en pantalla debe ser un entero entre ${ROTATION_MIN} y ${ROTATION_MAX} segundos.`
   }
   if (!Number.isInteger(draft.sort_order) || draft.sort_order < 0) {
     errors.sortOrder = "El orden debe ser un entero mayor o igual a 0."
@@ -1056,6 +1194,19 @@ const BannerForm = ({ initial, defaultSlot, saving, error, onCancel, onSubmit }:
       auto_open: slot === "promo" ? current.auto_open : false,
       frequency: slot === "promo" ? current.frequency : "every",
     }))
+  }
+
+  /**
+   * Presets de vigencia. Escriben las mismas fechas locales que edita el
+   * usuario (minuto exacto, como los inputs `datetime-local`).
+   */
+  const applyDatePreset = (days: number) => {
+    const start = new Date()
+    const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000)
+    update({
+      starts_at: toIso(toDateTimeLocal(start.toISOString())),
+      ends_at: toIso(toDateTimeLocal(end.toISOString())),
+    })
   }
 
   const submit = () => {
@@ -1210,29 +1361,69 @@ const BannerForm = ({ initial, defaultSlot, saving, error, onCancel, onSubmit }:
                 Distribución y activación
               </Heading>
               <Text size="xsmall" className="text-ui-fg-subtle mt-1">
-                El slot decide dónde aparece; la prioridad domina el orden de presentación.
+                La ubicación decide dónde aparece; la prioridad domina el orden de presentación.
               </Text>
             </div>
 
             <div className="flex flex-col gap-y-1">
               <label htmlFor="banner-slot" className={labelClass}>
-                Slot Banner
+                ¿Dónde aparece?
               </label>
               <select
                 id="banner-slot"
-                aria-label="Slot Banner"
+                aria-label="¿Dónde aparece?"
                 className={selectClass}
                 value={draft.slot}
                 onChange={(event) => setSlot(event.target.value as Slot)}
               >
-                <option value="promo">Promo (modal de portada)</option>
-                <option value="hint">Hint (franja bajo el logo)</option>
+                <option value="hint">Bajo el logo (fijo)</option>
+                <option value="promo">Modal de entrada</option>
               </select>
               <Text size="xsmall" className="text-ui-fg-subtle">
                 {draft.slot === "promo"
-                  ? "El modal se abre automáticamente si está publicado, habilitado, en ventana y con auto-apertura."
-                  : "El hint solo muestra su imagen y texto; no abre modal."}
+                  ? "El modal se abre solo si está publicado, habilitado, dentro de sus fechas y con apertura automática."
+                  : "El banner bajo el logo siempre está visible en la portada mientras esté publicado y habilitado."}
               </Text>
+            </div>
+
+            <div className="flex flex-col gap-y-1">
+              <label htmlFor="banner-rotation-seconds" className={labelClass}>
+                Duración en pantalla
+              </label>
+              <select
+                id="banner-rotation-seconds"
+                aria-label="Duración en pantalla"
+                className={selectClass}
+                aria-invalid={Boolean(visibleErrors.rotationSeconds)}
+                aria-describedby={
+                  visibleErrors.rotationSeconds ? "banner-rotation-seconds-error" : undefined
+                }
+                value={String(draft.rotation_seconds)}
+                onChange={(event) => update({ rotation_seconds: Number(event.target.value) })}
+              >
+                {/* Si el valor persistido no es un preset, se conserva como opción para no perderlo. */}
+                {Array.from(new Set([...ROTATION_PRESETS, draft.rotation_seconds]))
+                  .sort((a, b) => a - b)
+                  .map((seconds) => (
+                    <option key={seconds} value={String(seconds)}>
+                      {seconds} s
+                    </option>
+                  ))}
+              </select>
+              {visibleErrors.rotationSeconds ? (
+                <Text
+                  id="banner-rotation-seconds-error"
+                  role="alert"
+                  size="xsmall"
+                  className="text-ui-fg-error"
+                >
+                  {visibleErrors.rotationSeconds}
+                </Text>
+              ) : (
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  Se usa cuando hay más de un anuncio en este lugar; con uno solo no rota.
+                </Text>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -1324,7 +1515,7 @@ const BannerForm = ({ initial, defaultSlot, saving, error, onCancel, onSubmit }:
                   <div>
                     <span className="text-sm font-medium">Apertura automática</span>
                     <Text size="xsmall" className="text-ui-fg-subtle">
-                      Solo para el slot promo. El storefront abre el modal a los ~700 ms.
+                      Solo para el modal. El storefront lo abre a los ~700 ms.
                     </Text>
                   </div>
                   <Switch
@@ -1346,12 +1537,13 @@ const BannerForm = ({ initial, defaultSlot, saving, error, onCancel, onSubmit }:
                     value={draft.frequency}
                     onChange={(event) => update({ frequency: event.target.value as Frequency })}
                   >
-                    <option value="every">Cada visita</option>
+                    <option value="every">Cada recarga completa</option>
                     <option value="session">Una vez por sesión</option>
-                    <option value="daily">Una vez por día</option>
+                    <option value="daily">Una vez al día</option>
+                    <option value="once">Una vez por navegador</option>
                   </select>
                   <Text size="xsmall" className="text-ui-fg-subtle">
-                    La frecuencia limita las reaperturas del modal, no la publicación.
+                    La frecuencia controla cuándo se vuelve a abrir el modal, no si está publicado.
                   </Text>
                 </div>
               </div>
@@ -1549,9 +1741,44 @@ const BannerForm = ({ initial, defaultSlot, saving, error, onCancel, onSubmit }:
                 Programación
               </Heading>
               <Text size="xsmall" className="text-ui-fg-subtle mt-1">
-                Opcional. Se guarda en UTC; el formulario usa tu hora local. Deja la fecha de fin
-                vacía para no limitar la vigencia.
+                Opcional. Se guarda en UTC; el formulario usa tu hora local. Sin fechas, permanece
+                hasta que lo desactives.
               </Text>
+            </div>
+
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Presets de vigencia">
+              <Button
+                type="button"
+                size="small"
+                variant="secondary"
+                onClick={() => update({ starts_at: null, ends_at: null })}
+              >
+                Permanente
+              </Button>
+              <Button
+                type="button"
+                size="small"
+                variant="secondary"
+                onClick={() => applyDatePreset(7)}
+              >
+                1 semana
+              </Button>
+              <Button
+                type="button"
+                size="small"
+                variant="secondary"
+                onClick={() => applyDatePreset(14)}
+              >
+                2 semanas
+              </Button>
+              <Button
+                type="button"
+                size="small"
+                variant="secondary"
+                onClick={() => document.getElementById("banner-starts-at")?.focus()}
+              >
+                Personalizado
+              </Button>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1596,7 +1823,7 @@ const BannerForm = ({ initial, defaultSlot, saving, error, onCancel, onSubmit }:
             </div>
 
             <Text size="xsmall" className="text-ui-fg-subtle">
-              Ventana actual: {formatDate(draft.starts_at)} → {formatDate(draft.ends_at)}.
+              Vigencia: {vigenciaLabel(draft)}
             </Text>
           </section>
         </div>

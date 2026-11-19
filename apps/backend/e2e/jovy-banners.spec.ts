@@ -60,6 +60,7 @@ async function adminBanners(request: APIRequestContext, headers: Record<string, 
     media_file_id: string | null
     auto_open: boolean
     frequency: string
+    rotation_seconds: number
     priority: number
     cta_url: string | null
     starts_at: string | null
@@ -90,8 +91,31 @@ function localInput(date: Date) {
 }
 
 async function openBanners(page: Page) {
-  await page.goto("/app/jovy-herramientas/marketing?tab=banners&slot=promo")
-  await expect(page.getByRole("heading", { name: "Banners y promociones" })).toBeVisible()
+  await page.goto("/app/jovy/announcements")
+  await expect(page.getByRole("heading", { name: "Anuncios de portada", level: 1 })).toBeVisible()
+}
+
+/**
+ * Abre el menú «Más» de una tarjeta y ejecuta una acción secundaria por su nombre accesible.
+ *
+ * El disparador queda deshabilitado mientras hay una mutación o un reordenamiento en curso,
+ * así que primero se espera a que esté habilitado y luego a que el ítem del menú esté visible.
+ * Con `confirmText` confirma el diálogo que abra la acción, como el intercambio de
+ * prioridades al subir un banner sobre otro de prioridad distinta.
+ */
+async function clickBannerMoreAction(page: Page, id: string, name: string, confirmText?: string) {
+  const trigger = page.getByTestId(`banner-actions-${id}`)
+  await expect(trigger).toBeEnabled()
+  await trigger.click()
+  const item = page.getByRole("menuitem", { name, exact: true })
+  await expect(item).toBeVisible()
+  await item.click()
+  if (confirmText) {
+    const dialog = page.getByRole("alertdialog")
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole("button", { name: confirmText }).click()
+    await expect(dialog).toBeHidden()
+  }
 }
 
 test("publica Banners por slot con prioridad, frecuencia, CTA y ventana UTC deterministas", async ({ request }) => {
@@ -126,7 +150,8 @@ test("publica Banners por slot con prioridad, frecuencia, CTA y ventana UTC dete
     const future = await createBanner(request, headers, bannerInput(`${prefix}-future`, { priority: 100, starts_at: new Date(now + 3_600_000).toISOString() }))
     const expired = await createBanner(request, headers, bannerInput(`${prefix}-expired`, { priority: 100, ends_at: new Date(now - 3_600_000).toISOString() }))
     const hint = await createBanner(request, headers, bannerInput(`${prefix}-hint`, { slot: "hint", priority: 100 }))
-    created.push(promoP1.id, promoP2.id, promoP3.id, draft.id, archived.id, future.id, expired.id, hint.id)
+    const once = await createBanner(request, headers, bannerInput(`${prefix}-once`, { frequency: "once" }))
+    created.push(promoP1.id, promoP2.id, promoP3.id, draft.id, archived.id, future.id, expired.id, hint.id, once.id)
 
     const promo = await storeBanners(request, "promo")
     const ownPromoIds = new Set([promoP1.id, promoP2.id, promoP3.id])
@@ -139,10 +164,18 @@ test("publica Banners por slot con prioridad, frecuencia, CTA y ventana UTC dete
     expect(promo.map((banner) => banner.id)).not.toContain(hint.id)
 
     const publicP1 = promo.find((banner) => banner.id === promoP1.id)!
-    expect(publicP1).toMatchObject({ auto_open: true, frequency: "daily", priority: 5, sort_order: 5, cta_url: "https://example.com/promo" })
+    expect(publicP1).toMatchObject({ auto_open: true, frequency: "daily", rotation_seconds: 8, priority: 5, sort_order: 5, cta_url: "https://example.com/promo" })
     expect(publicP1).not.toHaveProperty("status")
     expect(publicP1).not.toHaveProperty("slot")
     expect(publicP1).not.toHaveProperty("starts_at")
+
+    // Frecuencia «once» y rotación viajan al Admin y al contrato público.
+    expect((await adminBanners(request, headers)).find((banner) => banner.id === once.id)?.frequency).toBe("once")
+    expect((await storeBanners(request, "promo")).find((banner) => banner.id === once.id)).toMatchObject({ frequency: "once", rotation_seconds: 8 })
+
+    expect((await request.put(`/admin/jovy/marketing/banners/${once.id}`, { headers, data: { rotation_seconds: 15 } })).status()).toBe(200)
+    expect((await adminBanners(request, headers)).find((banner) => banner.id === once.id)?.rotation_seconds).toBe(15)
+    expect((await storeBanners(request, "promo")).find((banner) => banner.id === once.id)?.rotation_seconds).toBe(15)
 
     expect((await storeBanners(request, "hint")).map((banner) => banner.id)).toContain(hint.id)
 
@@ -158,7 +191,7 @@ test("publica Banners por slot con prioridad, frecuencia, CTA y ventana UTC dete
   }
 })
 
-test("administra banners promo desde el sidebar con preview, fechas, frecuencia, filtros y confirmaciones", async ({
+test("administra anuncios de portada desde el sidebar con preview, fechas, frecuencia, filtros y confirmaciones", async ({
   page,
   request,
 }) => {
@@ -175,33 +208,42 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
 
     await page.goto("/app/jovy")
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible()
-    // Marketing vive en el grupo hermano «JovyCandy · Herramientas».
+    // Los dos tipos de anuncio se administran en una sola pantalla del sidebar.
     await page
       .getByRole("navigation")
       .first()
-      .getByRole("link", { name: "JovyCandy · Herramientas", exact: true })
+      .getByRole("link", { name: "Anuncios de portada", exact: true })
       .click()
-    await page
-      .getByRole("navigation")
-      .first()
-      .getByRole("link", { name: "Marketing Jovy", exact: true })
-      .click()
-    await expect(page.getByRole("heading", { name: "Hero corporativo" })).toBeVisible()
-    await page.getByRole("button", { name: "Banners", exact: true }).click()
-    await expect(page.getByRole("heading", { name: "Banners y promociones" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Anuncios de portada", level: 1 })).toBeVisible()
 
     await page.getByRole("button", { name: "Nuevo banner" }).click()
     await expect(page.getByRole("heading", { name: "Nuevo banner" })).toBeVisible()
 
-    // La frecuencia y la auto-apertura existen solo para el slot promo.
+    // La frecuencia, la apertura automática y la rotación existen solo para el modal.
     await expect(page.getByLabel("Frecuencia Banner")).toBeVisible()
     await expect(page.getByLabel("Apertura automática")).toBeVisible()
-    await page.getByLabel("Slot Banner").selectOption("hint")
+    await expect(page.getByLabel("¿Dónde aparece?")).toHaveValue("promo")
+    // La duración en pantalla arranca en 8 s y la frecuencia incluye «once».
+    await expect(page.getByLabel("Duración en pantalla")).toHaveValue("8")
+    await expect(page.getByLabel("Frecuencia Banner").locator('option[value="once"]')).toHaveText(
+      "Una vez por navegador",
+    )
+    await page.getByLabel("¿Dónde aparece?").selectOption("hint")
     await expect(page.getByLabel("Frecuencia Banner")).toBeHidden()
     await expect(page.getByLabel("Apertura automática")).toBeHidden()
-    await page.getByLabel("Slot Banner").selectOption("promo")
+    await page.getByLabel("¿Dónde aparece?").selectOption("promo")
     await expect(page.getByLabel("Frecuencia Banner")).toBeVisible()
     await expect(page.getByLabel("Apertura automática")).toBeVisible()
+
+    // Preset de vigencia: 1 semana rellena inicio y fin y «Permanente» los limpia.
+    await page.getByRole("button", { name: "1 semana" }).click()
+    const presetStart = await page.getByLabel("Inicio Banner").inputValue()
+    const presetEnd = await page.getByLabel("Fin Banner").inputValue()
+    expect(presetStart).not.toBe("")
+    expect(new Date(presetEnd).getTime()).toBeGreaterThan(new Date(presetStart).getTime())
+    await page.getByRole("button", { name: "Permanente" }).click()
+    await expect(page.getByLabel("Inicio Banner")).toHaveValue("")
+    await expect(page.getByLabel("Fin Banner")).toHaveValue("")
 
     await page.getByLabel("Banner título es").fill(titleA)
     await page.getByLabel("Banner título en").fill(`EN ${titleA}`)
@@ -210,6 +252,7 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
     await page.getByLabel("Banner descripción es").fill("Descripción del banner A")
     await page.getByLabel("CTA Banner").fill("/promo")
     await page.getByLabel("Frecuencia Banner").selectOption("session")
+    await page.getByLabel("Duración en pantalla").selectOption("15")
     await page.getByLabel("Apertura automática").click()
     await expect(page.getByLabel("Apertura automática")).toHaveAttribute("aria-checked", "true")
     await page.getByLabel("Prioridad Banner").fill("990")
@@ -240,12 +283,12 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
     await expect(page.getByAltText("Vista previa del banner")).toHaveAttribute("src", /\/static\//)
 
     await page.getByRole("button", { name: "Crear Banner" }).click()
-    await expect(page.getByRole("heading", { name: "Banners y promociones" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Banners", level: 3 })).toBeVisible()
 
     const createdA = (await adminBanners(request, headers)).find((banner) => banner.translations.es.title === titleA)
     expect(createdA).toBeTruthy()
     createdIds.push(createdA!.id)
-    expect(createdA).toMatchObject({ status: "draft", auto_open: true, frequency: "session", priority: 990, cta_url: "/promo" })
+    expect(createdA).toMatchObject({ status: "draft", auto_open: true, frequency: "session", rotation_seconds: 15, priority: 990, cta_url: "/promo" })
     expect(createdA!.media_file_id).toContain("jovy-marketing-")
     expect(new Date(createdA!.starts_at!).getTime()).toBe(Math.floor(start.getTime() / 60_000) * 60_000)
     expect(new Date(createdA!.ends_at!).getTime()).toBe(Math.floor(end.getTime() / 60_000) * 60_000)
@@ -277,7 +320,7 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
     await page.getByLabel("Frecuencia Banner").selectOption("daily")
     await page.getByLabel("Fin Banner").fill(localInput(new Date(now.getTime() + 10_800_000)))
     await page.getByRole("button", { name: "Guardar cambios" }).click()
-    await expect(page.getByRole("heading", { name: "Banners y promociones" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Banners", level: 3 })).toBeVisible()
     await expect(page.getByTestId(`banner-card-${createdA!.id}`).getByText(editedTitle)).toBeVisible()
     await expect
       .poll(async () => (await storeBanners(request, "promo")).find((banner) => banner.id === createdA!.id)?.translations.es.title)
@@ -297,9 +340,14 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
     await page.getByLabel("Filtro por estado").selectOption("archived")
     await expect(page.getByTestId(`banner-card-${createdA!.id}`)).toBeHidden()
     await page.getByRole("button", { name: "Limpiar filtros" }).first().click()
-    await page.getByLabel("Filtro por slot").selectOption("hint")
+    // «¿Dónde aparece?» arranca en Todos y filtra por ubicación.
+    await expect(page.getByLabel("¿Dónde aparece?")).toHaveValue("all")
+    await page.getByLabel("¿Dónde aparece?").selectOption("hint")
     await expect(page.getByTestId(`banner-card-${createdA!.id}`)).toBeHidden()
+    await page.getByLabel("¿Dónde aparece?").selectOption("promo")
+    await expect(page.getByTestId(`banner-card-${createdA!.id}`)).toBeVisible()
     await page.getByRole("button", { name: "Limpiar filtros" }).first().click()
+    await expect(page.getByLabel("¿Dónde aparece?")).toHaveValue("all")
     await expect(page.getByTestId(`banner-card-${createdA!.id}`)).toBeVisible()
 
     // Reordenar dentro de la misma prioridad (sort_order), visible en el Admin.
@@ -308,17 +356,17 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
       return banners.filter((banner) => banner.id === createdA!.id || banner.id === bannerB.id).map((banner) => banner.id)
     }
     expect(await ownOrder()).toEqual([createdA!.id, bannerB.id])
-    await page.getByRole("button", { name: `Subir ${titleB}` }).click()
+    await clickBannerMoreAction(page, bannerB.id, `Subir ${titleB}`)
     await expect.poll(ownOrder).toEqual([bannerB.id, createdA!.id])
 
     // Cancelar una confirmación no persiste ningún cambio.
-    await page.getByRole("button", { name: `Archivar ${editedTitle}` }).click()
+    await clickBannerMoreAction(page, createdA!.id, `Archivar ${editedTitle}`)
     await expect(page.getByRole("alertdialog")).toBeVisible()
     await page.getByRole("alertdialog").getByRole("button", { name: "Cancelar" }).click()
     expect((await adminBanners(request, headers)).find((banner) => banner.id === createdA!.id)?.status).toBe("published")
     expect((await storeBanners(request, "promo")).some((banner) => banner.id === createdA!.id)).toBe(true)
 
-    await page.getByRole("button", { name: `Eliminar ${editedTitle}` }).click()
+    await clickBannerMoreAction(page, createdA!.id, `Eliminar ${editedTitle}`)
     await expect(page.getByRole("alertdialog")).toBeVisible()
     // Escape cancela el diálogo sin ejecutar la acción (foco atrapado por Medusa).
     await page.getByRole("alertdialog").press("Escape")
@@ -328,11 +376,11 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
     await cardA.screenshot({ path: screenshotPath("08-banner-card.png") })
 
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.getByRole("heading", { name: "Banners y promociones" }).scrollIntoViewIfNeeded()
+    await page.getByRole("heading", { name: "Anuncios de portada", level: 1 }).scrollIntoViewIfNeeded()
     await page.screenshot({ path: screenshotPath("04-banners-1440.png"), fullPage: true })
 
     // Archivar con confirmación y comprobar que Store deja de servirlo.
-    await page.getByRole("button", { name: `Archivar ${editedTitle}` }).click()
+    await clickBannerMoreAction(page, createdA!.id, `Archivar ${editedTitle}`)
     await page.getByRole("alertdialog").getByRole("button", { name: "Archivar banner" }).click()
     await expect(page.getByTestId(`banner-window-${createdA!.id}`)).toHaveText("Inactivo")
     await expect
@@ -341,15 +389,15 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
     await expect.poll(async () => (await storeBanners(request, "promo")).some((banner) => banner.id === createdA!.id)).toBe(false)
 
     await page.setViewportSize({ width: 375, height: 812 })
-    await page.getByRole("heading", { name: "Banners y promociones" }).scrollIntoViewIfNeeded()
-    await expect(page.getByRole("heading", { name: "Banners y promociones" })).toBeVisible()
+    await page.getByRole("heading", { name: "Banners", level: 3 }).scrollIntoViewIfNeeded()
+    await expect(page.getByRole("heading", { name: "Banners", level: 3 })).toBeVisible()
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     expect(overflow).toBeLessThanOrEqual(1)
     await page.screenshot({ path: screenshotPath("05-banners-375.png"), fullPage: true })
 
     // Eliminar con confirmación y cleanup de las fixtures restantes.
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.getByRole("button", { name: `Eliminar ${editedTitle}` }).click()
+    await clickBannerMoreAction(page, createdA!.id, `Eliminar ${editedTitle}`)
     await page.getByRole("alertdialog").getByRole("button", { name: "Eliminar banner" }).click()
     await expect(page.getByTestId(`banner-card-${createdA!.id}`)).toHaveCount(0)
     expect((await adminBanners(request, headers)).some((banner) => banner.id === createdA!.id)).toBe(false)
@@ -367,5 +415,50 @@ test("administra banners promo desde el sidebar con preview, fechas, frecuencia,
   } finally {
     for (const id of createdIds) await request.delete(`/admin/jovy/marketing/banners/${id}`, { headers })
     await cleanupBanners(request, headers, "e2e-banner-ui")
+  }
+})
+
+test("sube un banner sobre otro de prioridad distinta intercambiando prioridades", async ({ page, request }) => {
+  const problems = collectPageProblems(page)
+  const headers = await signIn(page, request)
+  const prefix = unique("e2e-banner-order")
+  const highTitle = `${prefix}-alta`
+  const lowTitle = `${prefix}-baja`
+  const createdIds: string[] = []
+
+  try {
+    const high = await createBanner(request, headers, bannerInput(highTitle, { priority: 10, sort_order: 0 }))
+    const low = await createBanner(request, headers, bannerInput(lowTitle, { priority: 5, sort_order: 1 }))
+    createdIds.push(high.id, low.id)
+
+    await openBanners(page)
+    // La búsqueda deja solo estos dos banners en la vista: el orden es determinista.
+    await page.getByLabel("Buscar banners").fill(prefix)
+
+    const cardOrder = () =>
+      page
+        .locator('ul[aria-label="Banners"] > li')
+        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")))
+
+    const priorities = async () => {
+      const banners = await adminBanners(request, headers)
+      return [high.id, low.id].map((id) => banners.find((banner) => banner.id === id)?.priority)
+    }
+
+    await expect(page.getByTestId(`banner-card-${high.id}`)).toBeVisible()
+    await expect.poll(cardOrder).toEqual([`banner-card-${high.id}`, `banner-card-${low.id}`])
+    expect(await priorities()).toEqual([10, 5])
+
+    // Subir cruza una prioridad distinta: se confirma el intercambio y el movimiento se ve.
+    await clickBannerMoreAction(page, low.id, `Subir ${lowTitle}`, "Intercambiar prioridades")
+    await expect.poll(priorities).toEqual([5, 10])
+    await expect.poll(cardOrder).toEqual([`banner-card-${low.id}`, `banner-card-${high.id}`])
+    await expect(page.getByTestId(`banner-card-${low.id}`).getByText(/Prioridad 10 \(Alta\)/)).toBeVisible()
+    await expect(page.getByTestId(`banner-card-${high.id}`).getByText(/Prioridad 5 \(Alta\)/)).toBeVisible()
+
+    expect(problems).toEqual([])
+  } finally {
+    for (const id of createdIds) await request.delete(`/admin/jovy/marketing/banners/${id}`, { headers })
+    await cleanupBanners(request, headers, prefix)
   }
 })

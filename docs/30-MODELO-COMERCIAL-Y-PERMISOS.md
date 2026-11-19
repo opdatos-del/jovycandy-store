@@ -183,7 +183,7 @@ como credenciales de máquina. **No importar `@medusajs/rbac` sin licencia.**
 
 ## Estado de verificación (2026-11-17)
 
-Regresión final consolidada: `lint` 0, `typecheck` 0, `test:unit` 32 suites / 325 pruebas,
+Regresión final consolidada: `lint` 0, `typecheck` 0, `test:unit` 32 suites / 328 pruebas,
 `test:integration:modules` 6 suites / 37 pruebas, `test:integration:http` 11 suites / 76 pruebas
 (incluye el spec nuevo `commercial-mode.spec.ts` con 6 escenarios, entre ellos el rechazo en
 `completeCart` sin creación de orden), `build` OK y `test:e2e` 29/29 en 4,1 min, ejecutado

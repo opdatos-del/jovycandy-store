@@ -697,9 +697,26 @@
           "enumItems": [
             "every",
             "session",
-            "daily"
+            "daily",
+            "once"
           ],
           "mappedType": "enum"
+        },
+        "rotation_seconds": {
+          "name": "rotation_seconds",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "8",
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "integer"
         },
         "priority": {
           "name": "priority",

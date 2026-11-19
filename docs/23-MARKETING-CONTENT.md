@@ -3,7 +3,7 @@
 ## Estado real
 
 - **Hero: IMPLEMENTADO Y VALIDADO.** La ruta `/app/jovy-herramientas/marketing` permite alta, edición, publicación, despublicación, archivado, borrado físico sin restore, activación, vigencia UTC, orden, CTA, color por elemento, configuración global y producto destacado. La E2E Brave cubre ciclo editorial, media PNG/JPEG/WebP real, persistencia tras recarga, reordenamiento visible en Store y Product Link A→B→null con idempotencia.
-- **Banners: IMPLEMENTADO Y VALIDADO.** La pestaña Banners cubre CRUD, publicación, archivado, borrado físico sin restore, slots `promo`/`hint`, prioridad, orden, programación UTC, frecuencia, `auto_open`, CTA, carga de imagen y contratos HTTP negativos. La E2E Brave verifica cada slot en Store y la exclusión de borradores, archivados y ventanas fuera de vigencia.
+- **Banners: IMPLEMENTADO Y VALIDADO.** Ya no se administran en Marketing: su CRUD vive en **Anuncios de portada** (`/app/jovy/announcements`), que gestiona los dos slots `promo`/`hint` con un selector de lugar. El gestor cubre publicación, archivado, borrado físico sin restore, prioridad, orden, programación UTC, frecuencia, `auto_open`, `rotation_seconds`, CTA, carga de imagen y contratos HTTP negativos. Marketing conserva el Hero, administra el **mensaje corporativo** ES/EN (`CorporateMessagePanel` + `CorporateMessageForm`, texto bajo la animación del Hero) y solo muestra el enlace «Abrir Anuncios de portada». La E2E Brave verifica cada slot en Store y la exclusión de borradores, archivados y ventanas fuera de vigencia; el mensaje corporativo se cubre en `jovy-hero.spec.ts`.
 - **Novedades (eventos): IMPLEMENTADO Y VALIDADO.** La entidad sigue siendo `jovy_event`; «Novedades» es la bandeja multimedia (`/app/jovy/novelties`) y no un contenido nuevo. Admite imagen (PNG/JPEG/WebP ≤ 5 MB por el endpoint existente), GIF y vídeo MP4/WebM (≤ 100 MB por `POST /admin/jovy/events/media/video`). La Store expone `media_type` derivado (`image`/`gif`/`video`/`null`). El CRUD editorial completo continúa en Eventos Jovy.
 
 ## Diseño
@@ -19,7 +19,7 @@ flowchart LR
 ```
 
 - `HeroItem`: contenido ES/EN, estado, activación, orden, programación UTC, CTA, color e imagen opcional.
-- `MarketingBanner`: contenido ES/EN, slots `promo`/`hint`, estado, activación, prioridad, orden, programación UTC, `auto_open` y frecuencia `every`/`session`/`daily`.
+- `MarketingBanner`: contenido ES/EN, slots `promo`/`hint`, estado, activación, prioridad, orden, programación UTC, `auto_open`, `rotation_seconds` (3–60 s) y frecuencia `every`/`session`/`daily`/`once`.
 - `HeroSettings`: color visual global comprobado en el administrador histórico.
 - `MarketingAuditLog`: mutaciones administrativas, sin exposición Store.
 
@@ -52,6 +52,7 @@ La lectura Store de la galería de marca aplica además un tope defensivo de `MA
 | `GET /store/jovy/events` | Store API | Eventos visibles con `media_url` y `media_type` derivado |
 
 Los CTA aceptan solo rutas relativas o URLs `https:`; se bloquean `javascript:` y `data:`.
+Las rutas de banners conservan el prefijo `/admin/jovy/marketing/` por compatibilidad de contrato, aunque su UI se administre desde Anuncios de portada.
 
 ## Marca Jovy: logos, familias y categorías
 
@@ -222,7 +223,7 @@ Consumo por pantalla (cada una elige el endpoint según el tipo):
 | Pantalla | Recurso | Tipo de archivo | Límite efectivo |
 | --- | --- | --- | --- |
 | Marketing → Hero | `jovy_hero_item.media_file_id` | imagen de fondo/arte | PNG/JPEG/WebP ≤ 5 MB |
-| Marketing → Banners | `jovy_marketing_banner.media_file_id` | imagen de banner (`promo`/`hint`) | PNG/JPEG/WebP ≤ 5 MB |
+| Anuncios de portada (banners) | `jovy_marketing_banner.media_file_id` | imagen de banner (`promo`/`hint`) | PNG/JPEG/WebP ≤ 5 MB |
 | Marca Jovy → Galería Casa Jovy | `jovy_gallery_item.media_file_id` | imagen | PNG/JPEG/WebP ≤ 5 MB |
 | Marca Jovy → Logos | `jovy_brand_logo.media_file_id` | imagen con recorte no destructivo (metadatos `crop`) | PNG/JPEG/WebP ≤ 5 MB |
 | Catálogo | `jovy_catalogue_category.image_file_id` | imagen de tarjeta | PNG/JPEG/WebP ≤ 5 MB |
@@ -237,7 +238,7 @@ Ninguna otra pantalla requiere vídeo:
 
 - **Logos** se recortan con `crop` (`zoom`, `offset_x`, `offset_y`) sobre una imagen fija; el
   archivo original nunca se reescribe, así que solo tiene sentido un raster transparente.
-- **Banners y Hero** son imágenes de composición; un vídeo exigiría un `<video>` con póster,
+- **Banners (Anuncios de portada) y Hero** son imágenes de composición; un vídeo exigiría un `<video>` con póster,
   pausa y controles accesibles, y reglas de reproducción automática que hoy no existen.
 - **Galería** limita a cuatro elementos visibles; el peso de un vídeo multiplicaría el costo de
   esa vista sin contrato de reproducción.
@@ -296,7 +297,7 @@ la validación de firma de ninguno de los dos endpoints.
 
 ## Pendientes de prueba
 
-- La frecuencia es un contrato editorial para el futuro storefront; el backend la persiste y expone, pero no afirma comportamiento de presentación sin storefront implementado.
+- La frecuencia y `rotation_seconds` son contratos editoriales para el futuro storefront; el backend los persiste y expone, pero no afirma comportamiento de presentación sin storefront implementado.
 - Los archivos no se borran físicamente al eliminar contenido: sin conteo de referencias global no es seguro eliminar recursos potencialmente compartidos. Las fixtures multimedia de E2E reutilizan archivos existentes o dejan el archivo huérfano a propósito; no se eliminan recursos compartidos.
 - La ventana temporal se evalúa con el reloj UTC del servidor; una prueba con reloj simulado queda cubierta a nivel unitario, no con manipulación del reloj del proceso E2E.
 - La E2E de Novedades usa fixtures reales generados con `ffmpeg` (WebM VP8, MP4 H.264 y GIF) y comprueba reproducción local y persistencia. No sustituye una prueba de streaming por rangos: el proveedor local no los soporta.

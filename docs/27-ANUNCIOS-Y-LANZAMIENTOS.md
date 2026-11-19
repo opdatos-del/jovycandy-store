@@ -12,7 +12,7 @@ Alcance: tres piezas del Admin histórico (`admin-webjovy`) que no existían en 
 | Familias reales (`family_id`) | `jovy_catalogue` (nuevo) | `jovy_product_family` | Module Link con `product.product` |
 | Nuevos lanzamientos | `jovy_launches` (nuevo) | `jovy_launch` + `jovy_launch_settings` | Product Module (solo `product_id`) |
 | Anuncios: modal promo | `jovy_marketing` (existente) | `jovy_marketing_banner` slot `promo` | **Nada nuevo**: el banner ya cubría el modal |
-| Anuncios: mensaje corporativo | `jovy_marketing` (existente) | `jovy_announcement_settings` (nuevo) | — |
+| Anuncios: mensaje corporativo (hoy en Marketing Jovy) | `jovy_marketing` (existente) | `jovy_announcement_settings` (nuevo) | — |
 
 ## 1. Categorías de presentación (`jovy_catalogue`)
 
@@ -127,12 +127,13 @@ El storefront resuelve el producto con `/store/products` a partir de `product_id
 lo incrusta ni comprueba su publicación en cada lectura (sería un N+1 y el contrato se acoplaría
 al canal de venta).
 
-## 3. Anuncios: modal + mensaje corporativo
+## 3. Anuncios de portada (banners) y mensaje corporativo
 
 ### 3.1 Modal promocional: sin tabla nueva
 
 El modal histórico se mapea al banner existente con slot `promo`. **Todos los campos históricos ya
-existían** en `jovy_marketing_banner`; no se agregó ningún campo ni se creó otra tabla de banners.
+existían** en `jovy_marketing_banner`; el contrato solo se amplió de forma aditiva con
+`rotation_seconds` y el valor `once` de `frequency`. No se creó otra tabla de banners.
 
 | Campo histórico | Campo Medusa existente | Notas |
 | --- | --- | --- |
@@ -140,19 +141,30 @@ existían** en `jovy_marketing_banner`; no se agregó ningún campo ni se creó 
 | alt | `translations.es.alt` / `translations.en.alt` | ya obligatorio en el esquema |
 | enabled | `enabled` | — |
 | auto_open | `auto_open` | — |
-| frecuencia `session\|daily\|every` | `frequency` | mismo enum |
+| frecuencia `session\|daily\|every\|once` | `frequency` | mismo enum ampliado; `once` = «una vez por navegador» |
 | ventana programada | `starts_at` / `ends_at` | UTC |
 | prioridad | `priority` | `0..1000`, domina el orden |
 | slot `promo` | `slot` | `promo` \| `hint` |
 | (no existía) | `status`, `sort_order`, `cta_url` | capacidades adicionales del CMS |
+| (no existía) | `rotation_seconds` | duración en pantalla **por banner**; `3..60`, por defecto `8` |
 
 Regla de publicación del modal: `status = published`, `enabled = true` y ventana vigente; se
-consume en `GET /store/jovy/marketing/banners/promo`. No se reconstruyó el CRUD de banners.
+consume en `GET /store/jovy/marketing/banners/promo`. El CRUD no se reconstruyó: los banners se
+gestionan desde el CRUD unificado de Anuncios de portada (`/app/jovy/announcements`), que cubre
+ambos slots con un selector de lugar; Marketing conserva Hero, edita el mensaje corporativo y enlaza
+«Abrir Anuncios de portada».
+
+Orden en el Admin: Subir/Bajar reordena la vista y, al cruzar prioridad, intercambia
+prioridades con confirmación; no cambia `compareBannerOrder` ni el orden del Store.
 
 ### 3.2 Mensaje corporativo con idiomas
 
 En el histórico el texto bajo la animación estaba hardcodeado en i18n y el slot `hint` solo
 contenía una imagen. El requisito nuevo es editar ese texto.
+
+La edición vive en **Marketing Jovy**, bajo el Hero (`CorporateMessagePanel` +
+`CorporateMessageForm`, testid `marketing-corporate-block`, E2E `jovy-hero.spec.ts`); **no** en
+Anuncios de portada, que solo conserva los banners `promo` y `hint`.
 
 `jovy_announcement_settings` (singleton lógico): `corporate_message_es`,
 `corporate_message_en` (ambos nullable), `updated_by`, `created_at`, `updated_at`, `deleted_at`.
@@ -314,9 +326,9 @@ duplica vínculos. Ver `docs/23-MARKETING-CONTENT.md` §«Backfill explícito».
 | `integration-tests/http/catalogue-launches.spec.ts` | HTTP | `401` sin sesión, `400` de validación, `404` de producto/categoría, seed, reorder, familias por categoría con Module Link, Store solo activos, publishable key |
 | `e2e/jovy-catalogue-admin.spec.ts` | E2E Admin | edición de tarjetas, regla «Próximamente», imagen, reorden, vínculo comercial y ocultamiento en Store |
 | `e2e/jovy-launches-admin.spec.ts` | E2E Admin | producto, imagen, orden, visibilidad, color global y rechazo de hex inválido |
-| `e2e/jovy-announcements-admin.spec.ts` | E2E Admin | separación modal/mensaje, persistencia ES/EN, vaciado de un idioma y Store |
+| `e2e/jovy-announcements-admin.spec.ts` | E2E Admin | CRUD de banners de los slots `promo`/`hint` en Anuncios de portada; el mensaje corporativo ES/EN se cubre en `jovy-hero.spec.ts` |
 
-Regresión consolidada final: `lint` 0, `typecheck` 0, `test:unit` 32 suites / 325 pruebas,
+Regresión consolidada final: `lint` 0, `typecheck` 0, `test:unit` 32 suites / 328 pruebas,
 `test:integration:modules` 6 suites / 37 pruebas, `test:integration:http` 11 suites / 76 pruebas,
 `build` OK y `test:e2e` 29 pruebas / 0 fallos en 4,1 min. Los conteos completos viven en
 `docs/21-ESTADO-REESCRITURA-ADMIN.md`.

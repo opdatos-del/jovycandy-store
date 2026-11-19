@@ -50,7 +50,9 @@ const bannerFields = {
   status: editorialStatusSchema,
   enabled: z.boolean(),
   auto_open: z.boolean(),
-  frequency: z.enum(["every", "session", "daily"]),
+  frequency: z.enum(["every", "session", "daily", "once"]),
+  // Duración en pantalla para la rotación; mismo rango que el check de base de datos.
+  rotation_seconds: z.number().int().min(3).max(60),
   priority: z.number().int().min(0).max(1000),
   sort_order: z.number().int().min(0),
   media_file_id: z.string().trim().min(1).max(255).optional().nullable(),
@@ -64,7 +66,8 @@ const bannerInputBaseSchema = z.object({
   status: editorialStatusSchema.default("draft"),
   enabled: z.boolean().default(true),
   auto_open: z.boolean().default(false),
-  frequency: z.enum(["every", "session", "daily"]).default("every"),
+  frequency: z.enum(["every", "session", "daily", "once"]).default("every"),
+  rotation_seconds: z.number().int().min(3).max(60).default(8),
   priority: z.number().int().min(0).max(1000).default(0),
   sort_order: z.number().int().min(0).default(0),
 })

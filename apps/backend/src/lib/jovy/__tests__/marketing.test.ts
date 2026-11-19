@@ -62,6 +62,32 @@ describe("marketing publication rules", () => {
     expect(result.data?.frequency).toBe("daily")
   })
 
+  it("accepts the once-per-browser frequency", () => {
+    const result = bannerInputSchema.safeParse({ slot: "promo", translations: bannerTranslations, frequency: "once" })
+    expect(result.success).toBe(true)
+    expect(result.data?.frequency).toBe("once")
+    expect(updateBannerInputSchema.safeParse({ frequency: "once" }).success).toBe(true)
+  })
+
+  it("accepts rotation_seconds at the inclusive bounds and defaults to 8", () => {
+    for (const rotation_seconds of [3, 8, 60]) {
+      const result = bannerInputSchema.safeParse({ slot: "promo", translations: bannerTranslations, rotation_seconds })
+      expect(result.success).toBe(true)
+      expect(result.data?.rotation_seconds).toBe(rotation_seconds)
+    }
+    const defaulted = bannerInputSchema.parse({ slot: "promo", translations: bannerTranslations })
+    expect(defaulted.rotation_seconds).toBe(8)
+    expect(updateBannerInputSchema.safeParse({ rotation_seconds: 5 }).success).toBe(true)
+  })
+
+  it("rejects rotation_seconds outside 3-60 or not an integer", () => {
+    const valid = { slot: "promo", translations: bannerTranslations }
+    for (const rotation_seconds of [2, 61, 8.5]) {
+      expect(bannerInputSchema.safeParse({ ...valid, rotation_seconds }).success).toBe(false)
+      expect(updateBannerInputSchema.safeParse({ rotation_seconds }).success).toBe(false)
+    }
+  })
+
   it("requires unique ids for reordering", () => {
     expect(reorderSchema.safeParse({ ids: ["a", "b"] }).success).toBe(true)
     expect(reorderSchema.safeParse({ ids: ["a", "a"] }).success).toBe(false)
@@ -73,6 +99,7 @@ describe("marketing publication rules", () => {
     expect(bannerPatch).not.toHaveProperty("status")
     expect(bannerPatch).not.toHaveProperty("enabled")
     expect(bannerPatch).not.toHaveProperty("frequency")
+    expect(bannerPatch).not.toHaveProperty("rotation_seconds")
     expect(bannerPatch).not.toHaveProperty("priority")
 
     const heroPatch = updateHeroInputSchema.parse({ cta_url: "/tienda" })

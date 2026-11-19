@@ -71,11 +71,14 @@ function PendingList({
   to,
   items,
   empty,
+  hrefFor,
 }: {
   title: string
   to: string
   items: PendingItem[]
   empty: string
+  /** Superficie por ítem cuando la cola mezcla tipos con pantallas distintas. */
+  hrefFor?: (item: PendingItem) => string
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-y-2">
@@ -97,7 +100,7 @@ function PendingList({
           {items.map((item) => (
             <li key={`${item.kind ?? "item"}-${item.id}`} className="py-2">
               <a
-                href={adminHref(to)}
+                href={adminHref(hrefFor ? hrefFor(item) : to)}
                 className="text-ui-fg-base focus-visible:ring-ui-border-interactive rounded-sm text-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none"
                 aria-label={`Abrir borrador ${item.title}`}
               >
@@ -133,7 +136,9 @@ export function PendingSection({ pending }: { pending: JovyDashboard["pending"] 
         />
         <PendingList
           title="Marketing"
-          to="/jovy-herramientas/marketing"
+          to="/jovy/announcements"
+          // Los borradores de banner se editan en Anuncios de portada; el hero conserva Marketing.
+          hrefFor={(item) => (item.kind === "banner" ? "/jovy/announcements" : "/jovy-herramientas/marketing")}
           items={pending.marketing}
           empty="Sin hero ni banners en borrador."
         />

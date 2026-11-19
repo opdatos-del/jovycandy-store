@@ -161,7 +161,7 @@ test("JovyCandy CMS: dashboard real, rangos honestos y navegación por tarjetas"
     { link: "Abrir categorías", url: /\/app\/categories$/ },
     { link: "Abrir contenido", url: /\/app\/jovy-herramientas\/content$/ },
     { link: "Abrir hero", url: /\/app\/jovy-herramientas\/marketing$/ },
-    { link: "Abrir banners", url: /\/app\/jovy-herramientas\/marketing$/ },
+    { link: "Abrir anuncios", url: /\/app\/jovy\/announcements$/ },
     { link: "Abrir eventos", url: /\/app\/jovy-herramientas\/events$/ },
     { link: "Abrir galería", url: /\/app\/jovy\/brand$/ },
     { link: "Abrir logos", url: /\/app\/jovy\/brand$/ },

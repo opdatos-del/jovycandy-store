@@ -189,8 +189,8 @@ export const DashboardPage = () => {
                 `${number.format(dashboard.marketing.banners.draft)} borradores · ${number.format(dashboard.marketing.banners.archived)} archivados`,
               ]}
               icon={Sparkles}
-              href="/jovy-herramientas/marketing"
-              linkLabel="Abrir banners"
+              href="/jovy/announcements"
+              linkLabel="Abrir anuncios"
               testId="jovy-stat-banners"
               cardTestId="jovy-card-banners"
             />

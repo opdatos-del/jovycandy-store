@@ -170,11 +170,11 @@ pero los artefactos no se versionan; para reproducirlos hay que volver a captura
 |---|---|
 | lint | 0 |
 | typecheck | 0 |
-| unit | 32 suites / 325 pruebas |
+| unit | 32 suites / 328 pruebas |
 | integración de módulos | 6 suites / 37 pruebas |
 | integración HTTP | 11 suites / 76 pruebas |
 | build | OK |
-| E2E (agrupada y secuencial) | **29/29 en 4,5 min** |
+| E2E (agrupada y secuencial) | **29/29 en 6,8 min** (corrida de esa ola) |
 
 Revisión visual: 8 pantallas × 2 viewports, antes y después, con 16 composites
 pareados. No hay desbordamiento horizontal nuevo en ninguna de las 16
@@ -210,7 +210,7 @@ flujo ni de sistema visual.
   `capture-after.cjs` y `compose.py`. Métricas: 6 tarjetas y mismos anchos
   (388/351 px), overflow 0 y diff de píxeles del 0.188% (1440) y 0.328% (375).
 - **Verificación.** E2E de Categorías 4/4; lint 0, typecheck 0 y build OK; suite
-  E2E completa 29/29 en 4,5 min, agrupada y secuencial.
+  E2E completa 29/29 en 6,8 min (corrida de esa ola), agrupada y secuencial.
 
 ## 9. Reducción de ruido y UX de Categorías (2026-11-18)
 
@@ -241,8 +241,8 @@ Continúa la sección 8 sin cambiar flujos ni sistema visual.
   (−13.7 %) a 375; a 375 la página baja 2749 → 2550 px (−7.2 %). En 1440 el
   promedio global está enmascarado por una imagen nueva en la tarjeta #1, no por
   la compactación.
-- **Verificación.** E2E de Categorías 4/4; suite E2E completa 29/29 en 4,5 min,
-  agrupada y secuencial; lint, typecheck y build en 0. Contraste oscuro preservado
+- **Verificación.** E2E de Categorías 4/4; suite E2E completa 29/29 en 6,8 min
+  (corrida de esa ola), agrupada y secuencial; lint, typecheck y build en 0. Contraste oscuro preservado
   (2/102 fallos, ambos controles deshabilitados exentos).
 
 ## 10. Miniatura de imagen en Categorías (2026-11-18)
@@ -272,8 +272,8 @@ altura de la miniatura sin cambiar flujos ni sistema visual.
 - **Conservado.** Contenido, switches, badges, `<details>`, botones y flujos
   intactos. Las dos imágenes DEMO que aparecen en la comparación se deben a un
   cambio de datos, no de estilo.
-- **Verificación.** E2E de Categorías 4/4; suite completa 29/29 en 4,5 min,
-  agrupada y secuencial; typecheck, lint y build en 0.
+- **Verificación.** E2E de Categorías 4/4; suite completa 29/29 en 6,8 min
+  (corrida de esa ola), agrupada y secuencial; typecheck, lint y build en 0.
 
 ## 11. Rediseño de Casa Jovy Galería (2026-11-18)
 
@@ -312,8 +312,8 @@ desde la UI.
   con 708 px (misma fila, Δy=0); antes el listado empezaba en y≈639. A 375 los
   paneles quedan apilados (Δx=0, Δy≈593) sin overflow. Filas a 1440:
   `96px + 1fr + auto`; a 375: 1 columna.
-- **Verificación.** E2E de Brand 5/5; suite completa 29/29 en 4,5 min, agrupada y
-  secuencial; lint, typecheck y build en 0. El test largo de orden y eliminación
+- **Verificación.** E2E de Brand 5/5; suite completa 29/29 en 6,8 min (corrida de
+  esa ola), agrupada y secuencial; lint, typecheck y build en 0. El test largo de orden y eliminación
   se estabilizó con `test.setTimeout(90_000)` y un helper que espera
   `toBeEnabled` del trigger y `toBeVisible` del menú; no se añadieron sleeps ni
   retries.
@@ -347,9 +347,191 @@ de sistema visual.
 - **E2E ajustada.** La aserción de «Gestión del modal (slot promo)» pasa a
   verificar `data-testid="banner-manager"`; el resto queda intacto.
 - **Verificación.** E2E enfocada de announcements+brand+banners 8/8; suite
-  completa 29/29 en 4,5 min; lint, typecheck y build en 0.
+  completa 29/29 en 6,8 min (corrida de esa ola); lint, typecheck y build en 0.
 
-## 13. Estado
+## 13. Simplificación de Anuncios de portada (2026-11-19)
+
+Reducción de ruido sobre `/app/jovy/announcements`: la página pasa a dos bloques
+claros y deja de duplicar lo que ya muestra el gestor. Sin cambios de flujo, de
+contrato ni de sistema visual.
+
+- **Problema medido.** El documento medía **2460 px** a 1440 y **4038 px** a 375.
+  Había **6 stats + 4 badges duplicados**, un bloque «Vista previa» redundante con
+  las propias tarjetas del gestor y un bloque «Valores persistidos» que repetía el
+  contenido de los textareas. Convivían **dos botones «Actualizar»** y un enlace
+  «Abrir Banners» que contradecía la existencia del gestor embebido; «Limpiar
+  filtros» aparecía siempre por el filtro de slot fijo. Además, **7 párrafos
+  largos** con jerga interna y **4 niveles de tarjetas** anidados.
+- **Decisión.** La página queda en dos bloques: **«Modal de portada»** y **«Mensaje
+  corporativo»**, sin prefijos «A./B.» y sin badge «Marketing Jovy», con **una
+  frase por bloque**. Se eliminaron los stats, la vista previa, los valores
+  persistidos, el CTA duplicado, el botón «Actualizar» de página, la descripción
+  técnica del gestor, el filtro de slot y los badges de stats en modo embebido. El
+  gestor conserva buscador, filtro de estado, tarjetas, alta/edición,
+  publicar/archivar y acciones; el formulario corporativo y su guardado quedan
+  intactos.
+- **Modo embebido.** Nuevas props `showDescription`, `showSlotFilter`, `showStats`
+  y `listHeadingLevel`; en esa ola Marketing conservaba el comportamiento por
+  defecto. El CRUD unificado (§15) retira después el gestor de Marketing, que solo
+  enlaza «Abrir Anuncios de portada». El
+  cálculo de `filtersActive` ignora el slot fijo, por lo que «Limpiar filtros» no
+  aparece al abrir, mientras que el filtrado real por promo sigue activo. El
+  heading interno «Banners» pasa a `h3` en embebido.
+- **Resultado medido.** Documento **2460 → 1551 px (−37,0 %)** a 1440 y
+  **4038 → 2031 px (−49,7 %)** a 375. Primer control editable **1001 → 342 px
+  (−65,8 %)** y **1807 → 335 px (−81,5 %)**. Controles antes del primer banner
+  **5 → 2**. Jerarquía final: `h1` «Anuncios de portada», `h2` «Modal de portada»,
+  `h3` «Banners», `h2` «Mensaje corporativo». Sin overflow horizontal ni errores
+  de consola a 1440 ni a 375.
+- **Guía.** `content-first-noise-reduction` de `modern-web-guidance`; sin
+  dependencias nuevas.
+- **Evidencia.** Bajo
+  [`audit-announcements/`](../.test-results/audit-announcements/) (raíz del repo):
+  `before/`, `after/`, `comparisons/`, `metrics*.json`, `report*.txt` y los scripts
+  de captura y composición.
+- **E2E ajustada.** La prueba de Anuncios verifica ahora el gestor por su
+  contenedor, las tarjetas y las imágenes, la ausencia de filtro de slot, de
+  «Limpiar filtros» y del enlace duplicado, y los valores de los textareas en lugar
+  de los testids de «Valores persistidos». `jovy-banners.spec.ts` no cambió. E2E
+  enfocada **3/3**; suite completa **29/29 en 6,8 min (corrida de esa ola)**;
+  lint, typecheck y build en 0.
+- **Residual declarado.** El formulario de banner todavía permite cambiar el slot a
+  `hint` en modo embebido; si se guarda, la tarjeta puede salir del listado promo
+  filtrado. Se deja como está para no alterar reglas de negocio.
+
+## 14. Tarjetas de banner simplificadas (2026-11-19)
+
+Compactación de las tarjetas del gestor de banners de `/app/jovy/announcements`,
+reutilizando el patrón de acciones secundarias ya aplicado en Galería. Sin cambios
+de flujo, de contrato ni de sistema visual.
+
+- **Antes.** Cada tarjeta mostraba **4 badges** (estado, habilitado, ventana y
+  auto-apertura), **5 líneas de metadatos** (prioridad, orden, frecuencia, ventana
+  y CTA) y **6 botones**: Editar, Publicar/Despublicar, Archivar, Subir, Bajar y
+  Eliminar.
+- **Ahora.** Quedan **2 badges editoriales visibles** (estado y ventana) más el
+  badge de slot sobre la imagen; una línea compacta «Prioridad n (etiqueta) ·
+  Orden n»; y frecuencia, ventana, CTA, auto-apertura y estado habilitado dentro de
+  un `<details className="jovy-card-details">` cerrado por defecto. Visibles
+  quedan solo **Editar** y **Publicar/Despublicar**; Archivar, Subir, Bajar y
+  Eliminar pasan a un `DropdownMenu` «Más acciones para …»
+  (`banner-actions-<id>`). Se conservan los nombres accesibles y las condiciones de
+  deshabilitado de cada acción.
+- **Resultado medido.** Documento **1551 → 1473 px (−5,0 %)** a 1440 y
+  **2031 → 1876 px (−7,6 %)** a 375. El gestor pasa de **845 → 768 px** y de
+  **1311 → 1155 px**. La tarjeta mide **≈552 → 475 px** a 1440. Por tarjeta quedan
+  **tres controles visibles** en lugar de seis.
+- **Guía.** `content-first-noise-reduction` de `modern-web-guidance`, reutilizando
+  el patrón de acciones secundarias ya aplicado en Galería con el `DropdownMenu`
+  oficial de `@medusajs/ui`, sin dependencias nuevas.
+- **Evidencia.** Bajo
+  [`audit-announcements/after-cards/`](../.test-results/audit-announcements/after-cards/),
+  con `comparisons/announcements-cards-1440.png` y
+  `comparisons/announcements-cards-375.png`, `metrics-cards.json`,
+  `report-cards.txt`, `capture-cards.cjs` y las páginas HTML de comparación.
+- **Verificación.** E2E enfocada de banners+announcements **3/3**; suite completa
+  **29/29 en 6,8 min (corrida de esa ola)**; lint, typecheck y build en **0**. El
+  build de producción se regeneró para que `medusa start` en el puerto 9000 sirva la
+  versión nueva; el usuario debe **recargar** el Admin para verla.
+- **Nota.** El badge de slot «Modal de portada» sobre la imagen se conserva porque
+  identifica el tipo de banner.
+
+## 15. CRUD unificado de Anuncios de portada (2026-11-19)
+
+Los dos tipos de anuncio de portada dejan de estar separados entre Marketing y
+Anuncios: pasan a administrarse desde un único gestor, sin duplicar formularios ni
+listados.
+
+- **Un solo lugar.** `/app/jovy/announcements` gestiona ambos tipos con un selector
+  **«¿Dónde aparece?»**: «Bajo el logo» (slot `hint`, fijo) y «Modal de entrada»
+  (slot `promo`). Marketing Jovy deja de tener la pestaña y el gestor Banners y solo
+  muestra el enlace «Abrir Anuncios de portada»; Hero sigue en Marketing
+  (`/app/jovy-herramientas/marketing`).
+- **Formulario intuitivo.** El tipo es el primer campo del formulario. Frecuencia y
+  auto-apertura solo se muestran para el modal. La vigencia usa los presets
+  «Permanente / 1 semana / 2 semanas / Personalizado». Se añade «Duración en
+  pantalla» por banner (`rotation_seconds`, 8 s por defecto, rango 3–60) y la
+  frecuencia nueva **«Una vez por navegador»** (`once`), además de cada recarga,
+  sesión y día.
+- **Backend.** Migración aditiva `Migration20261119133346` aplicada en local:
+  `rotation_seconds integer not null default 8` con check 3–60 y check de
+  `frequency` ampliado con `once`. La Store API expone `rotation_seconds`. Suite
+  unitaria en **32 suites / 328 pruebas**.
+- **Comportamiento de rotación acordado.** La rotación aplica a ambos slots; en el
+  modal se abre uno solo y dentro rotan los anuncios; con un único anuncio no rota;
+  la duración es individual por banner. La pausa al pasar el ratón o enfocar y el
+  respeto a `prefers-reduced-motion` quedan para el storefront, que **todavía no
+  consume los banners**: no se declara la rotación como activa en la web.
+- **Detección de tipo.** Cada tarjeta muestra el badge «Bajo el logo» o «Modal de
+  entrada», y el listado se puede filtrar por tipo.
+- **Correcciones de validación.** Se eliminó el `Container` vacío del gestor
+  embebido (de ~88 px a una fila de 28 px sin caja) y se corrigió el doble punto de
+  «Vigencia:».
+- **Evidencia.** Bajo
+  [`audit-announcements-unified/`](../.test-results/audit-announcements-unified/)
+  (raíz del repo): capturas finales a 1440×1000 y 375×812, `metrics-final.json` y
+  `report-final.txt`.
+- **Verificación.** E2E enfocada de banners+announcements+hero **6/6**; suite
+  completa **31/31 en 6,1 min** (última corrida, ver §17); typecheck, lint y
+  build en **0**.
+
+## 16. Mensaje corporativo movido y cards unificadas (2026-11-19)
+
+Reubicación del mensaje corporativo y alineación de las tarjetas de banner con el
+patrón de Logos. Sin cambios de contrato ni de sistema visual.
+
+- **Mensaje corporativo fuera de Anuncios.** El bloque ES/EN ya no vive en
+  Anuncios de portada: se movió a Marketing Jovy
+  (`/app/jovy-herramientas/marketing`) con `CorporateMessagePanel` +
+  `CorporateMessageForm`, porque es el texto que aparece bajo la animación del
+  Hero. El orden de Marketing queda **Hero → Mensaje corporativo → enlace «Abrir
+  Anuncios de portada»**. Anuncios conserva solo banners/anuncios (`promo` y
+  `hint`). La E2E del mensaje corporativo se movió a `jovy-hero.spec.ts`; la de
+  Anuncios quedó centrada en banners. Testid del bloque:
+  `marketing-corporate-block`.
+- **Cards de banner unificadas con Logos.** Mismo shell: `rounded-md`, `p-3`,
+  sombra, imagen 16:9, cuerpo con badges, título `h3` de 16 px y acciones al pie
+  con `border-t`. Los badges pasan a tamaño normal y el grid es
+  `sm:grid-cols-2 lg:grid-cols-4`. Quedan diferencias residuales: la card de
+  banner es ~12 px más estrecha por los `Container` anidados y por contenido
+  extra (EN, vigencia, detalles); no se consideran un diseño distinto.
+- **Incidencia de validación.** Una edición previa dejó
+  `announcements/page.tsx` con el import viejo
+  `./components/corporate-message-form`, que tumbó Vite en la suite completa
+  (10 fallos). Se restauró la página simplificada y la suite volvió a verde. Se
+  documenta como incidencia de validación, no como parte de este ajuste.
+- **Evidencia.** Bajo
+  [`audit-announcements-cards/`](../.test-results/audit-announcements-cards/)
+  (raíz del repo): `final-4col/` con `metrics-4col.json` y `report-4col.md`; y
+  bajo
+  [`audit-announcements-unified/`](../.test-results/audit-announcements-unified/).
+- **Verificación.** E2E enfocada **7/7**; suite completa **30/30 en 6,3 min**;
+  typecheck, lint y build en **0**.
+
+## 17. Subir/Bajar en banners (2026-11-19)
+
+Corrección del reordenamiento en las tarjetas de banner del gestor de
+`/app/jovy/announcements`. Sin cambios de contrato, de backend ni de sistema visual.
+
+- **Causa.** `Subir/Bajar` calculaba la posición sobre `items` (todas las tarjetas)
+  aunque la vista estuviera filtrada, y el orden real lo domina `priority`: mover un
+  banner de prioridad 1 sobre uno de 2 solo cambiaba `sort_order` y el movimiento no
+  se veía.
+- **Corrección.** La acción opera sobre la lista filtrada. Si el destino tiene la misma
+  prioridad, reordena `sort_order` reconstruyendo el array global (conserva los banners
+  no visibles en su sitio). Si tiene prioridad distinta, pide confirmación y
+  **intercambia las prioridades** de ambos banners para que el movimiento se refleje;
+  al cancelar no se muta nada. Los ítems se deshabilitan cuando no hay destino visible
+  en esa dirección.
+- **Nota visible en la UI.** «Subir/Bajar reordena la vista; si cambia de prioridad, se
+  intercambian las prioridades».
+- **E2E nueva.** `jovy-banners.spec.ts` crea dos banners con prioridad `10` y `5`, sube
+  el de `5` con confirmación y verifica prioridades `[5, 10]` y el orden visual
+  invertido en las tarjetas. La prueba de misma prioridad se conserva.
+- **Verificación.** E2E de Banners **3/3**; suite completa **31/31 en 6,1 min**;
+  typecheck, lint y build en **0**.
+
+## 18. Estado
 
 `VALIDADO` **con revisión pendiente**. No se declara «réplica aceptada» ni
 paridad total: este trabajo es de pulido visual local, no de equalización con el

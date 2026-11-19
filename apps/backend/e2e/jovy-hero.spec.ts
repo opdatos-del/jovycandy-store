@@ -188,6 +188,71 @@ test("administra Hero desde la UI, persiste media/ajustes y reordena hacia la St
   }
 })
 
+test("persiste el mensaje corporativo ES/EN desde Marketing y oculta el idioma vacío", async ({ page, request }) => {
+  // El servidor de desarrollo se comparte con otras sesiones del repo: dos
+  // recargas y tres llamadas a la API no caben siempre en el minuto por defecto.
+  test.setTimeout(120_000)
+
+  const headers = await signIn(page, request)
+  const settings = async () =>
+    (await (await request.get("/admin/jovy/announcements/settings", { headers })).json())
+      .announcement_settings as { corporate_message_es: string | null; corporate_message_en: string | null }
+  const original = await settings()
+
+  const demoEs = unique("Mensaje corporativo ES")
+  const demoEn = unique("Corporate message EN")
+
+  try {
+    await page.goto("/app/jovy-herramientas/marketing")
+    await expect(page.getByRole("heading", { name: "Mensaje corporativo" })).toBeVisible()
+
+    await page.getByLabel("Mensaje corporativo ES").fill(demoEs)
+    await page.getByLabel("Mensaje corporativo EN").fill(demoEn)
+    await page.getByRole("button", { name: "Guardar mensaje corporativo" }).click()
+
+    await expect.poll(async () => (await settings()).corporate_message_es).toBe(demoEs)
+    await expect.poll(async () => (await settings()).corporate_message_en).toBe(demoEn)
+
+    const storeResponse = await request.get("/store/jovy/announcements/settings", { headers: storeHeaders })
+    expect(storeResponse.status()).toBe(200)
+    expect((await storeResponse.json()).settings).toMatchObject({
+      corporate_message_es: demoEs,
+      corporate_message_en: demoEn,
+    })
+
+    // Tras recargar, los textareas son la fuente de verdad de los valores persistidos.
+    await page.reload()
+    await expect(page.getByRole("heading", { name: "Mensaje corporativo" })).toBeVisible()
+    await expect(page.getByLabel("Mensaje corporativo ES")).toHaveValue(demoEs)
+    await expect(page.getByLabel("Mensaje corporativo EN")).toHaveValue(demoEn)
+
+    // Vaciar un idioma lo oculta (null) sin afectar al otro.
+    await page.getByLabel("Mensaje corporativo EN").fill("")
+    await page.getByRole("button", { name: "Guardar mensaje corporativo" }).click()
+    await expect.poll(async () => (await settings()).corporate_message_en).toBeNull()
+    expect((await settings()).corporate_message_es).toBe(demoEs)
+
+    const hiddenStore = await request.get("/store/jovy/announcements/settings", { headers: storeHeaders })
+    expect(hiddenStore.status()).toBe(200)
+    expect((await hiddenStore.json()).settings).toMatchObject({
+      corporate_message_es: demoEs,
+      corporate_message_en: null,
+    })
+
+    await page.reload()
+    await expect(page.getByLabel("Mensaje corporativo ES")).toHaveValue(demoEs)
+    await expect(page.getByLabel("Mensaje corporativo EN")).toHaveValue("")
+  } finally {
+    await request.put("/admin/jovy/announcements/settings", {
+      headers,
+      data: {
+        corporate_message_es: original.corporate_message_es,
+        corporate_message_en: original.corporate_message_en,
+      },
+    })
+  }
+})
+
 test("asigna producto A→B→null, es idempotente y conserva el vínculo ante error", async ({ request }) => {
   const prefix = unique("e2e-hero-product")
   const headers = await apiHeaders(request)
