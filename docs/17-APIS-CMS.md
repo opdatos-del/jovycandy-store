@@ -203,7 +203,7 @@ No consumir desde el storefront. Se listan para trazabilidad del CMS.
 | marketing | `GET/POST /admin/jovy/marketing/hero`; `GET/PUT/DELETE .../hero/:id`; `POST .../hero/reorder`; `GET/PUT .../hero/settings`; `GET/PUT .../hero/:id/product`; `GET/POST .../banners`; `GET/PUT/DELETE .../banners/:id`; `POST .../banners/reorder`; `POST .../media`; `GET .../media/:id`; `GET .../products` | `src/api/admin/jovy/marketing/**` |
 | events | `GET/POST /admin/jovy/events`; `GET/PUT/DELETE .../:id`; `GET .../:id/audit`; `POST .../reorder`; `GET/POST .../types`; `GET/PUT/DELETE .../types/:id`; `POST .../media/video` (GIF/MP4/WebM ≤ 100 MB) | `src/api/admin/jovy/events/**` |
 | brand | `GET/POST /admin/jovy/brand/gallery`; `GET/PUT/DELETE .../gallery/:id`; `GET .../gallery/:id/audit`; `POST .../gallery/reorder`; equivalentes de `logos` | `src/api/admin/jovy/brand/**` |
-| contacts | `GET /admin/jovy/contacts`; `GET /admin/jovy/contacts/counts`; `GET /admin/jovy/contacts/export?format=csv&contact_type=…`; `POST /admin/jovy/contacts/:id/restore`; `GET/PUT/DELETE /admin/jovy/contacts/:id`; `GET .../:id/audit` | `src/api/admin/jovy/contacts/**` |
+| contacts | `GET /admin/jovy/contacts`; `GET /admin/jovy/contacts/counts`; `GET /admin/jovy/contacts/export?format=csv\|xlsx&contact_type=…`; `GET /admin/jovy/contacts/export-all?contact_types=…`; `POST /admin/jovy/contacts/:id/restore`; `GET/PUT/DELETE /admin/jovy/contacts/:id`; `GET .../:id/audit` | `src/api/admin/jovy/contacts/**` |
 | catalogue | `GET /admin/jovy/catalogue/categories`; `GET/PUT .../categories/:id`; `POST .../categories/reorder`; `POST .../categories/seed`; `GET/POST .../families`; `GET/PUT/DELETE .../families/:id`; `POST .../families/reorder` | `src/api/admin/jovy/catalogue/**` |
 | product-editorial | `GET/PUT/DELETE /admin/jovy/products/:id/editorial`; `POST .../:id/editorial/restore`; `GET /admin/jovy/products/editorial` | `src/api/admin/jovy/products/**` |
 | launches | `GET/POST /admin/jovy/launches`; `GET/PUT/DELETE .../:id`; `POST .../reorder`; `GET/PUT .../settings` | `src/api/admin/jovy/launches/**` |
@@ -290,11 +290,12 @@ está viva responde `200` con el registro sin cambios y no escribe auditoría. R
 `Migration20261114120000` amplía el check de `jovy_contact_audit_log.action` con `restore` y
 `update` (la migración anterior ya aplicada no se reescribe).
 
-### Contactos: exportación CSV
+### Contactos: exportación CSV y XLSX
 
 `GET /admin/jovy/contacts/export` exige `contact_type` para que una descarga nunca mezcle dos
-bandejas. Query: `format=csv` (único valor), `contact_type` obligatorio, `status` (`pending`,
-`handled`, `deleted`), `q`, `date_from` y `date_to`, con las mismas reglas que el listado.
+bandejas. Query: `format=csv|xlsx` (`csv` por defecto), `contact_type` obligatorio, `status`
+(`pending`, `handled`, `deleted`), `q`, `date_from` y `date_to`, con las mismas reglas que el
+listado.
 
 - Límite duro de **5 000 filas** por petición; si se supera responde `400` y pide acotar el rango
   de fechas. Se consulta `5 001` filas para detectar el cruce, no para truncar. La exportación no
@@ -304,12 +305,23 @@ bandejas. Query: `format=csv` (único valor), `contact_type` obligatorio, `statu
 - CSV UTF-8 con BOM y fin de línea CRLF para Excel. Las celdas con `,`, `"` o salto de línea se
   entrecomillan y duplican comillas; las que empiezan por `=`, `+`, `-`, `@` o tabulador se
   prefijan con apóstrofo para evitar inyección de fórmulas. Los CR se normalizan a LF.
-- `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment;
-  filename="solicitudes-<contact_type>-<YYYY-MM-DD>.csv"` y `Cache-Control: no-store`.
-- La auditoría de la exportación va al **logger** estructurado (bandeja, filas, actor, estado,
-  rango de fechas y si hubo búsqueda). No se escribe en `jovy_contact_audit_log` porque esa tabla se
-  indexa por `contact_request_id` y una exportación abarca varias filas; tampoco se registra el
-  término de `q`, que puede contener email o teléfono.
+- XLSX real con `exceljs` desde `lib/jovy/contacts-xlsx.ts`: una hoja con las mismas cabeceras,
+  primera fila congelada, autofiltro y el mensaje con ajuste de texto. `Content-Type:
+  application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` y nombre
+  `solicitudes-<contact_type>-<YYYY-MM-DD>.xlsx`.
+- `Content-Disposition: attachment; filename="solicitudes-<contact_type>-<YYYY-MM-DD>.<formato>"` y
+  `Cache-Control: no-store` en ambos formatos. La respuesta incluye `X-Export-Count`.
+- La auditoría de la exportación va al **logger** estructurado (bandeja, formato, filas, actor,
+  estado, rango de fechas y si hubo búsqueda). No se escribe en `jovy_contact_audit_log` porque esa
+  tabla se indexa por `contact_request_id` y una exportación abarca varias filas; tampoco se
+  registra el término de `q`, que puede contener email o teléfono.
+
+`GET /admin/jovy/contacts/export-all` genera el **libro XLSX consolidado**: una hoja por bandeja.
+Query: `contact_types` (lista separada por comas; si se omite exporta las cuatro), `status`, `q`,
+`date_from` y `date_to`; no acepta `contact_type`, `limit` ni `offset`. El límite de 5 000 filas es
+compartido por todo el libro. Devuelve `X-Export-Count` (filas totales) y `X-Export-Sheets`
+(bandejas incluidas). La UI lo expone como «Exportar todo (Excel)» en la vista consolidada; con un
+filtro de tipo activo, la vista usa la exportación por bandeja.
 
 Todas las rutas **admin** de contactos exigen sesión (`authenticate('user', …)`) y responden `401`
 sin ella. El frontend fija el tipo de cada bandeja, pero la validación real es del servidor.

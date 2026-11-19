@@ -145,8 +145,11 @@ export function contactListParams(query: {
  * Export always names one inbox: the endpoint rejects a request without
  * `contact_type`, which is what prevents a download from mixing bandejas.
  */
+export type ContactExportFormat = "csv" | "xlsx"
+
 export function contactExportParams(query: {
   contactType: ContactType
+  format?: ContactExportFormat
   status?: ContactStatusFilter
   q?: string
   dateFrom?: string
@@ -154,7 +157,28 @@ export function contactExportParams(query: {
 }) {
   const params = new URLSearchParams()
   params.set("contact_type", query.contactType)
-  params.set("format", "csv")
+  params.set("format", query.format ?? "csv")
+  if (query.status && query.status !== "all") params.set("status", query.status)
+  const search = query.q?.trim()
+  if (search) params.set("q", search)
+  if (query.dateFrom) params.set("date_from", query.dateFrom)
+  if (query.dateTo) params.set("date_to", query.dateTo)
+  return params.toString()
+}
+
+/**
+ * Consolidated workbook parameters. Omitting `contactTypes` lets the backend
+ * export all four bandejas; a selected type filter narrows it to that inbox.
+ */
+export function contactExportAllParams(query: {
+  contactTypes?: ContactType[]
+  status?: ContactStatusFilter
+  q?: string
+  dateFrom?: string
+  dateTo?: string
+}) {
+  const params = new URLSearchParams()
+  if (query.contactTypes?.length) params.set("contact_types", query.contactTypes.join(","))
   if (query.status && query.status !== "all") params.set("status", query.status)
   const search = query.q?.trim()
   if (search) params.set("q", search)

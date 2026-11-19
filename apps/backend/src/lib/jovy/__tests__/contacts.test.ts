@@ -1,9 +1,12 @@
+import ExcelJS from "exceljs"
 import {
   CONTACT_EXPORT_HEADERS,
   CONTACT_EXPORT_MAX_ROWS,
   DEFAULT_CONTACT_PAGE_SIZE,
   MAX_CONTACT_PAGE_SIZE,
   contactCountsFromRows,
+  contactExportAllFileName,
+  contactExportAllQuerySchema,
   contactExportFileName,
   contactExportQuerySchema,
   contactInboxTotals,
@@ -13,9 +16,11 @@ import {
   emptyContactCounts,
   normalizeOptionalText,
   parseContactDate,
+  parseContactTypesParam,
   publicContactSchema,
   toContactCsv,
 } from "@jovy/lib/jovy/contacts"
+import { toContactXlsxBuffer } from "@jovy/lib/jovy/contacts-xlsx"
 
 const validPayload = {
   first_name: "  Ana  ",
@@ -257,14 +262,48 @@ describe("exportación CSV", () => {
     created_at: new Date("2026-01-02T03:04:05.000Z"),
   }
 
-  it("exige la bandeja y sólo acepta formato csv", () => {
+  it("exige la bandeja y acepta csv o xlsx", () => {
     expect(contactExportQuerySchema.safeParse({ contact_type: "catalogue" }).success).toBe(true)
     expect(contactExportQuerySchema.safeParse({ contact_type: "catalogue", format: "csv" }).success).toBe(true)
+    expect(contactExportQuerySchema.safeParse({ contact_type: "catalogue", format: "xlsx" }).success).toBe(true)
     expect(contactExportQuerySchema.safeParse({}).success).toBe(false)
     expect(contactExportQuerySchema.safeParse({ contact_type: "otro" }).success).toBe(false)
-    expect(contactExportQuerySchema.safeParse({ contact_type: "catalogue", format: "xlsx" }).success).toBe(false)
+    expect(contactExportQuerySchema.safeParse({ contact_type: "catalogue", format: "pdf" }).success).toBe(false)
     // La exportación no pagina: limit/offset no forman parte del contrato.
     expect(contactExportQuerySchema.safeParse({ contact_type: "catalogue", limit: "10" }).success).toBe(false)
+  })
+
+  it("valida el consolidado y la lista de bandejas", () => {
+    expect(contactExportAllQuerySchema.safeParse({}).success).toBe(true)
+    expect(contactExportAllQuerySchema.safeParse({ contact_types: "catalogue,national-sales" }).success).toBe(true)
+    expect(contactExportAllQuerySchema.safeParse({ contact_types: "otro" }).success).toBe(false)
+    expect(contactExportAllQuerySchema.safeParse({ contact_types: "catalogue", limit: "10" }).success).toBe(false)
+    expect(contactExportAllQuerySchema.safeParse({
+      contact_types: "catalogue",
+      date_from: "2026-02-01",
+      date_to: "2026-01-01",
+    }).success).toBe(false)
+  })
+
+  it("normaliza contact_types sin duplicados y rechaza valores desconocidos", () => {
+    expect(parseContactTypesParam(undefined)).toEqual([
+      "national-sales",
+      "international-sales",
+      "customer-service",
+      "catalogue",
+    ])
+    expect(parseContactTypesParam("")).toEqual([
+      "national-sales",
+      "international-sales",
+      "customer-service",
+      "catalogue",
+    ])
+    expect(parseContactTypesParam("catalogue, national-sales,catalogue")).toEqual([
+      "catalogue",
+      "national-sales",
+    ])
+    expect(parseContactTypesParam("otro")).toBeNull()
+    expect(parseContactTypesParam(" , ")).toBeNull()
   })
 
   it("valida fechas y rango igual que el listado", () => {
@@ -305,11 +344,57 @@ describe("exportación CSV", () => {
     expect(csv).not.toContain("\rlinea3")
   })
 
-  it("nombra el archivo por bandeja con tope de filas", () => {
-    expect(contactExportFileName("customer-service", new Date("2026-05-06T00:00:00.000Z"))).toBe(
+  it("nombra el archivo por bandeja y formato con tope de filas", () => {
+    expect(contactExportFileName("customer-service", new Date("2026-05-06T00:00:00.000Z"), "csv")).toBe(
       "solicitudes-customer-service-2026-05-06.csv",
     )
+    expect(contactExportFileName("customer-service", new Date("2026-05-06T00:00:00.000Z"), "xlsx")).toBe(
+      "solicitudes-customer-service-2026-05-06.xlsx",
+    )
+    expect(contactExportAllFileName(new Date("2026-05-06T00:00:00.000Z"))).toBe(
+      "solicitudes-consolidado-2026-05-06.xlsx",
+    )
     expect(CONTACT_EXPORT_MAX_ROWS).toBeGreaterThan(0)
+  })
+})
+
+describe("exportación XLSX", () => {
+  const row = {
+    id: "req_01",
+    contact_type: "national-sales",
+    first_name: "Ana",
+    last_name: "Pérez",
+    email: "ana@example.test",
+    phone: "+52 55 0000 0000",
+    country: "MX",
+    city: "Ciudad de México",
+    postal_code: "01000",
+    message: "Hola, necesito precios",
+    created_at: new Date("2026-01-02T03:04:05.000Z"),
+  }
+
+  it("genera un libro con una hoja por bandeja y las cabeceras históricas", async () => {
+    const buffer = await toContactXlsxBuffer([
+      { contactType: "national-sales", rows: [row] },
+      { contactType: "catalogue", rows: [] },
+    ])
+    expect(buffer.subarray(0, 2).toString("ascii")).toBe("PK")
+
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(buffer as unknown as ArrayBuffer)
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Ventas Nacional", "Catálogo"])
+
+    const national = workbook.getWorksheet("Ventas Nacional")!
+    CONTACT_EXPORT_HEADERS.forEach((header, index) => {
+      expect(national.getRow(1).getCell(index + 1).value).toBe(header)
+    })
+    expect(national.rowCount).toBe(2)
+    expect(national.getRow(2).getCell(1).value).toBe("req_01")
+    expect(national.getRow(2).getCell(2).value).toBe("Ventas Nacional")
+    expect(national.getRow(2).getCell(5).value).toBe("ana@example.test")
+    expect(national.getRow(2).getCell(10).value).toBe("Hola, necesito precios")
+    expect(national.getRow(2).getCell(11).value).toBe("2026-01-02T03:04:05.000Z")
+    expect(workbook.getWorksheet("Catálogo")!.rowCount).toBe(1)
   })
 })
 

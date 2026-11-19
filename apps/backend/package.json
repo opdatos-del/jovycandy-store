@@ -35,6 +35,7 @@
     "@medusajs/medusa": "2.22.6",
     "@medusajs/ui": "4.2.13",
     "@tanstack/react-query": "5.107.1",
+    "exceljs": "^4.4.0",
     "multer": "^2.5.0",
     "react-i18next": "13.5.0",
     "react-router-dom": "7.18.5",

@@ -10,6 +10,7 @@ import {
   CONTACT_PAGE_SIZE,
   CONTACT_POLL_INTERVAL_MS,
   CONTACT_TYPE_LABELS,
+  contactExportAllParams,
   contactExportParams,
   contactListParams,
   contactName,
@@ -25,6 +26,7 @@ import {
   type ContactAuditLog,
   type ContactCounts,
   type ContactDraft,
+  type ContactExportFormat,
   type ContactPageSize,
   type ContactStatus,
   type ContactStatusFilter,
@@ -64,13 +66,10 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback
 
-function csvFileName(response: Response, contactType: ContactType) {
+function downloadFileName(response: Response, fallback: string) {
   const disposition = response.headers.get("Content-Disposition") ?? ""
   const match = /filename="([^"]+)"/.exec(disposition)
-  return (
-    match?.[1] ??
-    `solicitudes-${contactType}-${new Date().toISOString().slice(0, 10)}.csv`
-  )
+  return match?.[1] ?? fallback
 }
 
 type ContactInboxProps = {
@@ -115,7 +114,8 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
   const [newIds, setNewIds] = useState<Set<string>>(new Set())
 
   const [busy, setBusy] = useState<{ id: string; action: BusyAction } | null>(null)
-  const [exporting, setExporting] = useState(false)
+  const [exportingFormat, setExportingFormat] = useState<ContactExportFormat | null>(null)
+  const [exportingAll, setExportingAll] = useState(false)
 
   const [detail, setDetail] = useState<Contact | null>(null)
   const [detailAudit, setDetailAudit] = useState<ContactAuditLog[]>([])
@@ -552,13 +552,14 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     }
   }
 
-  const runExport = async () => {
+  const runExport = async (format: ContactExportFormat) => {
     if (!exportType) return
-    setExporting(true)
+    setExportingFormat(format)
     setActionError(null)
     try {
       const params = contactExportParams({
         contactType: exportType,
+        format,
         status: statusFilter,
         q: search,
         dateFrom,
@@ -575,8 +576,12 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
       // El cuerpo se conserva como bytes: `response.text()` descarta el BOM y
       // Excel dejaría de detectar UTF-8 en la descarga.
       const buffer = await response.arrayBuffer()
-      const fileName = csvFileName(response, exportType)
-      const url = URL.createObjectURL(new Blob([buffer], { type: "text/csv;charset=utf-8" }))
+      const fallback = `solicitudes-${exportType}-${new Date().toISOString().slice(0, 10)}.${format}`
+      const fileName = downloadFileName(response, fallback)
+      const mime = format === "xlsx"
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "text/csv;charset=utf-8"
+      const url = URL.createObjectURL(new Blob([buffer], { type: mime }))
       const anchor = document.createElement("a")
       anchor.href = url
       anchor.download = fileName
@@ -585,18 +590,71 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
       anchor.remove()
       window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
 
-      const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(buffer)
-      const rows = parseExportCount(response.headers.get("X-Export-Count"))
-        ?? Math.max(0, text.replace(/^\ufeff/, "").trimEnd().split(/\r?\n/).length - 1)
-      const message = `CSV exportado: ${rows} ${rows === 1 ? "solicitud" : "solicitudes"} de ${CONTACT_TYPE_LABELS[exportType]}.`
+      let rows = parseExportCount(response.headers.get("X-Export-Count"))
+      if (rows === null && format === "csv") {
+        const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(buffer)
+        rows = Math.max(0, text.replace(/^\ufeff/, "").trimEnd().split(/\r?\n/).length - 1)
+      }
+      const count = rows ?? 0
+      const label = format === "xlsx" ? "Excel" : "CSV"
+      const message = `${label} exportado: ${count} ${count === 1 ? "solicitud" : "solicitudes"} de ${CONTACT_TYPE_LABELS[exportType]}.`
       setNotice(message)
-      toast.success(message)
     } catch (error) {
       const message = errorMessage(error, "No se pudo exportar la bandeja.")
       setActionError(message)
       toast.error(message)
     } finally {
-      setExporting(false)
+      setExportingFormat(null)
+    }
+  }
+
+  const runExportAll = async () => {
+    if (contactType) return
+    setExportingAll(true)
+    setActionError(null)
+    try {
+      const params = contactExportAllParams({
+        contactTypes: typeFilter ? [typeFilter] : undefined,
+        status: statusFilter,
+        q: search,
+        dateFrom,
+        dateTo,
+      })
+      const response = await fetch(`/admin/jovy/contacts/export-all?${params}`, {
+        credentials: "include",
+      })
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as ApiErrorBody | null
+        throw new Error(body?.message ?? `La exportación falló (${response.status}).`)
+      }
+
+      const buffer = await response.arrayBuffer()
+      const fileName = downloadFileName(
+        response,
+        `solicitudes-consolidado-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      )
+      const url = URL.createObjectURL(new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }))
+      const anchor = document.createElement("a")
+      anchor.href = url
+      anchor.download = fileName
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
+
+      const count = parseExportCount(response.headers.get("X-Export-Count")) ?? 0
+      const parsedSheets = Number.parseInt(response.headers.get("X-Export-Sheets") ?? "", 10)
+      const sheets = Number.isSafeInteger(parsedSheets) && parsedSheets > 0 ? parsedSheets : 0
+      const message = `Excel consolidado: ${count} ${count === 1 ? "solicitud" : "solicitudes"} en ${sheets} ${sheets === 1 ? "bandeja" : "bandejas"}.`
+      setNotice(message)
+    } catch (error) {
+      const message = errorMessage(error, "No se pudo exportar el consolidado.")
+      setActionError(message)
+      toast.error(message)
+    } finally {
+      setExportingAll(false)
     }
   }
 
@@ -640,7 +698,7 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
             <Text size="xsmall" className="text-ui-fg-subtle mt-2">
               {contactType
                 ? `Bandeja fija: ${CONTACT_TYPE_LABELS[contactType]}. Las solicitudes de otras bandejas no se consultan.`
-                : "Vista consolidada de las cuatro bandejas. Selecciona una bandeja para exportar su CSV."}
+                : "Vista consolidada de las cuatro bandejas. Exporta un libro Excel con una hoja por bandeja o filtra por tipo."}
             </Text>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -655,20 +713,39 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
               <ArrowPath /> Actualizar
             </Button>
             {exportType ? (
+              <>
+                <Button
+                  type="button"
+                  size="small"
+                  variant="secondary"
+                  onClick={() => void runExport("csv")}
+                  isLoading={exportingFormat === "csv"}
+                  disabled={exportingFormat !== null || exportingAll}
+                >
+                  <ArrowDownTray /> Exportar CSV
+                </Button>
+                <Button
+                  type="button"
+                  size="small"
+                  variant="secondary"
+                  onClick={() => void runExport("xlsx")}
+                  isLoading={exportingFormat === "xlsx"}
+                  disabled={exportingFormat !== null || exportingAll}
+                >
+                  <ArrowDownTray /> Exportar Excel
+                </Button>
+              </>
+            ) : (
               <Button
                 type="button"
                 size="small"
                 variant="secondary"
-                onClick={() => void runExport()}
-                isLoading={exporting}
-                disabled={exporting}
+                onClick={() => void runExportAll()}
+                isLoading={exportingAll}
+                disabled={exportingAll || exportingFormat !== null}
               >
-                <ArrowDownTray /> Exportar CSV
+                <ArrowDownTray /> Exportar todo (Excel)
               </Button>
-            ) : (
-              <Text size="xsmall" className="text-ui-fg-subtle max-w-56">
-                Selecciona una bandeja para exportar su CSV.
-              </Text>
             )}
           </div>
         </div>

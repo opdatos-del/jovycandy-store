@@ -127,10 +127,14 @@ export const contactListQuerySchema = z
   .strict()
   .refine(validDateRange, dateRangeIssue)
 
-/** CSV export filters. `contact_type` is mandatory so a bandeja never leaks into another. */
+/** Export formats offered by the inbox: CSV for pipelines, XLSX for operators. */
+export const contactExportFormats = ["csv", "xlsx"] as const
+export type ContactExportFormat = (typeof contactExportFormats)[number]
+
+/** Per-inbox export filters. `contact_type` is mandatory so a bandeja never leaks into another. */
 export const contactExportQuerySchema = z
   .object({
-    format: z.literal("csv").default("csv"),
+    format: z.enum(contactExportFormats).default("csv"),
     contact_type: z.enum(contactTypes),
     status: z.enum(contactFilterStatuses).optional(),
     q: z.string().trim().min(1).max(100).optional(),
@@ -140,8 +144,44 @@ export const contactExportQuerySchema = z
   .strict()
   .refine(validDateRange, dateRangeIssue)
 
+/**
+ * Consolidated export: one sheet per bandeja. `contact_types` is a CSV list so
+ * the URL stays readable; omitting it means all four inboxes.
+ */
+export const contactExportAllQuerySchema = z
+  .object({
+    contact_types: z.string().trim().max(200).optional(),
+    status: z.enum(contactFilterStatuses).optional(),
+    q: z.string().trim().min(1).max(100).optional(),
+    date_from: contactDate.optional(),
+    date_to: contactDate.optional(),
+  })
+  .strict()
+  .refine(validDateRange, dateRangeIssue)
+  .refine((value) => parseContactTypesParam(value.contact_types) !== null, {
+    message: "contact_types contiene una bandeja desconocida",
+    path: ["contact_types"],
+  })
+
+/**
+ * Parses the comma-separated `contact_types` value. Returns all four inboxes
+ * when absent, and `null` when any item is unknown so the caller can answer 400
+ * instead of silently dropping a bandeja.
+ */
+export function parseContactTypesParam(value: string | null | undefined): ContactType[] | null {
+  if (value === null || value === undefined || value.trim() === "") return [...contactTypes]
+  const selected: ContactType[] = []
+  for (const item of value.split(",").map((part) => part.trim()).filter(Boolean)) {
+    if (!(contactTypes as readonly string[]).includes(item)) return null
+    const type = item as ContactType
+    if (!selected.includes(type)) selected.push(type)
+  }
+  return selected.length > 0 ? selected : null
+}
+
 export type ContactListQuery = z.infer<typeof contactListQuerySchema>
 export type ContactExportQuery = z.infer<typeof contactExportQuerySchema>
+export type ContactExportAllQuery = z.infer<typeof contactExportAllQuerySchema>
 export type ContactType = (typeof contactTypes)[number]
 export type ContactStatus = (typeof contactStatuses)[number]
 
@@ -376,7 +416,16 @@ export function toContactCsv(rows: ContactCsvRow[]) {
   return `\ufeff${lines.join("\r\n")}\r\n`
 }
 
-/** ASCII filename; the bandeja is part of the name so downloads stay distinguishable. */
-export function contactExportFileName(contactType: ContactType, stamp = new Date()) {
-  return `solicitudes-${contactType}-${stamp.toISOString().slice(0, 10)}.csv`
+/** Stable filename per inbox and format; the bandeja keeps downloads distinct. */
+export function contactExportFileName(
+  contactType: ContactType,
+  stamp = new Date(),
+  format: ContactExportFormat = "csv",
+) {
+  return `solicitudes-${contactType}-${stamp.toISOString().slice(0, 10)}.${format}`
+}
+
+/** Consolidated workbook name; the date keeps repeated downloads distinguishable. */
+export function contactExportAllFileName(stamp = new Date()) {
+  return `solicitudes-consolidado-${stamp.toISOString().slice(0, 10)}.xlsx`
 }

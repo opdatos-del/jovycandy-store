@@ -9,17 +9,18 @@ import {
   contactListWithDeleted,
   toContactCsv,
 } from "@jovy/lib/jovy/contacts"
+import { toContactXlsxBuffer } from "@jovy/lib/jovy/contacts-xlsx"
 import { JOVY_CONTACTS_MODULE } from "@jovy/modules/jovy-contacts"
 import JovyContactsModuleService from "@jovy/modules/jovy-contacts/service"
 
 /**
- * CSV export of one inbox. `contact_type` is mandatory so a download can never
- * mix two bandejas. The filters are the same ones the listing uses, and the row
- * ceiling forces the operator to narrow the date range instead of dumping the
- * table. The audit trail lives in the structured log: the per-request audit
- * table is keyed by `contact_request_id`, so an export (which spans rows) would
- * have no valid owner there. Search terms are never logged because they can
- * contain an email or a phone number.
+ * CSV or XLSX export of one inbox. `contact_type` is mandatory so a download
+ * can never mix two bandejas. The filters are the same ones the listing uses,
+ * and the row ceiling forces the operator to narrow the date range instead of
+ * dumping the table. The audit trail lives in the structured log: the
+ * per-request audit table is keyed by `contact_request_id`, so an export (which
+ * spans rows) would have no valid owner there. Search terms are never logged
+ * because they can contain an email or a phone number.
  */
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const parsed = contactExportQuerySchema.safeParse(req.query)
@@ -44,20 +45,29 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     })
   }
 
-  const csv = toContactCsv(contacts)
+  const format = query.format
   const actorId = getAdminActorId(req)
   logger.info(
-    `[jovy-contacts] exportación CSV: bandeja=${query.contact_type} filas=${contacts.length} ` +
+    `[jovy-contacts] exportación ${format.toUpperCase()}: bandeja=${query.contact_type} filas=${contacts.length} ` +
       `actor=${actorId ?? "desconocido"} estado=${query.status ?? "todos"} ` +
       `desde=${query.date_from ?? "-"} hasta=${query.date_to ?? "-"} busqueda=${query.q ? "sí" : "no"}`,
   )
 
-  res.setHeader("Content-Type", "text/csv; charset=utf-8")
-  res.setHeader("Content-Disposition", `attachment; filename="${contactExportFileName(query.contact_type)}"`)
+  const fileName = contactExportFileName(query.contact_type, new Date(), format)
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`)
   // Personal data: never keep a copy in an intermediary cache.
   res.setHeader("Cache-Control", "no-store")
   // Registros exportados (no líneas del CSV): un mensaje multilínea ocupa varias
   // líneas físicas. La UI usa este número en el aviso de descarga.
   res.setHeader("X-Export-Count", String(contacts.length))
-  res.status(200).send(csv)
+
+  if (format === "xlsx") {
+    const workbook = await toContactXlsxBuffer([{ contactType: query.contact_type, rows: contacts }])
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    return res.status(200).send(workbook)
+  }
+
+  const csv = toContactCsv(contacts)
+  res.setHeader("Content-Type", "text/csv; charset=utf-8")
+  return res.status(200).send(csv)
 }

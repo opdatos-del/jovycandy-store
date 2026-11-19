@@ -59,11 +59,28 @@ async function cancelPrompt(page: Page, title: string, cancelText = "Cancelar") 
  */
 async function clickGalleryMoreAction(page: Page, id: string, accessibleName: string) {
   const trigger = page.getByTestId(`gallery-item-actions-${id}`)
-  await expect(trigger).toBeEnabled()
-  await trigger.click()
   const item = page.getByRole("menuitem", { name: accessibleName, exact: true })
+
+  // Un refresco o un toast puede cerrar/tapar el men�� justo tras abrirlo. Se
+  // reintenta cerrando notificaciones y el men�� anterior en cada intento.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.evaluate(() => {
+      document
+        .querySelectorAll<HTMLButtonElement>('[aria-label*="Notifications"] button, [data-radix-toast-viewport] button')
+        .forEach((button) => button.click())
+    })
+    await expect(trigger).toBeEnabled()
+    await trigger.click()
+    try {
+      await expect(item).toBeVisible({ timeout: 3_000 })
+      await item.click()
+      return
+    } catch {
+      await page.keyboard.press("Escape").catch(() => undefined)
+      await expect(item).toBeHidden({ timeout: 1_000 }).catch(() => undefined)
+    }
+  }
   await expect(item).toBeVisible()
-  await item.click()
 }
 
 async function login(page: import("@playwright/test").Page, request: import("@playwright/test").APIRequestContext) {

@@ -1,4 +1,5 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test"
+import { expect, test, type APIRequestContext, type Download, type Page } from "@playwright/test"
+import ExcelJS from "exceljs"
 import { mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 
@@ -114,8 +115,7 @@ async function contactById(
   request: APIRequestContext,
   headers: Record<string, string>,
   id: string,
-) {
-  const response = await request.get(`/admin/jovy/contacts/${id}`, { headers })
+) {  const response = await request.get(`/admin/jovy/contacts/${id}`, { headers })
   expect(response.status()).toBe(200)
   return (await response.json()).contact as {
     email: string
@@ -128,6 +128,30 @@ async function contactById(
 }
 
 const rows = (page: Page) => page.locator('tbody tr[data-testid^="contact-row-"]')
+
+/**
+ * Las notificaciones de Medusa se apilan arriba a la derecha y pueden tapar los
+ * botones de exportación. Se cierran antes de cada descarga para que el clic
+ * llegue al botón real.
+ */
+async function dismissNotifications(page: Page) {
+  await page.evaluate(() => {
+    document
+      .querySelectorAll<HTMLButtonElement>('[aria-label*="Notifications"] button, [data-radix-toast-viewport] button')
+      .forEach((button) => button.click())
+  })
+  await expect(page.locator('[aria-label*="Notifications"] button, [data-radix-toast-viewport] button'))
+    .toHaveCount(0, { timeout: 3_000 })
+    .catch(() => undefined)
+}
+
+async function readDownloadedWorkbook(download: Download) {
+  const filePath = await download.path()
+  expect(filePath).not.toBeNull()
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(readFileSync(filePath!) as unknown as ArrayBuffer)
+  return workbook
+}
 
 async function search(page: Page, value: string) {
   await page.getByLabel("Buscar").fill(value)
@@ -148,7 +172,7 @@ function fixtures(runId: string): Fixture[] {
     first_name: `Demo Nacional ${index + 1}`,
     last_name: runId,
     email: `${runId}-n${index}@example.test`,
-    phone: index === 2 ? "+525599990001" : `+5233${String(10_000_000 + index).padStart(8, "0")}`,
+    phone: index === 2 ? `+5255${runId.replace(/\D/g, "").slice(-8)}` : `+5233${String(10_000_000 + index).padStart(8, "0")}`,
     country: "MX",
     city: index === 0 ? `Zapopan ${runId}` : "Guadalajara",
     postal_code: index === 1 ? `Z9${runId}` : "44100",
@@ -193,6 +217,23 @@ function fixtures(runId: string): Fixture[] {
   ]
 }
 
+/**
+ * Limpia restos de corridas interrumpidas. El teléfono y el CP de los fixtures
+ * se repiten entre corridas, así que una corrida abortada contaminaría la
+ * búsqueda y los conteos de la siguiente.
+ */
+async function removeStaleDemoContacts(request: APIRequestContext, headers: Record<string, string>) {
+  for (let page = 0; page < 20; page += 1) {
+    const response = await request.get("/admin/jovy/contacts?q=demo-contactos-&limit=50", { headers })
+    if (response.status() !== 200) return
+    const { contacts } = (await response.json()) as { contacts: Array<{ id: string }> }
+    if (contacts.length === 0) return
+    for (const contact of contacts) {
+      await request.delete(`/admin/jovy/contacts/${contact.id}`, { headers })
+    }
+  }
+}
+
 test("replica las bandejas históricas con filtros, modales, papelera y exportación", async ({ page, request }) => {
   const problems: string[] = []
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`))
@@ -210,6 +251,7 @@ test("replica las bandejas históricas con filtros, modales, papelera y exportac
 
   try {
     headers = await signIn(page, request)
+    await removeStaleDemoContacts(request, headers)
 
     // Contadores y búsqueda cerrada a las cuatro bandejas.
     expect((await request.get("/admin/jovy/contacts/counts")).status()).toBe(401)
@@ -517,6 +559,7 @@ test("replica las bandejas históricas con filtros, modales, papelera y exportac
     // Exportación CSV de la bandeja activa con los filtros aplicados.
     await openTab(page, "Todos")
     await expect(rows(page)).toHaveCount(12)
+    await dismissNotifications(page)
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.getByRole("button", { name: "Exportar CSV", exact: true }).click(),
@@ -536,6 +579,52 @@ test("replica las bandejas históricas con filtros, modales, papelera y exportac
       expect(line).not.toContain("Atención a clientes")
     }
     await expect(page.getByText(/CSV exportado: 12 solicitudes de Ventas nacionales\./).first()).toBeVisible()
+
+    // Exportación Excel de la misma bandeja: una hoja y las mismas columnas.
+    await dismissNotifications(page)
+    const [xlsxDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Exportar Excel", exact: true }).click(),
+    ])
+    expect(xlsxDownload.suggestedFilename()).toMatch(/^solicitudes-national-sales-\d{4}-\d{2}-\d{2}\.xlsx$/)
+    const inboxWorkbook = await readDownloadedWorkbook(xlsxDownload)
+    expect(inboxWorkbook.worksheets.map((sheet) => sheet.name)).toEqual(["Ventas Nacional"])
+    const inboxSheet = inboxWorkbook.getWorksheet("Ventas Nacional")!
+    expect(inboxSheet.rowCount).toBe(13)
+    expect(inboxSheet.getRow(1).getCell(1).value).toBe("ID")
+    expect(inboxSheet.getRow(1).getCell(11).value).toBe("Creado")
+    expect(inboxSheet.getColumn(10).values.join(" ")).toContain(runId)
+    await expect(page.getByText(/Excel exportado: 12 solicitudes de Ventas nacionales\./).first()).toBeVisible()
+
+    // Consolidado: una hoja por bandeja y los mismos filtros de la vista.
+    await page.goto("/app/jovy-herramientas/contacts")
+    await expect(page.getByRole("heading", { name: "Contactos", exact: true, level: 1 })).toBeVisible()
+    await search(page, runId)
+    await openTab(page, "Todos")
+    await expect(rows(page)).toHaveCount(15)
+    await dismissNotifications(page)
+    const [consolidatedDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Exportar todo (Excel)", exact: true }).click(),
+    ])
+    expect(consolidatedDownload.suggestedFilename()).toMatch(/^solicitudes-consolidado-\d{4}-\d{2}-\d{2}\.xlsx$/)
+    const consolidated = await readDownloadedWorkbook(consolidatedDownload)
+    expect(consolidated.worksheets.map((sheet) => sheet.name)).toEqual([
+      "Ventas Nacional",
+      "Ventas Exportación",
+      "Atención a clientes",
+      "Catálogo",
+    ])
+    expect(consolidated.getWorksheet("Ventas Nacional")!.rowCount).toBe(13)
+    expect(consolidated.getWorksheet("Ventas Exportación")!.rowCount).toBe(2)
+    expect(consolidated.getWorksheet("Atención a clientes")!.rowCount).toBe(2)
+    expect(consolidated.getWorksheet("Catálogo")!.rowCount).toBe(2)
+    expect(consolidated.getWorksheet("Catálogo")!.getColumn(10).values.join(" ")).toContain(runId)
+    await expect(
+      page.getByText(/Excel consolidado: 15 solicitudes en 4 bandejas\./).first(),
+    ).toBeVisible()
+    await page.goto("/app/jovy/contacts-national-sales")
+    await expect(page.getByRole("heading", { name: "Ventas Nacionales", exact: true, level: 1 })).toBeVisible()
 
     // Persistencia tras recarga.
     await page.reload()

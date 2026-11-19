@@ -408,13 +408,37 @@ const exportRow = {
 }
 
 describe("GET /admin/jovy/contacts/export", () => {
-  it("exige la bandeja y rechaza formatos distintos de csv", async () => {
-    for (const query of [{}, { contact_type: "otro" }, { contact_type: "catalogue", format: "xlsx" }, { contact_type: "catalogue", limit: "10" }]) {
+  it("exige la bandeja y acepta csv o xlsx", async () => {
+    for (const query of [{}, { contact_type: "otro" }, { contact_type: "catalogue", format: "pdf" }, { contact_type: "catalogue", limit: "10" }]) {
       const response = fakeResponse()
       await exportContacts(fakeRequest({ query }), response as unknown as MedusaResponse)
       expect(response.statusCode).toBe(400)
     }
     expect(listContact).not.toHaveBeenCalled()
+  })
+
+  it("exporta XLSX con el tipo, nombre y libro correctos", async () => {
+    listContact.mockResolvedValue([exportRow])
+    const response = fakeResponse()
+
+    await exportContacts(
+      fakeRequest({ query: { contact_type: "catalogue", format: "xlsx" } }),
+      response as unknown as MedusaResponse,
+    )
+
+    expect(response.statusCode).toBe(200)
+    expect(response.headers["Content-Type"]).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    expect(response.headers["Content-Disposition"]).toMatch(
+      /^attachment; filename="solicitudes-catalogue-\d{4}-\d{2}-\d{2}\.xlsx"$/,
+    )
+    expect(response.headers["Cache-Control"]).toBe("no-store")
+    expect(response.headers["X-Export-Count"]).toBe("1")
+    const buffer = response.body as Buffer
+    expect(Buffer.isBuffer(buffer)).toBe(true)
+    // Un XLSX es un ZIP: la firma PK confirma que no se envió CSV con otro tipo.
+    expect(buffer.subarray(0, 2).toString("ascii")).toBe("PK")
   })
 
   it("exporta sólo la bandeja pedida con BOM y cabeceras históricas", async () => {
