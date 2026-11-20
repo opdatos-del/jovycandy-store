@@ -1,6 +1,9 @@
 import { ArrowDownTray, ArrowPath } from "@medusajs/icons"
 import { Button, Container, Heading, Text, toast, usePrompt } from "@medusajs/ui"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { errorMessage, saveBlob } from "@admin/shared/lib/admin-api"
+import { contactsApi } from "../api/contacts-api"
+import { useContactQuery } from "../hooks/use-contact-query"
 import { ContactAuditDialog } from "./contact-audit-dialog"
 import { ContactDetailDialog } from "./contact-detail-dialog"
 import { ContactEditDialog } from "./contact-edit-dialog"
@@ -10,21 +13,14 @@ import {
   CONTACT_PAGE_SIZE,
   CONTACT_POLL_INTERVAL_MS,
   CONTACT_TYPE_LABELS,
-  contactExportAllParams,
-  contactExportParams,
-  contactListParams,
   contactName,
   contactUpdatePayload,
   inboxCounts,
   inboxTabCounts,
-  mergeSeenIds,
-  newContactIds,
   normalizeContactLimit,
   paginationItems,
-  parseExportCount,
   type Contact,
   type ContactAuditLog,
-  type ContactCounts,
   type ContactDraft,
   type ContactExportFormat,
   type ContactPageSize,
@@ -32,45 +28,6 @@ import {
   type ContactStatusFilter,
   type ContactType,
 } from "./inbox"
-
-type ApiErrorBody = {
-  message?: string
-  errors?: { fieldErrors?: Record<string, string[]>; formErrors?: string[] }
-}
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    credentials: "include",
-    ...init,
-    headers: {
-      ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-      ...init?.headers,
-    },
-  })
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as ApiErrorBody | null
-    const fieldMessage = body?.errors?.fieldErrors
-      ? Object.values(body.errors.fieldErrors).flat()[0]
-      : undefined
-    throw new Error(
-      fieldMessage ??
-        body?.errors?.formErrors?.[0] ??
-        body?.message ??
-        `La operación falló (${response.status}).`,
-    )
-  }
-  if (response.status === 204) return undefined as T
-  return (await response.json()) as T
-}
-
-const errorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error && error.message ? error.message : fallback
-
-function downloadFileName(response: Response, fallback: string) {
-  const disposition = response.headers.get("Content-Disposition") ?? ""
-  const match = /filename="([^"]+)"/.exec(disposition)
-  return match?.[1] ?? fallback
-}
 
 type ContactInboxProps = {
   title: string
@@ -101,17 +58,9 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState<ContactPageSize>(CONTACT_PAGE_SIZE)
 
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [listError, setListError] = useState<string | null>(null)
-  const [counts, setCounts] = useState<ContactCounts | null>(null)
-  const [countsError, setCountsError] = useState<string | null>(null)
   const [filterError, setFilterError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [newIds, setNewIds] = useState<Set<string>>(new Set())
 
   const [busy, setBusy] = useState<{ id: string; action: BusyAction } | null>(null)
   const [exportingFormat, setExportingFormat] = useState<ContactExportFormat | null>(null)
@@ -131,100 +80,37 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
   const [auditLoading, setAuditLoading] = useState(false)
   const [auditError, setAuditError] = useState<string | null>(null)
 
-  const requestIdRef = useRef(0)
-  const inFlightRef = useRef(false)
-  const countsRequestRef = useRef(0)
-  const seenIdsRef = useRef<Set<string> | null>(null)
-  const sessionStartRef = useRef(Date.now())
   const detailRequestRef = useRef(0)
   const auditRequestRef = useRef(0)
   const lastTriggerRef = useRef<HTMLElement | null>(null)
-  const refreshRef = useRef<() => void>(() => undefined)
 
   const listType = contactType ?? (typeFilter || undefined)
   const exportType = listType ?? null
-  const filterKey = [listType ?? "", statusFilter, search, dateFrom, dateTo, limit].join("|")
+
+  const {
+    contacts,
+    total,
+    loading,
+    refreshing,
+    listError,
+    counts,
+    countsError,
+    newIds,
+    setNewIds,
+    reload,
+    loadCounts,
+  } = useContactQuery({
+    listType,
+    statusFilter,
+    search,
+    dateFrom,
+    dateTo,
+    limit,
+    page,
+    queryVersion,
+  })
+
   const totalPages = Math.max(1, Math.ceil(total / limit))
-
-  // Un cambio de filtro invalida la detección de novedades y los datos visibles.
-  // La página no entra en la clave: paginar conserva los IDs ya conocidos.
-  useEffect(() => {
-    seenIdsRef.current = null
-    sessionStartRef.current = Date.now()
-    setNewIds(new Set())
-    setContacts([])
-    setTotal(0)
-    setListError(null)
-  }, [filterKey])
-
-  const loadContacts = useCallback(
-    async (options?: { silent?: boolean; manual?: boolean; force?: boolean }) => {
-      if (options?.silent && !options?.force && inFlightRef.current) return
-      const requestId = ++requestIdRef.current
-      inFlightRef.current = true
-      if (options?.manual) setRefreshing(true)
-      if (!options?.silent) setLoading(true)
-
-      try {
-        const params = contactListParams({
-          contactType: listType,
-          status: statusFilter,
-          q: search,
-          dateFrom,
-          dateTo,
-          limit,
-          offset: (page - 1) * limit,
-        })
-        const result = await api<{ contacts: Contact[]; count: number }>(
-          `/admin/jovy/contacts?${params}`,
-        )
-        if (requestId !== requestIdRef.current) return
-
-        const previous = seenIdsRef.current
-        const appeared = newContactIds(previous, result.contacts, sessionStartRef.current)
-        seenIdsRef.current = mergeSeenIds(previous ?? new Set(), result.contacts)
-        setContacts(result.contacts)
-        setTotal(result.count)
-        setListError(null)
-        if (appeared.size > 0) {
-          setNewIds((current) => new Set([...current, ...appeared]))
-        }
-      } catch (error) {
-        if (requestId === requestIdRef.current) {
-          setListError(errorMessage(error, "No se pudieron cargar las solicitudes."))
-        }
-      } finally {
-        if (requestId === requestIdRef.current) {
-          setLoading(false)
-          setRefreshing(false)
-          inFlightRef.current = false
-        }
-      }
-    },
-    [listType, statusFilter, search, dateFrom, dateTo, limit, page],
-  )
-
-  const loadCounts = useCallback(async (silent = false) => {
-    const requestId = ++countsRequestRef.current
-    try {
-      const result = await api<{ counts: ContactCounts }>("/admin/jovy/contacts/counts")
-      if (requestId !== countsRequestRef.current) return
-      setCounts(result.counts)
-      setCountsError(null)
-    } catch (error) {
-      if (requestId === countsRequestRef.current && !silent) {
-        setCountsError(errorMessage(error, "No se pudieron cargar los contadores."))
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadContacts()
-  }, [loadContacts, queryVersion])
-
-  useEffect(() => {
-    void loadCounts()
-  }, [loadCounts])
 
   useEffect(() => {
     if (page <= totalPages) return
@@ -233,19 +119,18 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
 
   // El sondeo se pausa con la pestaña oculta y se limpia al desmontar. Al volver
   // a estar visible se refresca una vez, sin esperar al siguiente intervalo.
-  refreshRef.current = () => {
-    void loadContacts({ silent: true })
-    void loadCounts(true)
-  }
-
   useEffect(() => {
+    const refreshSilently = () => {
+      void reload({ silent: true })
+      void loadCounts(true)
+    }
     const interval = window.setInterval(() => {
       if (document.visibilityState === "hidden") return
-      refreshRef.current()
+      refreshSilently()
     }, CONTACT_POLL_INTERVAL_MS)
 
     const onVisibility = () => {
-      if (document.visibilityState === "visible") refreshRef.current()
+      if (document.visibilityState === "visible") refreshSilently()
     }
     document.addEventListener("visibilitychange", onVisibility)
 
@@ -253,13 +138,13 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
       window.clearInterval(interval)
       document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [])
+  }, [loadCounts, reload])
 
   const tabCounts = inboxTabCounts(inboxCounts(counts, listType))
 
   const refresh = () => {
     setNotice(null)
-    void loadContacts({ silent: true, manual: true, force: true })
+    void reload({ silent: true, manual: true, force: true })
     void loadCounts(true)
   }
 
@@ -326,8 +211,8 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
 
     try {
       const [contactResult, auditResult] = await Promise.all([
-        api<{ contact: Contact }>(`/admin/jovy/contacts/${contact.id}`),
-        api<{ audit_logs: ContactAuditLog[] }>(`/admin/jovy/contacts/${contact.id}/audit`),
+        contactsApi.detail(contact.id),
+        contactsApi.audit(contact.id),
       ])
       if (requestId !== detailRequestRef.current) return
       setDetail(contactResult.contact)
@@ -370,10 +255,7 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     if (!id) return "No hay una solicitud seleccionada."
     setSavingEdit(true)
     try {
-      await api<{ contact: Contact }>(`/admin/jovy/contacts/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(contactUpdatePayload(draft)),
-      })
+      await contactsApi.update(id, contactUpdatePayload(draft))
       setEditTarget(null)
       requestAnimationFrame(() => {
         if (lastTriggerRef.current?.isConnected) lastTriggerRef.current.focus()
@@ -381,7 +263,7 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
       const message = "Solicitud actualizada."
       setNotice(message)
       toast.success(message)
-      await Promise.all([loadContacts({ silent: true, force: true }), loadCounts(true)])
+      await Promise.all([reload({ silent: true, force: true }), loadCounts(true)])
       return null
     } catch (error) {
       const message = errorMessage(error, "No se pudo guardar la solicitud.")
@@ -396,10 +278,7 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     setActionError(null)
     setBusy({ id: contact.id, action: "status" })
     try {
-      const result = await api<{ contact: Contact }>(`/admin/jovy/contacts/${contact.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ status }),
-      })
+      const result = await contactsApi.update(contact.id, { status })
       const message =
         status === "handled" ? "Solicitud marcada como atendida." : "Solicitud devuelta a pendientes."
       setNotice(message)
@@ -414,15 +293,13 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
         setDetail(result.contact)
         setNotes(result.contact.admin_notes ?? "")
         try {
-          const auditResult = await api<{ audit_logs: ContactAuditLog[] }>(
-            `/admin/jovy/contacts/${contact.id}/audit`,
-          )
+          const auditResult = await contactsApi.audit(contact.id)
           setDetailAudit(auditResult.audit_logs)
         } catch {
           // El cambio de estado ya se guardó; la auditoría se reintenta al reabrir.
         }
       }
-      await Promise.all([loadContacts({ silent: true, force: true }), loadCounts(true)])
+      await Promise.all([reload({ silent: true, force: true }), loadCounts(true)])
     } catch (error) {
       const message = errorMessage(error, "No se pudo cambiar el estado de la solicitud.")
       setActionError(message)
@@ -444,12 +321,12 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     setActionError(null)
     setBusy({ id: contact.id, action: "delete" })
     try {
-      await api(`/admin/jovy/contacts/${contact.id}`, { method: "DELETE" })
+      await contactsApi.remove(contact.id)
       if (detail?.id === contact.id) closeDetail()
       const message = "Solicitud movida a la papelera."
       setNotice(message)
       toast.success(message)
-      await Promise.all([loadContacts({ silent: true, force: true }), loadCounts(true)])
+      await Promise.all([reload({ silent: true, force: true }), loadCounts(true)])
     } catch (error) {
       const message = errorMessage(error, "No se pudo eliminar la solicitud.")
       setActionError(message)
@@ -471,14 +348,12 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     setActionError(null)
     setBusy({ id: contact.id, action: "restore" })
     try {
-      await api<{ contact: Contact }>(`/admin/jovy/contacts/${contact.id}/restore`, {
-        method: "POST",
-      })
+      await contactsApi.restore(contact.id)
       if (detail?.id === contact.id) closeDetail()
       const message = "Solicitud restaurada."
       setNotice(message)
       toast.success(message)
-      await Promise.all([loadContacts({ silent: true, force: true }), loadCounts(true)])
+      await Promise.all([reload({ silent: true, force: true }), loadCounts(true)])
     } catch (error) {
       const message = errorMessage(error, "No se pudo restaurar la solicitud.")
       setActionError(message)
@@ -497,9 +372,7 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     setAuditError(null)
     setAuditLoading(true)
     try {
-      const result = await api<{ audit_logs: ContactAuditLog[] }>(
-        `/admin/jovy/contacts/${contact.id}/audit`,
-      )
+      const result = await contactsApi.audit(contact.id)
       if (requestId !== auditRequestRef.current) return
       setAuditLogs(result.audit_logs)
     } catch (error) {
@@ -525,17 +398,14 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     setSavingNotes(true)
     setDetailError(null)
     try {
-      const result = await api<{ contact: Contact }>(`/admin/jovy/contacts/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ admin_notes: notes.trim() ? notes.trim() : null }),
+      const result = await contactsApi.update(id, {
+        admin_notes: notes.trim() ? notes.trim() : null,
       })
       if (requestId !== detailRequestRef.current) return
       setDetail(result.contact)
       setNotes(result.contact.admin_notes ?? "")
       try {
-        const auditResult = await api<{ audit_logs: ContactAuditLog[] }>(
-          `/admin/jovy/contacts/${id}/audit`,
-        )
+        const auditResult = await contactsApi.audit(id)
         if (requestId === detailRequestRef.current) setDetailAudit(auditResult.audit_logs)
       } catch {
         // Las notas ya se guardaron; el historial se recupera al reabrir el detalle.
@@ -557,45 +427,15 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     setExportingFormat(format)
     setActionError(null)
     try {
-      const params = contactExportParams({
-        contactType: exportType,
-        format,
+      const download = await contactsApi.exportInbox(exportType, format, {
         status: statusFilter,
         q: search,
         dateFrom,
         dateTo,
       })
-      const response = await fetch(`/admin/jovy/contacts/export?${params}`, {
-        credentials: "include",
-      })
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as ApiErrorBody | null
-        throw new Error(body?.message ?? `La exportación falló (${response.status}).`)
-      }
+      saveBlob(download.blob, download.fileName)
 
-      // El cuerpo se conserva como bytes: `response.text()` descarta el BOM y
-      // Excel dejaría de detectar UTF-8 en la descarga.
-      const buffer = await response.arrayBuffer()
-      const fallback = `solicitudes-${exportType}-${new Date().toISOString().slice(0, 10)}.${format}`
-      const fileName = downloadFileName(response, fallback)
-      const mime = format === "xlsx"
-        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        : "text/csv;charset=utf-8"
-      const url = URL.createObjectURL(new Blob([buffer], { type: mime }))
-      const anchor = document.createElement("a")
-      anchor.href = url
-      anchor.download = fileName
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
-
-      let rows = parseExportCount(response.headers.get("X-Export-Count"))
-      if (rows === null && format === "csv") {
-        const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(buffer)
-        rows = Math.max(0, text.replace(/^\ufeff/, "").trimEnd().split(/\r?\n/).length - 1)
-      }
-      const count = rows ?? 0
+      const count = download.count ?? 0
       const label = format === "xlsx" ? "Excel" : "CSV"
       const message = `${label} exportado: ${count} ${count === 1 ? "solicitud" : "solicitudes"} de ${CONTACT_TYPE_LABELS[exportType]}.`
       setNotice(message)
@@ -613,40 +453,17 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     setExportingAll(true)
     setActionError(null)
     try {
-      const params = contactExportAllParams({
+      const download = await contactsApi.exportAll({
         contactTypes: typeFilter ? [typeFilter] : undefined,
         status: statusFilter,
         q: search,
         dateFrom,
         dateTo,
       })
-      const response = await fetch(`/admin/jovy/contacts/export-all?${params}`, {
-        credentials: "include",
-      })
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as ApiErrorBody | null
-        throw new Error(body?.message ?? `La exportación falló (${response.status}).`)
-      }
+      saveBlob(download.blob, download.fileName)
 
-      const buffer = await response.arrayBuffer()
-      const fileName = downloadFileName(
-        response,
-        `solicitudes-consolidado-${new Date().toISOString().slice(0, 10)}.xlsx`,
-      )
-      const url = URL.createObjectURL(new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      }))
-      const anchor = document.createElement("a")
-      anchor.href = url
-      anchor.download = fileName
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
-
-      const count = parseExportCount(response.headers.get("X-Export-Count")) ?? 0
-      const parsedSheets = Number.parseInt(response.headers.get("X-Export-Sheets") ?? "", 10)
-      const sheets = Number.isSafeInteger(parsedSheets) && parsedSheets > 0 ? parsedSheets : 0
+      const count = download.count ?? 0
+      const sheets = download.sheets ?? 0
       const message = `Excel consolidado: ${count} ${count === 1 ? "solicitud" : "solicitudes"} en ${sheets} ${sheets === 1 ? "bandeja" : "bandejas"}.`
       setNotice(message)
     } catch (error) {
@@ -831,7 +648,7 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
           newIds={newIds}
           busyId={busy?.id ?? null}
           busyAction={busy?.action ?? null}
-          onRetry={() => void loadContacts()}
+          onRetry={() => void reload()}
           onShowDetail={(contact, trigger) => void showDetail(contact, trigger)}
           onEdit={(contact) => setEditTarget(contact)}
           onAudit={(contact) => void openAudit(contact)}

@@ -1,7 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Swatch } from "@medusajs/icons"
 import { Container, Heading } from "@medusajs/ui"
-import { BrandLogoManager } from "../brand/components/logo-manager"
+import { BrandLogoManager } from "@admin/features/logos"
 
 /**
  * Entrada canónica de «Logos» del administrador histórico. Reutiliza el gestor

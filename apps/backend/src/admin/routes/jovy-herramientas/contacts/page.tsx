@@ -1,6 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Envelope } from "@medusajs/icons"
-import { ContactInbox } from "./components/contact-inbox"
+import { ContactInbox } from "@admin/features/contacts/components/contact-inbox"
 
 const ContactsPage = () => (
   <ContactInbox

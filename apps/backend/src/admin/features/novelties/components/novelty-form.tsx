@@ -1,7 +1,6 @@
-import { XMark } from "@medusajs/icons"
-import { Badge, Button, Heading, Input, Switch, Text, Textarea } from "@medusajs/ui"
-import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react"
-import { createPortal } from "react-dom"
+import { Badge, Button, Input, Switch, Text, Textarea } from "@medusajs/ui"
+import { useRef } from "react"
+import { AdminDialog } from "@admin/shared/components/admin-dialog"
 import {
   NOVELTY_MEDIA_ACCEPT,
   STATUS_META,
@@ -12,8 +11,7 @@ import {
   type NoveltyEvent,
   type NoveltyStatus,
 } from "../model"
-
-type EventType = { id: string; name: string }
+import type { EventType } from "../types"
 
 type Props = {
   draft: NoveltyDraft
@@ -41,10 +39,6 @@ const STATUS_OPTIONS: Array<{ value: NoveltyStatus; label: string }> = [
   { value: "cancelled", label: "Cancelado (fuera de Store)" },
 ]
 
-const FOCUSABLE =
-  "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), " +
-  "textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
-
 const numberValue = (value: string, max?: number) => {
   const parsed = Number(value)
   const base = Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0
@@ -70,122 +64,56 @@ export const NoveltyForm = ({
   onSave,
   onCancel,
 }: Props) => {
-  const panelRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
-  const onCancelRef = useRef(onCancel)
-  const savingRef = useRef(saving)
-  onCancelRef.current = onCancel
-  savingRef.current = saving
 
   const issues = draft.status === "published" ? publishIssues(draft) : []
   const titleId = "novelty-editor-title"
-  const descriptionId = "novelty-editor-description"
 
-  useEffect(() => {
-    const previousFocus = document.activeElement as HTMLElement | null
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    const frame = requestAnimationFrame(() => titleRef.current?.focus())
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return
-      // El Prompt de Medusa se monta por encima; su Escape no debe cerrar el editor.
-      if (document.querySelector('[role="alertdialog"]')) return
-      // Mientras se guarda, Escape no debe abandonar el diálogo a medias.
-      if (savingRef.current) return
-      event.preventDefault()
-      onCancelRef.current()
-    }
-    window.addEventListener("keydown", onKeyDown)
-
-    return () => {
-      cancelAnimationFrame(frame)
-      window.removeEventListener("keydown", onKeyDown)
-      document.body.style.overflow = previousOverflow
-      if (previousFocus?.isConnected) previousFocus.focus()
-    }
-    // El diálogo se monta una vez por apertura; el cierre se lee desde el ref.
-  }, [])
-
-  const trapFocus = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Tab") return
-    const focusable = panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE)
-    if (!focusable?.length) return
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
-  }
-
-  const requestClose = () => {
-    if (!savingRef.current) onCancel()
-  }
-
-  if (typeof document === "undefined") return null
-
-  return createPortal(
-    <div
-      className="bg-black/50 fixed inset-0 z-[120] flex items-end justify-center p-0 sm:items-center sm:p-4"
-      data-testid="novelty-editor-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) requestClose()
-      }}
-    >
-      <div
-        ref={panelRef}
-        id="novelty-editor"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={descriptionId}
-        onKeyDown={trapFocus}
-        data-jovy-quality
-        className="bg-ui-bg-base border-ui-border-base flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border shadow-xl sm:max-h-[88vh] sm:rounded-lg"
-      >
-        <header className="border-ui-border-base flex shrink-0 items-start justify-between gap-3 border-b px-4 py-3 sm:px-6">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Heading id={titleId} level="h2" className="text-base leading-snug font-semibold sm:text-lg">
-                {editing ? "Editar novedad" : "Nueva novedad"}
-              </Heading>
-              <Badge color={STATUS_META[draft.status].color}>{STATUS_META[draft.status].label}</Badge>
-            </div>
-            <Text size="small" id={descriptionId} className="text-ui-fg-subtle mt-1">
-              Misma entidad que Eventos Jovy. Aquí se administran la multimedia, la vigencia, el orden y la
-              visibilidad del carrusel; el contenido largo se edita en Eventos.
-            </Text>
+  return (
+    <AdminDialog
+      title={editing ? "Editar novedad" : "Nueva novedad"}
+      titleId={titleId}
+      description="Misma entidad que Eventos Jovy. Aquí se administran la multimedia, la vigencia, el orden y la visibilidad del carrusel; el contenido largo se edita en Eventos."
+      titleAdornment={
+        <Badge color={STATUS_META[draft.status].color}>{STATUS_META[draft.status].label}</Badge>
+      }
+      onClose={onCancel}
+      closeDisabled={saving}
+      initialFocusRef={titleRef}
+      width="xl"
+      panelId="novelty-editor"
+      backdropTestId="novelty-editor-backdrop"
+      footer={
+        <div className="flex w-full flex-wrap items-center justify-between gap-3">
+          <Text size="xsmall" className="text-ui-fg-subtle max-w-md">
+            {editing
+              ? "Los cambios de estado publicados o archivados piden confirmación."
+              : "El borrador se crea sin publicar; publicar exige título EN, tipo y fecha de inicio."}
+          </Text>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="secondary" disabled={saving} onClick={onCancel}>
+              Cancelar
+            </Button>
+            <Button type="submit" form="novelty-form" isLoading={saving}>
+              {editing ? "Guardar novedad" : "Crear novedad"}
+            </Button>
           </div>
-          <Button
-            type="button"
-            size="small"
-            variant="transparent"
-            aria-label="Cerrar editor"
-            disabled={saving}
-            onClick={requestClose}
-            className="h-8 w-8 shrink-0 p-0"
-          >
-            <XMark className="shrink-0" />
-          </Button>
-        </header>
-
+        </div>
+      }
+    >
         <form
+          id="novelty-form"
           data-testid="novelty-form"
-          className="flex min-h-0 flex-1 flex-col"
+          className="flex flex-col gap-y-5"
           onSubmit={(event) => {
             event.preventDefault()
             onSave()
           }}
         >
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             {error && (
               <div
                 role="alert"
-                className="border-ui-border-error bg-ui-bg-error text-ui-fg-error mb-4 rounded-md border px-3 py-2 text-sm"
+                className="border-ui-border-error bg-ui-bg-error text-ui-fg-error rounded-md border px-3 py-2 text-sm"
               >
                 {error}
               </div>
@@ -468,26 +396,7 @@ export const NoveltyForm = ({
                 </section>
               </aside>
             </div>
-          </div>
-
-          <footer className="border-ui-border-base bg-ui-bg-base flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-4 py-3 sm:px-6">
-            <Text size="xsmall" className="text-ui-fg-subtle max-w-md">
-              {editing
-                ? "Los cambios de estado publicados o archivados piden confirmación."
-                : "El borrador se crea sin publicar; publicar exige título EN, tipo y fecha de inicio."}
-            </Text>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="secondary" disabled={saving} onClick={requestClose}>
-                Cancelar
-              </Button>
-              <Button type="submit" isLoading={saving}>
-                {editing ? "Guardar novedad" : "Crear novedad"}
-              </Button>
-            </div>
-          </footer>
         </form>
-      </div>
-    </div>,
-    document.body,
+    </AdminDialog>
   )
 }

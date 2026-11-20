@@ -32,6 +32,14 @@ con `medusa start` (`NODE_ENV=production`), Medusa marca la cookie de sesión co
 `express-session` no la envía fuera de HTTPS, lo que deja `/admin/*` en `401` después del login.
 Detrás de HTTPS debe volver a `{ secure: true }`.
 
+Si el build se arranca desde `apps/backend/.medusa/server`, el provider `file-local` busca
+`static/` relativo a ese directorio. Enlaza el directorio real para que imágenes y vídeos sigan
+sirviéndose:
+
+```powershell
+New-Item -ItemType Junction -Path apps/backend/.medusa/server/static -Target apps/backend/static
+```
+
 En PowerShell, para crear una plantilla nueva sin sobrescribir un `.env` existente:
 
 ```powershell

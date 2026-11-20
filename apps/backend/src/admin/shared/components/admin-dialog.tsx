@@ -9,21 +9,32 @@ import {
 } from "react"
 import { createPortal } from "react-dom"
 
-type ContactDialogProps = {
+export type AdminDialogWidth = "md" | "lg" | "xl" | "2xl" | "5xl" | "6xl"
+
+type AdminDialogProps = {
   title: string
   titleId: string
   description?: string
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
-  width?: "md" | "lg" | "xl"
+  width?: AdminDialogWidth
   initialFocusRef?: RefObject<HTMLElement | null>
+  closeDisabled?: boolean
+  /** Elemento junto al título, por ejemplo un Badge de estado. */
+  titleAdornment?: ReactNode
+  panelId?: string
+  backdropTestId?: string
+  panelTestId?: string
 }
 
-const WIDTHS: Record<NonNullable<ContactDialogProps["width"]>, string> = {
+const WIDTHS: Record<AdminDialogWidth, string> = {
   md: "max-w-2xl",
   lg: "max-w-3xl",
   xl: "max-w-5xl",
+  "2xl": "max-w-6xl",
+  "5xl": "max-w-5xl",
+  "6xl": "max-w-6xl",
 }
 
 const FOCUSABLE =
@@ -31,12 +42,12 @@ const FOCUSABLE =
   "textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
 
 /**
- * Diálogo modal accesible para detalle, edición y auditoría. Mantiene el foco
- * dentro del panel, cierra con Escape, bloquea el scroll del documento y
- * devuelve el foco al disparador. Se monta solo cuando hay contenido abierto,
- * así que el efecto de captura corre una vez por apertura.
+ * Diálogo modal accesible compartido por las features del Admin. Monta en un
+ * portal, atrapa el foco, cierra con Escape, bloquea el scroll del documento y
+ * restaura el foco al disparador. El Prompt de Medusa se superpone y conserva
+ * su propio Escape.
  */
-export function ContactDialog({
+export function AdminDialog({
   title,
   titleId,
   description,
@@ -45,11 +56,18 @@ export function ContactDialog({
   footer,
   width = "lg",
   initialFocusRef,
-}: ContactDialogProps) {
+  closeDisabled = false,
+  titleAdornment,
+  panelId,
+  backdropTestId,
+  panelTestId,
+}: AdminDialogProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const onCloseRef = useRef(onClose)
+  const closeDisabledRef = useRef(closeDisabled)
   onCloseRef.current = onClose
+  closeDisabledRef.current = closeDisabled
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null
@@ -59,8 +77,9 @@ export function ContactDialog({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
-      // El Prompt de Medusa se monta por encima; su Escape no debe cerrar el detalle.
+      // El Prompt de Medusa se monta por encima; su Escape no cierra el modal.
       if (document.querySelector('[role="alertdialog"]')) return
+      if (closeDisabledRef.current) return
       event.preventDefault()
       onCloseRef.current()
     }
@@ -71,7 +90,7 @@ export function ContactDialog({
       document.body.style.overflow = previousOverflow
       if (previousFocus?.isConnected) previousFocus.focus()
     }
-    // Solo se ejecuta al montar/desmontar el diálogo; el cierre se lee del ref.
+    // Solo corre al montar/desmontar; el cierre se lee desde el ref.
   }, [])
 
   const trapFocus = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -94,25 +113,35 @@ export function ContactDialog({
   return createPortal(
     <div
       className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+      data-testid={backdropTestId}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
+        if (event.target !== event.currentTarget || closeDisabledRef.current) return
+        onClose()
       }}
-      data-testid="contact-dialog-backdrop"
     >
       <div
         ref={panelRef}
+        id={panelId}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? `${titleId}-description` : undefined}
         onKeyDown={trapFocus}
+        data-jovy-quality
+        data-testid={panelTestId}
         className={`bg-ui-bg-base border-ui-border-base flex max-h-[92vh] w-full ${WIDTHS[width]} flex-col overflow-hidden rounded-t-2xl border shadow-xl sm:max-h-[88vh] sm:rounded-lg`}
       >
         <header className="border-ui-border-base flex shrink-0 items-start justify-between gap-3 border-b px-4 py-3 sm:px-6">
           <div className="min-w-0">
-            <h2 id={titleId} className="text-ui-fg-base text-base leading-snug font-semibold break-words sm:text-lg">
-              {title}
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2
+                id={titleId}
+                className="text-ui-fg-base text-base leading-snug font-semibold break-words sm:text-lg"
+              >
+                {title}
+              </h2>
+              {titleAdornment}
+            </div>
             {description && (
               <p id={`${titleId}-description`} className="text-ui-fg-subtle mt-1 text-sm">
                 {description}
@@ -124,10 +153,12 @@ export function ContactDialog({
             type="button"
             size="small"
             variant="transparent"
-            onClick={onClose}
             aria-label="Cerrar"
+            disabled={closeDisabled}
+            onClick={onClose}
+            className="h-8 w-8 shrink-0 p-0"
           >
-            <XMark />
+            <XMark className="shrink-0" />
           </Button>
         </header>
 

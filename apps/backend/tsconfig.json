@@ -15,7 +15,8 @@
     "rootDir": "./",
     "baseUrl": ".",
     "paths": {
-      "@jovy/*": ["src/*"]
+      "@jovy/*": ["src/*"],
+      "@admin/*": ["src/admin/*"]
     },
     "jsx": "react-jsx",
     "forceConsistentCasingInFileNames": true,

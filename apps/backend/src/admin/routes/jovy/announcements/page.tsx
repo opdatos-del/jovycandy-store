@@ -1,8 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { BellAlert } from "@medusajs/icons"
 import { Container, Heading, Text } from "@medusajs/ui"
-// eslint-disable-next-line no-restricted-imports -- el Vite del Admin no resuelve el alias @jovy; la ruta relativa cruzando grupos es necesaria
-import { BannerManager } from "../../jovy-herramientas/marketing/components/banner-manager"
+import { BannerManager } from "@admin/features/announcements/components/banner-manager"
 
 /**
  * Anuncios de portada es el único CRUD de banners y anuncios (`promo` y `hint`).

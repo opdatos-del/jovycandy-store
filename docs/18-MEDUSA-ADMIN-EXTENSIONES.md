@@ -35,7 +35,7 @@ Las cuatro bandejas de contactos viven en rutas planas (`/jovy/contacts-national
 `/jovy/contacts-catalogue`) porque el sidebar de Medusa 2.22.6 solo pinta un nivel de rutas
 propias. Cada entrada renderiza `<ContactInbox contactType=…>` de forma directa: no hay stubs de
 redirección ni entradas duplicadas. `/jovy/contacts` sigue siendo la vista consolidada y
-`routes/jovy/contacts/components/**` el componente compartido. `contacts-catalogue` evita chocar
+`features/contacts/components/**` el componente compartido. `contacts-catalogue` evita chocar
 con `/jovy/catalogue`, que pertenece al bloque de catálogo.
 
 ### Agrupación en el sidebar

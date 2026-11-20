@@ -453,7 +453,7 @@ medusaIntegrationTestRunner({
       for (const query of [
         {},
         { contact_type: "otro" },
-        { contact_type: "catalogue", format: "xlsx" },
+        { contact_type: "catalogue", format: "pdf" },
       ] as Array<Record<string, string>>) {
         const response = await exportContacts(query)
         expect(response.status).toBe(400)

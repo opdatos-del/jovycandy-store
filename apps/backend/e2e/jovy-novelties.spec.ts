@@ -193,7 +193,7 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
     await page.screenshot({ path: screenshot("01-editor-nueva-con-webm.png"), fullPage: true })
     await page.locator("#novelty-editor").screenshot({ path: screenshot("01b-editor-completo.png") })
 
-    await form.getByRole("button", { name: "Crear novedad" }).click()
+    await page.getByRole("button", { name: "Crear novedad", exact: true }).click()
     await expect(page.getByTestId("novelty-form")).toHaveCount(0)
 
     await expect
@@ -237,7 +237,7 @@ test("administra el carrusel de Novedades con WebM real, publicación, archivo y
     await editor.getByLabel("Título en inglés").fill("Demo novelty edited")
     await editor.getByLabel("Descripción").fill("Descripción editada por E2E")
     await page.screenshot({ path: screenshot("03-editor-edicion.png"), fullPage: true })
-    await editor.getByRole("button", { name: "Guardar novedad" }).click()
+    await page.getByRole("button", { name: "Guardar novedad", exact: true }).click()
     await expect(page.getByTestId("novelty-form")).toHaveCount(0)
     await expect
       .poll(async () => (await adminEvent(request, headers, eventId))?.title_en)

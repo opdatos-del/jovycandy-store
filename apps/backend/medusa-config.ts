@@ -1,3 +1,4 @@
+import path from 'path'
 import { loadEnv, defineConfig } from '@medusajs/framework/utils'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
@@ -17,6 +18,34 @@ module.exports = defineConfig({
     // envía fuera de HTTPS, lo que deja /admin/* en 401 tras el login. Detrás
     // de HTTPS, cambiar a `{ secure: true }`.
     cookieOptions: { secure: false },
+  },
+  admin: {
+    /**
+     * Alias estable para el código del Admin. El Vite de Medusa no resuelve
+     * `@jovy/*`, así que las features importan `@admin/*` sin cadenas de
+     * `../../..` que la regla de lint prohíbe.
+     */
+    vite: (config) => {
+      const existing = config.resolve?.alias
+      const aliases = Array.isArray(existing)
+        ? existing
+        : Object.entries(existing ?? {}).map(([find, replacement]) => ({
+            find,
+            replacement: String(replacement),
+          }))
+
+      // Solo se devuelve el override. Devolver `{...config}` hace que Medusa
+      // fusione plugins duplicados y React Refresh declare `$RefreshSig$` dos veces.
+      return {
+        resolve: {
+          ...config.resolve,
+          alias: [
+            ...aliases,
+            { find: "@admin", replacement: path.resolve(process.cwd(), "src/admin") },
+          ],
+        },
+      }
+    },
   },
   modules: [
     {

@@ -164,6 +164,7 @@ medusaIntegrationTestRunner({
           "media_file_id",
           "media_url",
           "priority",
+          "rotation_seconds",
           "sort_order",
           "translations",
         ])

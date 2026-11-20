@@ -17,6 +17,7 @@ module.exports = {
   modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],
   moduleNameMapper: {
     "^@jovy/(.*)$": "<rootDir>/src/$1",
+    "^@admin/(.*)$": "<rootDir>/src/admin/$1",
   },
   setupFiles: ["./integration-tests/setup.js"],
 };
