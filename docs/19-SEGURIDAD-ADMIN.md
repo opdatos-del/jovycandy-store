@@ -431,3 +431,22 @@ configuración puntual.
 
 Estos controles reducen el impacto de errores de entrada, pero **no sustituyen**
 la autorización por rol.
+
+## 12. Actualización Fase 4 (2026-11-20)
+
+Este documento conserva la auditoría original previa a `jovy-authz`. Desde entonces:
+
+- El control de acceso propio está **IMPLEMENTADO** y Probado: roles, políticas,
+  asignaciones, excepciones `deny`, middleware global y auditoría persistente.
+- La afirmación de las secciones 7–9 («cualquier admin es admin pleno») describe
+  el estado **histórico**; ya no aplica al código actual.
+- `deny` prevalece sobre `*:*`; `wildcard` solo se considera global si no existe
+  ninguna denegación.
+- El bootstrap por correo fue **eliminado** y sustituido por
+  `src/scripts/bootstrap-authz.ts` con auditoría e idempotencia.
+- Las lecturas del shell se dividen: solo `GET /admin/feature-flags` es público;
+  el resto exige sesión y usuario existente.
+- RBAC Enterprise sigue **BLOQUEADO POR LICENCIA**; el sidebar nativo no está
+  filtrado y no se declara resuelto.
+
+Evidencia y estado actual: `docs/41` a `docs/45` y `docs/36` a `docs/40`.

@@ -93,7 +93,9 @@ La navegación se deriva de la autorización; no al revés.
 - no crea rutas ejecutables.
 
 `GET /admin/jovy/authz/navigation` devuelve el árbol filtrado del actor. Sirve para una UI
-propia o un panel operativo futuro, y para pruebas de coherencia.
+propia o un panel operativo futuro, y para pruebas de coherencia. El snapshot del middleware y
+la respuesta `/authz/me` usan permisos efectivos: una denegación individual también oculta la
+opción y `wildcard` solo es verdadero si no existe ninguna denegación.
 
 ## 5. Sidebar nativo: bloqueo real
 

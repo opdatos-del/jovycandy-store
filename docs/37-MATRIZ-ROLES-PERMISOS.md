@@ -89,9 +89,14 @@ No se asigna `delete` ni `restore` de contactos a los roles de ventas por defect
 1. Se unen las políticas de todos los roles asignados.
 2. Se aplican las excepciones individuales.
 3. `deny` gana sobre cualquier `allow`, incluso `*:*`.
-4. Sin asignación ni bootstrap ⇒ sin permisos.
-5. Un rol con `jovy_access:manage_settings` puede delegar solo políticas que él mismo posee y nunca el rol `superadmin` si no es global.
-6. Ningún usuario puede modificar sus propios accesos.
+4. `wildcard` solo es verdadero si existe `*:*` **y** no hay ninguna denegación.
+   Las comprobaciones privilegiadas usan permisos efectivos, no la mera presencia
+   de `*:*`.
+5. `/authz/me` devuelve permisos efectivos: no anuncia operaciones anuladas por
+   `deny` y expande el catálogo cuando hay denegaciones.
+6. Sin asignación ni bootstrap ⇒ sin permisos.
+7. Un rol con `jovy_access:manage_settings` puede delegar solo políticas que él mismo posee y nunca el rol `superadmin` si no es global.
+8. Ningún usuario puede modificar sus propios accesos.
 
 ## 5. Ejemplos verificados
 
@@ -107,12 +112,18 @@ No se asigna `delete` ni `restore` de contactos a los roles de ventas por defect
 | Consulta de productos llama `/admin/users` | 403 |
 | API key secreta llama `/admin/jovy/**` | 401 |
 | Usuario sin roles llama cualquier API Jovy | 403 |
+| `*:*` + `deny medusa_users:manage_settings` intenta crear usuario | 403; `/authz/me` no anuncia el permiso denegado |
+| `*:*` + `deny jovy_contacts_national:export` intenta exportar | 403 |
+| `allow medusa_products:read` + `deny medusa_products:read` | 403 |
+| Se retiran roles a un usuario conectado | 403 en la siguiente petición |
+| Se intenta retirar el último Superadministrador | Bloqueado |
 
 ## 6. Estado
 
 - Diseño de recursos/operaciones: **IMPLEMENTADO**.
 - Roles persistentes y asignaciones: **IMPLEMENTADO**.
 - Aplicación backend: **PROBADA** por integración HTTP.
+- Precedencia `deny`/wildcard, bootstrap explícito, transacciones y revocación inmediata: **IMPLEMENTADAS Y PROBADAS**.
 - UI de accesos: **IMPLEMENTADA** como catálogo global dentro de `Settings → Accesos y permisos`; la asignación por persona vive en el widget `user.details` del detalle nativo de Usuarios.
 - Navegación calculada: **IMPLEMENTADA** por endpoint y catálogo; el sidebar nativo sin filtrado sigue **BLOQUEADO POR LICENCIA**.
 - Auditoría de cambios: **IMPLEMENTADA** sobre `jovy_authz_audit_log`.

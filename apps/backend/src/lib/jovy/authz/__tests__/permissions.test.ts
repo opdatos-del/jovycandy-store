@@ -1,4 +1,6 @@
 import {
+  effectivePermissionKeys,
+  isGlobalAdmin,
   permissionAllows,
   permissionKey,
   toPermissionSet,
@@ -37,5 +39,29 @@ describe("resolución de permisos", () => {
       permissionAllows(new Set(["*:read"]), new Set(), "jovy_dashboard", "read"),
     ).toBe(true)
     expect(permissionKey("jovy_dashboard", "read")).toBe("jovy_dashboard:read")
+  })
+
+  it("no anuncia wildcard cuando existe una denegación", () => {
+    const allow = toPermissionSet([{ resource: "*", operation: "*" }])
+    const deny = toPermissionSet([{ resource: "medusa_users", operation: "manage_settings" }])
+    expect(isGlobalAdmin(allow, deny)).toBe(false)
+    expect(isGlobalAdmin(allow, new Set())).toBe(true)
+
+    const keys = effectivePermissionKeys(allow, deny)
+    expect(keys).not.toContain("*:*")
+    expect(keys).not.toContain("medusa_users:manage_settings")
+    expect(keys).toContain("medusa_users:read")
+    expect(keys).toContain("jovy_contacts_national:export")
+  })
+
+  it("mantiene el wildcard solo sin denegaciones", () => {
+    const allow = toPermissionSet([{ resource: "*", operation: "*" }])
+    expect(effectivePermissionKeys(allow, new Set())).toEqual(["*:*"])
+  })
+
+  it("un deny exacto anula un allow exacto", () => {
+    const allow = toPermissionSet([{ resource: "medusa_products", operation: "read" }])
+    const deny = toPermissionSet([{ resource: "medusa_products", operation: "read" }])
+    expect(permissionAllows(allow, deny, "medusa_products", "read")).toBe(false)
   })
 })

@@ -2,15 +2,19 @@ import type { MedusaNextFunction, MedusaRequest, MedusaResponse } from "@medusaj
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { JOVY_AUTHZ_MODULE } from "@jovy/modules/jovy-authz"
 import type JovyAuthzModuleService from "@jovy/modules/jovy-authz/service"
-import { invalidateAuthzCache, readAuthzCache, writeAuthzCache } from "./cache"
+import { readAuthzCache, writeAuthzCache } from "./cache"
 import {
+  effectivePermissionKeys,
+  isGlobalAdmin,
   permissionAllows,
   type AuthzSnapshot,
 } from "./permissions"
 import {
   evaluateJovyAccess,
   evaluateNativeAccess,
-  isShellRead,
+  isAmbiguousPath,
+  isAuthenticatedShellRead,
+  isPublicShellRead,
   matchJovyRule,
 } from "./route-policy"
 
@@ -31,49 +35,33 @@ function deny(res: MedusaResponse, status: 401 | 403, message: string) {
   })
 }
 
-async function resolveEmail(req: MedusaRequest, userId: string) {
-  try {
-    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-    const { data } = await query.graph({
-      entity: "user",
-      fields: ["id", "email"],
-      filters: { id: userId },
-    })
-    return (data[0] as { email?: string } | undefined)?.email ?? null
-  } catch {
-    return null
+async function assertUserExists(req: MedusaRequest, userId: string) {
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "user",
+    fields: ["id"],
+    filters: { id: userId },
+  })
+  if (!data.length) {
+    throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Usuario no válido.")
   }
 }
 
 async function resolveSnapshot(req: MedusaRequest, userId: string): Promise<AuthzSnapshot> {
+  // La existencia del usuario no se cachea: un usuario eliminado pierde el
+  // acceso en la siguiente petición, sin esperar el TTL de permisos.
+  await assertUserExists(req, userId)
+
   const cached = readAuthzCache(userId)
   if (cached) return cached
 
   const service = req.scope.resolve(JOVY_AUTHZ_MODULE) as JovyAuthzModuleService
-  // Idempotente: crea solo los roles ausentes. Se ejecuta en cada caché miss
-  // para que un entorno restaurado o un proceso nuevo no dependa de una
-  // bandera en memoria.
-  await service.ensureSystemRoles()
-
-  const email = await resolveEmail(req, userId)
-  if (!email) {
-    throw new MedusaError(
-      MedusaError.Types.UNAUTHORIZED,
-      "Usuario autenticado sin registro en el User Module",
-    )
-  }
-
-  if (await service.ensureBootstrapAssignment(userId, email)) {
-    // El bootstrap escribe la asignación; se invalida lo que hubiera en caché.
-    invalidateAuthzCache(userId)
-  }
-
   const effective = await service.resolveEffectivePermissions(userId)
-  const wildcard = effective.allow.has("*:*")
+  const wildcard = isGlobalAdmin(effective.allow, effective.deny)
   const snapshot: AuthzSnapshot = {
     userId,
     roles: effective.roles,
-    permissions: [...effective.allow].sort(),
+    permissions: effectivePermissionKeys(effective.allow, effective.deny),
     wildcard,
     can: (resource, operation) =>
       permissionAllows(effective.allow, effective.deny, resource, operation),
@@ -100,21 +88,35 @@ export async function authorizeJovyAdmin(
   const userId = auth?.actor_id
   const pathname = pathnameOf(req)
 
-  // Lecturas mínimas del shell: se dejan pasar y la autenticación nativa de la
-  // ruta decide. `/admin/feature-flags` se consulta durante el arranque del
-  // dashboard, antes de que exista una sesión útil.
-  if (isShellRead(req.method, pathname)) return next()
+  if (isAmbiguousPath(pathname)) {
+    return deny(res, 403, "No autorizado para esta operación.")
+  }
 
+  // Única lectura del shell que se consulta antes de existir una sesión útil:
+  // el dashboard necesita conocer las feature flags para arrancar. No devuelve
+  // datos de negocio ni de otras personas.
+  if (isPublicShellRead(req.method, pathname)) return next()
+
+  // Cualquier otra excepción del shell exige una sesión administrativa válida.
+  // El orden importa: nunca se evalúan excepciones antes de validar identidad.
   if (!userId || auth?.actor_type !== "user") {
     return deny(res, 401, "Sesión no válida.")
   }
+
   let snapshot: AuthzSnapshot
   try {
     snapshot = await resolveSnapshot(req, userId)
-  } catch {
+  } catch (error) {
+    if (error instanceof MedusaError && error.type === MedusaError.Types.UNAUTHORIZED) {
+      return deny(res, 401, "Sesión no válida.")
+    }
     return deny(res, 403, "No autorizado para esta operación.")
   }
   ;(req as RequestWithAuth).jovy_authz = snapshot
+
+  // Lecturas mínimas necesarias para pintar el shell. Ya se validó identidad y
+  // existencia del usuario; no conceden acceso a datos de negocio.
+  if (isAuthenticatedShellRead(req.method, pathname)) return next()
 
   if (pathname.startsWith("/admin/jovy/")) {
     const rule = matchJovyRule(req.method, pathname)

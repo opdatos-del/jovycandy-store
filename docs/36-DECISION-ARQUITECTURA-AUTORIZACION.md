@@ -51,8 +51,10 @@
 | Contactos por ID | Tipo real leído de la fila; banda no autorizada ⇒ 404 |
 | Contactos consolidados | Requiere lectura/exportación de las cuatro bandejas |
 | `/admin/**` nativo | Prefijo → recurso `medusa_*`; sin permiso o sin clasificación ⇒ 403 |
-| Shell del Admin | Lecturas mínimas (`users/me`, notificaciones, layouts, traducciones, feature flags, stores) |
+| Shell del Admin | `feature-flags` público; el resto exige sesión y usuario válido: `users/me`, notificaciones, layouts, módulos, traducciones y `GET` de stores |
 | API keys | El guard exige `auth_context.actor_type === "user"` ⇒ 401 para `x-medusa-access-token` |
+| Bootstrap | Comando explícito con auditoría; no hay elevación por correo ni por variable de entorno |
+| Escrituras de roles | Transacción única para rol, políticas y auditoría; el último Superadministrador no se puede retirar |
 | RBAC Enterprise | No activo; no se declara cobertura oficial |
 
 ### Limitación esencial
@@ -71,17 +73,20 @@ El mapa nativo es **coercitivo, no RBAC oficial**. Una ruta nueva de Medusa no c
 
 - Mantener el inventario `JOVY_ENDPOINT_INVENTORY` sincronizado. Una prueba unitaria falla si aparece un `route.ts` o método sin clasificar, o una regla fantasma.
 - Revisar `NATIVE_AREAS` al actualizar Medusa.
-- La caché de permisos es de 15 s por proceso; un cambio de rol puede tardar ese intervalo.
+- La caché de permisos es de 15 s por proceso. Los cambios de asignación invalidan
+  el usuario afectado de inmediato en ese proceso; los cambios de rol invalidan la
+  caché local completa. En varias instancias la ventana máxima es de 15 s y no
+  hay invalidación distribuida (ver `docs/45`).
 - La UI de accesos es propia; la asignación por usuario se integra en el detalle nativo de Usuarios y el catálogo de roles vive en `Settings → Accesos y permisos`. No sustituye la pantalla Enterprise de roles.
 
 ## 6. Riesgos
 
 - Un error de clasificación nativa puede denegar una función legítima (fail-closed, no fail-open).
-- El bootstrap por correo debe retirarse después de asignar roles persistentes. El entorno local
-  ya opera sin él con la asignación `superadmin` en base de datos.
+- El bootstrap por correo fue eliminado. La instalación y la recuperación usan un
+  comando explícito (`src/scripts/bootstrap-authz.ts`) con auditoría e idempotencia.
 - Los roles del sistema son editables salvo Superadministrador; un cambio excesivo puede dejar sin acceso a una función.
 - La navegación nativa no se oculta; la protección real es la API.
-- No hay pruebas de navegador con múltiples cuentas DEMO; la matriz negativa se cubre en integración HTTP.
+- No hay pruebas de navegador con múltiples cuentas DEMO; la matriz negativa se cubre en integración HTTP y el laboratorio multirol queda documentado en `docs/43`.
 
 ## 7. Recomendación
 
@@ -92,8 +97,8 @@ El mapa nativo es **coercitivo, no RBAC oficial**. Una ruta nueva de Medusa no c
 ## 8. Estrategia de implementación
 
 1. Migración y registro del módulo `jovy-authz`.
-2. Bootstrap explícito por correo y asignación persistente de Superadministrador.
-3. Middleware global con inventario y mapa nativo.
+2. Bootstrap explícito por comando operativo y asignación persistente de Superadministrador.
+3. Middleware global con inventario, mapa nativo, excepciones de shell autenticadas y denegación por defecto.
 4. Aislamiento de contactos en middleware **y** handlers.
 5. API de administración de roles/usuarios, widget `user.details` y catálogo global de roles.
 6. Gating de UI en las features migradas.

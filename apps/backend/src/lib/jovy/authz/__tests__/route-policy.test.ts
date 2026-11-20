@@ -2,9 +2,16 @@ import type { MedusaRequest } from "@medusajs/framework/http"
 import {
   evaluateJovyAccess,
   evaluateNativeAccess,
+  isAuthenticatedShellRead,
+  isPublicShellRead,
   matchJovyRule,
 } from "../route-policy"
-import { permissionAllows, type AuthzSnapshot } from "../permissions"
+import {
+  effectivePermissionKeys,
+  isGlobalAdmin,
+  permissionAllows,
+  type AuthzSnapshot,
+} from "../permissions"
 
 function snapshot(grants: string[], denies: string[] = []): AuthzSnapshot {
   const allow = new Set(grants)
@@ -12,8 +19,8 @@ function snapshot(grants: string[], denies: string[] = []): AuthzSnapshot {
   return {
     userId: "user_test",
     roles: [],
-    permissions: [...allow],
-    wildcard: allow.has("*:*"),
+    permissions: effectivePermissionKeys(allow, deny),
+    wildcard: isGlobalAdmin(allow, deny),
     can: (resource, operation) => permissionAllows(allow, deny, resource, operation),
   }
 }
@@ -121,6 +128,38 @@ describe("cobertura nativa", () => {
     expect(evaluateNativeAccess("POST", "/admin/products", products).allowed).toBe(false)
     expect(evaluateNativeAccess("GET", "/admin/users", products).allowed).toBe(false)
     expect(evaluateNativeAccess("GET", "/admin/desconocido", products).allowed).toBe(false)
+  })
+
+  it("normaliza barra final, query y HEAD sin abrir rutas", () => {
+    const products = snapshot(["medusa_products:read"])
+    expect(evaluateNativeAccess("GET", "/admin/products/", products).allowed).toBe(true)
+    expect(evaluateNativeAccess("GET", "/admin/products?limit=1", products).allowed).toBe(true)
+    expect(evaluateNativeAccess("HEAD", "/admin/products", products).allowed).toBe(true)
+    expect(evaluateNativeAccess("HEAD", "/admin/users", products).allowed).toBe(false)
+    expect(evaluateNativeAccess("GET", "/admin/products/../users", products).allowed).toBe(false)
+  })
+
+  it("solo feature-flags es lectura pública del shell", () => {
+    expect(isPublicShellRead("GET", "/admin/feature-flags")).toBe(true)
+    expect(isPublicShellRead("GET", "/admin/stores")).toBe(false)
+    expect(isPublicShellRead("POST", "/admin/feature-flags")).toBe(false)
+
+    expect(isAuthenticatedShellRead("GET", "/admin/users/me")).toBe(true)
+    expect(isAuthenticatedShellRead("GET", "/admin/stores")).toBe(true)
+    expect(isAuthenticatedShellRead("GET", "/admin/stores/store_123")).toBe(true)
+    expect(isAuthenticatedShellRead("GET", "/admin/stores/store_123/currencies")).toBe(false)
+    expect(isAuthenticatedShellRead("POST", "/admin/stores")).toBe(false)
+    expect(isAuthenticatedShellRead("GET", "/admin/feature-flags")).toBe(false)
+  })
+
+  it("una denegación anula el wildcard también en rutas nativas", () => {
+    const denied = snapshot(["*:*"], ["medusa_users:manage_settings"])
+    expect(denied.wildcard).toBe(false)
+    expect(evaluateNativeAccess("POST", "/admin/users", denied).allowed).toBe(false)
+    expect(evaluateNativeAccess("GET", "/admin/products", denied).allowed).toBe(true)
+    expect(evaluateNativeAccess("GET", "/admin/desconocido", denied).allowed).toBe(false)
+    expect(denied.permissions).not.toContain("medusa_users:manage_settings")
+    expect(denied.permissions).not.toContain("*:*")
   })
 
   it("el rol global conserva acceso nativo", () => {

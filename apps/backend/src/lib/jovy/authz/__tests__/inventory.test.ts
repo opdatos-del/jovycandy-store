@@ -1,6 +1,10 @@
 import fs from "node:fs"
 import path from "node:path"
-import { matchJovyRule, JOVY_ENDPOINT_INVENTORY } from "../route-policy"
+import {
+  matchJovyRule,
+  JOVY_ENDPOINT_INVENTORY,
+  NATIVE_AREA_INVENTORY,
+} from "../route-policy"
 import { AUTHZ_RESOURCES } from "../catalog"
 
 const ROUTES_ROOT = path.join(process.cwd(), "src/api/admin/jovy")
@@ -62,6 +66,25 @@ describe("inventario de endpoints Jovy", () => {
       if (access.publicationFromBody) {
         expect(resource?.operations).toContain("publish")
         expect(resource?.operations).toContain("archive")
+      }
+    }
+  })
+
+  it("clasifica cada área nativa con un recurso real del catálogo", () => {
+    const resources = new Map(AUTHZ_RESOURCES.map((resource) => [resource.key, resource]))
+    const prefixes = new Set<string>()
+    for (const area of NATIVE_AREA_INVENTORY) {
+      const resource = resources.get(area.resource)
+      expect(resource).toBeDefined()
+      expect(resource?.operations.length).toBeGreaterThan(0)
+      expect(area.prefix.startsWith("/admin/")).toBe(true)
+      expect(area.prefix.endsWith("/")).toBe(false)
+      expect(prefixes.has(area.prefix)).toBe(false)
+      prefixes.add(area.prefix)
+      if (area.settings) {
+        expect(resource?.operations).toContain("manage_settings")
+      } else {
+        expect(resource?.operations).toContain("read")
       }
     }
   })

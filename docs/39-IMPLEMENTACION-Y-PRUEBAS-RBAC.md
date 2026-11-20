@@ -54,13 +54,20 @@ Modificados listado, conteos, exportación individual, exportación consolidada,
 1. **Inventario de usuarios**: revisar administradores existentes.
 2. **Respaldo**: snapshot recuperable de PostgreSQL.
 3. **Entorno aislado**: aplicar primero en una copia.
-4. **Migración**: `pnpm --dir apps/backend exec medusa db:migrate` crea solo las cuatro tablas `jovy_authz_*`.
-5. **Bootstrap**: definir `JOVY_AUTHZ_BOOTSTRAP_EMAILS` con el correo del administrador legítimo.
+4. **Migración**: `pnpm --dir apps/backend exec medusa db:migrate` crea solo las cinco tablas `jovy_authz_*` (incluida auditoría).
+5. **Bootstrap**: ejecutar el comando explícito con el ID del administrador legítimo
+   (no se usa correo como privilegio):
+
+   ```powershell
+   pnpm --dir apps/backend exec medusa exec ./src/scripts/bootstrap-authz.ts -- --user-id=usr_...
+   ```
+
+   Si ya existe un Superadministrador, el comando se rechaza. Para recuperar el
+   último acceso: `--mode=recovery --confirm=recover-superadmin`.
 6. **Arranque**: iniciar el servidor y abrir `Settings → Accesos y permisos` para el catálogo de roles.
-7. **Asignación persistente**: guardar el rol Superadministrador para el usuario.
-8. **Retirar bootstrap**: eliminar la variable y reiniciar. En local se retiró y
-   `/admin/jovy/authz/me` siguió devolviendo `superadmin`, lo que demuestra que la asignación
-   persistente es la fuente de verdad.
+7. **Asignación persistente**: el comando deja la asignación `superadmin` y una entrada
+   `bootstrap` en `jovy_authz_audit_log`.
+8. **Sin bootstrap ambiental**: `JOVY_AUTHZ_BOOTSTRAP_EMAILS` ya no existe en el código.
 9. **Verificar**: `/admin/jovy/authz/me` debe devolver roles y permisos; una cuenta restringida debe recibir 403.
 10. **Reversión**: restaurar el respaldo o ejecutar el `down` de la migración; retirar el registro del módulo.
 
@@ -70,9 +77,10 @@ La migración `db:migrate` imprimió los *migration scripts* de RBAC de Medusa. 
 
 ### Unitarias (`test:unit`)
 
-- `inventory.test.ts`: todos los métodos de los 60 `route.ts` tienen regla; no hay reglas fantasma; las operaciones existen en el catálogo.
-- `permissions.test.ts`: unión, operaciones separadas, deny y comodines.
-- `route-policy.test.ts`: aislamiento por bandeja, export separado, consolidado, publicación/archivo, superficies nativas, shell y deny por defecto.
+- `inventory.test.ts`: todos los métodos de los 60 `route.ts` tienen regla; no hay reglas fantasma; las operaciones existen en el catálogo; cada área nativa referencia un recurso real.
+- `permissions.test.ts`: unión, operaciones separadas, deny, comodines, precedencia `deny` sobre `*:*` y expansión de permisos efectivos.
+- `route-policy.test.ts`: aislamiento por bandeja, export separado, consolidado, publicación/archivo, superficies nativas, shell público vs. autenticado, rutas ambiguas, `HEAD`, barra final y deny por defecto.
+- `cache.test.ts`: TTL, expiración e invalidación por usuario y global.
 - Contactos: pruebas existentes ajustadas con un actor autorizado explícito.
 
 ### Integración de módulos
@@ -85,11 +93,13 @@ La migración `db:migrate` imprimió los *migration scripts* de RBAC de Medusa. 
 - revocación al reasignar;
 - protección de roles del sistema/asignados;
 - validación de políticas;
-- bootstrap por correo.
+- bootstrap explícito, idempotencia, rechazo del segundo bootstrap y recuperación;
+- bloqueo al retirar el último Superadministrador;
+- `deny` anula `*:*` en permisos efectivos.
 
 ### Integración HTTP
 
-`integration-tests/http/authz.spec.ts`, 14 escenarios:
+`integration-tests/http/authz.spec.ts`, 17 escenarios:
 
 | Escenario | Resultado |
 |---|---|
@@ -110,7 +120,10 @@ La migración `db:migrate` imprimió los *migration scripts* de RBAC de Medusa. 
 | Navegación de Consulta de Productos | Solo grupo Medusa |
 | Auditoría de cambios | 200, sin secretos |
 | `update` sin `publish` | 403 |
-| API key secreta | 401 |
+| API key secreta en API Jovy y nativa | 401 |
+| Shell sin sesión / `feature-flags` público | 401 / 200 |
+| `*:*` + `deny` | 403 en la operación denegada; `/me` sin el permiso |
+| Revocación al retirar roles | 403 en la siguiente petición |
 
 ## 4. Regresión
 
@@ -118,9 +131,9 @@ La migración `db:migrate` imprimió los *migration scripts* de RBAC de Medusa. 
 |---|---|
 | typecheck | 0 errores |
 | lint | 0 errores; 2 warnings preexistentes |
-| unit | 38 suites / 366 pruebas |
-| integración módulos | 7 suites / 44 pruebas |
-| integración HTTP | 12 suites / 90 pruebas |
+| unit | 39 suites / 376 pruebas |
+| integración módulos | 7 suites / 47 pruebas |
+| integración HTTP | 12 suites / 93 pruebas |
 | build | backend y Admin correctos |
 | E2E | 31/31 |
 

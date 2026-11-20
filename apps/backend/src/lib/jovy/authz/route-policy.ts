@@ -156,6 +156,20 @@ function normalizePathname(value: string) {
   return withoutQuery
 }
 
+/**
+ * Una ruta con segmentos `.`/`..`, barras invertidas o separadores codificados
+ * puede autorizarse con un prefijo distinto al que finalmente resuelve el
+ * router. Se rechaza en lugar de normalizarla por cuenta propia.
+ */
+export function isAmbiguousPath(pathname: string) {
+  const path = pathname.split("?")[0]
+  return (
+    path.includes("\\") ||
+    /(^|\/)\.\.?(\/|$)/.test(path) ||
+    /%(?:2e|2f|5c)/i.test(path)
+  )
+}
+
 function compileRule(rule: JovyEndpointRule) {
   const segments = rule.path.split("/").filter(Boolean)
   return {
@@ -177,6 +191,7 @@ const COMPILED_RULES = JOVY_ENDPOINT_INVENTORY.map(compileRule).sort((a, b) => {
 })
 
 export function matchJovyRule(method: string, pathname: string) {
+  if (isAmbiguousPath(pathname)) return null
   const path = normalizePathname(pathname)
   return (
     COMPILED_RULES.find((entry) => entry.rule.method === method && entry.regex.test(path))?.rule ??
@@ -329,18 +344,30 @@ const NATIVE_AREAS: readonly NativeArea[] = [
   { prefix: "/admin/plugins", resource: "medusa_settings", settings: true },
 ]
 
-const SHELL_READS = [
+/**
+ * Lecturas del shell que el dashboard consulta antes de tener una sesión útil.
+ * Solo `/admin/feature-flags` cae aquí: no devuelve datos de negocio.
+ */
+const SHELL_PUBLIC_READS = [/^\/admin\/feature-flags$/]
+
+/**
+ * Lecturas mínimas para pintar el shell nativo. Exigen sesión administrativa
+ * válida y usuario existente; se evalúan después de resolver la identidad.
+ * Se limitan a la ruta exacta que necesita el dashboard: `/admin/stores` se
+ * reduce a su listado y detalle (configuración de tienda), nunca a mutaciones.
+ */
+const SHELL_AUTHENTICATED_READS = [
   /^\/admin\/users\/me$/,
   /^\/admin\/notifications(?:\/.*)?$/,
   /^\/admin\/layouts(?:\/.*)?$/,
   /^\/admin\/modules(?:\/.*)?$/,
   /^\/admin\/translations(?:\/.*)?$/,
-  /^\/admin\/feature-flags(?:\/.*)?$/,
-  /^\/admin\/stores(?:\/.*)?$/,
+  /^\/admin\/stores$/,
+  /^\/admin\/stores\/[^/]+$/,
 ]
 
 function nativeOperation(method: string, area: NativeArea): string | null {
-  if (method === "GET" || method === "HEAD") return area.settings ? "read" : "read"
+  if (method === "GET" || method === "HEAD") return "read"
   if (method === "POST") return area.settings ? "manage_settings" : (area.postOperation ?? "create")
   if (method === "PUT" || method === "PATCH") {
     return area.settings ? "manage_settings" : "update"
@@ -360,8 +387,9 @@ export function evaluateNativeAccess(
   pathname: string,
   authz: AuthzSnapshot,
 ): { allowed: true } | { allowed: false; reason: "forbidden" } {
+  if (isAmbiguousPath(pathname)) return { allowed: false, reason: "forbidden" }
   const path = normalizePathname(pathname)
-  if (method === "GET" && SHELL_READS.some((pattern) => pattern.test(path))) {
+  if (isShellRead(method, path)) {
     return { allowed: true }
   }
 
@@ -377,12 +405,26 @@ export function evaluateNativeAccess(
     : { allowed: false, reason: "forbidden" }
 }
 
-export function isShellRead(method: string, pathname: string) {
-  if (method !== "GET") return false
+function isShellMethod(method: string) {
+  return method === "GET" || method === "HEAD"
+}
+
+export function isPublicShellRead(method: string, pathname: string) {
+  if (!isShellMethod(method) || isAmbiguousPath(pathname)) return false
   const path = normalizePathname(pathname)
-  return SHELL_READS.some((pattern) => pattern.test(path))
+  return SHELL_PUBLIC_READS.some((pattern) => pattern.test(path))
+}
+
+export function isAuthenticatedShellRead(method: string, pathname: string) {
+  if (!isShellMethod(method) || isAmbiguousPath(pathname)) return false
+  const path = normalizePathname(pathname)
+  return SHELL_AUTHENTICATED_READS.some((pattern) => pattern.test(path))
+}
+
+export function isShellRead(method: string, pathname: string) {
+  return isPublicShellRead(method, pathname) || isAuthenticatedShellRead(method, pathname)
 }
 
 export const NATIVE_AREA_INVENTORY = NATIVE_AREAS
-export const SHELL_READ_PATTERNS = SHELL_READS
+export const SHELL_READ_PATTERNS = [...SHELL_PUBLIC_READS, ...SHELL_AUTHENTICATED_READS]
 export const CONTACT_RESOURCE_MAP = CONTACT_TYPE_RESOURCE

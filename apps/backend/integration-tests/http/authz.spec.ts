@@ -368,6 +368,79 @@ medusaIntegrationTestRunner({
       expect(draft.status).toBe(200)
     })
 
+    it("exige sesión para las lecturas del shell y limita /admin/stores", async () => {
+      const anonymousStores = await api.get("/admin/stores")
+      expect(anonymousStores.status).toBe(401)
+
+      const featureFlags = await api.get("/admin/feature-flags")
+      expect(featureFlags.status).toBe(200)
+
+      const stores = await api.get("/admin/stores", { headers: headers(noRole) })
+      expect(stores.status).toBe(200)
+
+      const me = await api.get("/admin/users/me", { headers: headers(noRole) })
+      expect(me.status).toBe(200)
+
+      const storeWrite = await api.post("/admin/stores", {}, { headers: headers(noRole) })
+      expect(storeWrite.status).toBe(403)
+    })
+
+    it("anula el wildcard del Superadministrador con una denegación individual", async () => {
+      const denied = await createUserSession(
+        getContainer(),
+        api as TestApi,
+        "authz.wildcard@jovy.test",
+        "Authz-Test-1234",
+      )
+      const allRoles = await api.get("/admin/jovy/authz/roles", { headers: headers(admin) })
+      const superadminRole = allRoles.data.roles.find(
+        (role: { code: string }) => role.code === "superadmin",
+      )
+      await assign(denied, [superadminRole.id], [
+        { resource: "medusa_users", operation: "manage_settings", effect: "deny" },
+        { resource: "jovy_contacts_national", operation: "export", effect: "deny" },
+      ])
+
+      const me = await api.get("/admin/jovy/authz/me", { headers: headers(denied) })
+      expect(me.status).toBe(200)
+      expect(me.data.wildcard).toBe(false)
+      expect(me.data.permissions).not.toContain("*:*")
+      expect(me.data.permissions).not.toContain("medusa_users:manage_settings")
+      expect(me.data.permissions).not.toContain("jovy_contacts_national:export")
+
+      const allowed = await api.get("/admin/products", { headers: headers(denied) })
+      expect(allowed.status).toBe(200)
+
+      const manageUsers = await api.post(
+        "/admin/users",
+        { email: "blocked.user@jovy.test" },
+        { headers: headers(denied) },
+      )
+      expect(manageUsers.status).toBe(403)
+
+      const exportNational = await api.get(
+        "/admin/jovy/contacts/export?contact_type=national-sales&format=csv",
+        { headers: headers(denied) },
+      )
+      expect(exportNational.status).toBe(403)
+    })
+
+    it("revoca el acceso en la siguiente petición", async () => {
+      const revoked = await createUserSession(
+        getContainer(),
+        api as TestApi,
+        "authz.revoke@jovy.test",
+        "Authz-Test-1234",
+      )
+      await assign(revoked, [await roleId("it_dashboard_viewer")])
+      const before = await api.get("/admin/jovy/dashboard", { headers: headers(revoked) })
+      expect(before.status).toBe(200)
+
+      await assign(revoked, [])
+      const after = await api.get("/admin/jovy/dashboard", { headers: headers(revoked) })
+      expect(after.status).toBe(403)
+    })
+
     it("rechaza API keys secretas en el Admin", async () => {
       const apiKeyModule = getContainer().resolve(Modules.API_KEY)
       const key = await apiKeyModule.createApiKeys({
@@ -379,6 +452,10 @@ medusaIntegrationTestRunner({
         headers: { "x-medusa-access-token": key.token },
       })
       expect(response.status).toBe(401)
+      const native = await api.get("/admin/products", {
+        headers: { "x-medusa-access-token": key.token },
+      })
+      expect(native.status).toBe(401)
     })
   },
 })

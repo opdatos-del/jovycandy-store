@@ -73,24 +73,46 @@ La comprobación se ejecuta en middleware **y** en el handler. Cambiar `contact_
 | `/admin/api-keys` | `medusa_api_keys` | manage_settings |
 | `/admin/stores`, regiones, monedas, impuestos, envíos, canales | `medusa_settings` | manage_settings |
 
-Lecturas mínimas permitidas a cualquier usuario autenticado para que el shell muestre el estado de acceso:
+Lecturas mínimas del shell, divididas por nivel de confianza:
 
-- `GET /admin/users/me`
-- `GET /admin/notifications*`
-- `GET /admin/layouts*`
-- `GET /admin/modules*`
-- `GET /admin/translations*`
-- `GET /admin/feature-flags*`
-- `GET /admin/stores*`
+| Ruta | Sesión | Motivo |
+|---|---|---|
+| `GET /admin/feature-flags` | No | El dashboard la consulta antes de tener sesión útil; no devuelve datos de negocio |
+| `GET /admin/users/me` | Sí | Perfil propio |
+| `GET /admin/notifications*` | Sí | Notificaciones del propio usuario |
+| `GET /admin/layouts*` | Sí | Preferencias del shell |
+| `GET /admin/modules*` | Sí | Inventario de extensiones del dashboard |
+| `GET /admin/translations*` | Sí | Traducciones del dashboard |
+| `GET /admin/stores` y `GET /admin/stores/:id` | Sí | El shell carga la tienda; solo lectura |
 
-Cualquier otra ruta nativa no clasificada se deniega salvo para `*:*`.
+Reglas:
+
+- Toda excepción que no sea `feature-flags` se evalúa **después** de validar
+  `actor_type === "user"` y de comprobar que el usuario existe.
+- `/admin/stores` solo permite `GET` de listado y detalle; cualquier mutación exige
+  `medusa_settings:manage_settings`.
+- Una ruta con segmentos `.`/`..`, barras invertidas o separadores codificados se
+  rechaza (`isAmbiguousPath`) en lugar de normalizarse.
+
+Cualquier otra ruta nativa no clasificada se deniega salvo para un wildcard sin
+denegaciones (`isGlobalAdmin`).
 
 ## 5. Bootstrap y recuperación
 
-- `JOVY_AUTHZ_BOOTSTRAP_EMAILS` (lista separada por comas) recibe Superadministrador de forma temporal.
-- El middleware crea la asignación persistente al resolver el usuario.
-- Debe retirarse del entorno después de verificar que existe al menos un Superadministrador persistente.
-- Si se pierde el acceso, se puede reactivar el bootstrap, corregir roles y volver a retirarlo.
+- No existe bootstrap por variable de entorno ni elevación durante una petición.
+- La instalación se inicializa con un comando operativo explícito:
+
+  ```powershell
+  pnpm --dir apps/backend exec medusa exec ./src/scripts/bootstrap-authz.ts -- --user-id=usr_...
+  ```
+
+- El comando siembra los roles ausentes y asigna `superadmin` en una transacción
+  con auditoría (`action = bootstrap`). Se rechaza si ya existe un
+  Superadministrador.
+- La recuperación exige `--mode=recovery --confirm=recover-superadmin` y queda
+  auditada con el modo. No hay puerta trasera permanente ni correo privilegiado.
+- Reejecutar el comando para el mismo usuario devuelve `already` sin escribir.
+- Retirar el último `superadmin` está bloqueado por el servicio.
 
 ## 6. Lo que no cubre
 

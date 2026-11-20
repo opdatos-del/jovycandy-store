@@ -1,9 +1,5 @@
 import type { MedusaRequest } from "@medusajs/framework/http"
-import {
-  CONTACT_TYPE_RESOURCE,
-  CONTACT_TYPES,
-  type ContactType,
-} from "./catalog"
+import { AUTHZ_RESOURCES, CONTACT_TYPE_RESOURCE, CONTACT_TYPES, type ContactType } from "./catalog"
 
 export type AuthzSnapshot = {
   userId: string
@@ -53,6 +49,28 @@ export function permissionAllows(
 
 export function toPermissionSet(values: Array<{ resource: string; operation: string }>) {
   return new Set(values.map((value) => permissionKey(value.resource, value.operation)))
+}
+
+/**
+ * Permisos concretos que quedan tras aplicar denegaciones. Si hay wildcard y no
+ * existe ninguna denegación se conserva `*:*`; si existe al menos una, se
+ * expande el catálogo para no anunciar permisos anulados.
+ */
+export function effectivePermissionKeys(allow: ReadonlySet<string>, deny: ReadonlySet<string>) {
+  if (allow.has("*:*") && deny.size === 0) return ["*:*"]
+  const keys: string[] = []
+  for (const resource of AUTHZ_RESOURCES) {
+    for (const operation of resource.operations) {
+      if (permissionAllows(allow, deny, resource.key, operation)) {
+        keys.push(permissionKey(resource.key, operation))
+      }
+    }
+  }
+  return keys.sort()
+}
+
+export function isGlobalAdmin(allow: ReadonlySet<string>, deny: ReadonlySet<string>) {
+  return allow.has("*:*") && deny.size === 0
 }
 
 export function contactResource(contactType: ContactType) {

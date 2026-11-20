@@ -1,6 +1,8 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ApiKeyType, MedusaError, Modules, PUBLISHABLE_KEY_HEADER } from "@medusajs/framework/utils"
 import type { MedusaSuiteOptions } from "@medusajs/test-utils"
+import { JOVY_AUTHZ_MODULE } from "@jovy/modules/jovy-authz"
+import type JovyAuthzModuleService from "@jovy/modules/jovy-authz/service"
 
 /** Axios instance handed over by `medusaIntegrationTestRunner`. */
 export type TestApi = MedusaSuiteOptions["api"]
@@ -101,7 +103,13 @@ export async function createAdminSession(container: MedusaContainer, api: TestAp
 
 /** Igual que `createAdminSession`, pero expone el usuario para pruebas de RBAC. */
 export async function createAdminUserSession(container: MedusaContainer, api: TestApi) {
-  return createEmailpassUser(container, api, ADMIN_EMAIL, ADMIN_PASSWORD, "Integration", "Admin")
+  const session = await createEmailpassUser(container, api, ADMIN_EMAIL, ADMIN_PASSWORD, "Integration", "Admin")
+  // Bootstrap explícito del administrador sintético de la suite: sustituye al
+  // antiguo bootstrap por variable de entorno y solo se ejecuta en pruebas.
+  const authz = container.resolve(JOVY_AUTHZ_MODULE) as JovyAuthzModuleService
+  await authz.ensureSystemRoles()
+  await authz.assignBootstrapSuperadmin({ userId: session.user.id, mode: "bootstrap" })
+  return session
 }
 
 /** Crea una identidad nativa adicional para probar permisos distintos. */

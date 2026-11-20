@@ -165,8 +165,9 @@ Reglas de la matriz:
   modificar, restaurar ni borrar otra bandeja**. La negación debe probarse por **llamada
   directa a API**, no por ausencia de botones en la UI.
 - `export` es una operación separada, nunca implicada por `read`.
-- Nada de lo anterior está implementado: no hay guardas `authorize`, ni UI de roles, ni
-  asignación persistida.
+- Una excepción individual `deny` prevalece sobre cualquier concesión, incluido `*:*`.
+- La matriz está **IMPLEMENTADA** en `jovy-authz`; la evidencia de ejecución vive en
+  `docs/39` y `docs/43`.
 
 ### 5.4 Alternativa integrada sin licencia (solo DISEÑO)
 
@@ -186,12 +187,13 @@ como credenciales de máquina. **No importar `@medusajs/rbac` sin licencia.**
 
 ### 5.5 Bloqueos declarados
 
-- No hay UI de roles; no hay asignación desde `Users`/`Invites`; no hay filtrado automático
-  de campos.
-- Hoy **cualquier admin autenticado es admin pleno** sobre la PII de contactos y los
-  módulos comerciales.
-- Mitigación temporal mientras no haya licencia ni autorización: mínimos administradores,
-  rotar API keys, **sin PII real** en el entorno y no compartir sesiones.
+- La UI de roles vive en `Settings → Accesos y permisos` y en el widget `user.details`;
+  el filtrado de campos por rol sigue **PENDIENTE** (no se devuelven campos que luego
+  solo se ocultan en el cliente).
+- La PII de contactos queda aislada por bandeja y `export` es independiente de `read`.
+- El sidebar nativo de Medusa no se filtra sin RBAC Enterprise: **BLOQUEADO POR LICENCIA**.
+- Mitigación operativa: mínimos administradores, rotar API keys, **sin PII real** fuera
+  del entorno local y no compartir sesiones.
 
 ## Estado de verificación (2026-11-17)
 
@@ -210,3 +212,14 @@ Store no lo exponen.
 roles, políticas, asignaciones, middleware deny-by-default, aislamiento de contactos, cobertura
 nativa por prefijo y pantalla de accesos. La migración `Migration20261120100000` creó solo las
 tablas `jovy_authz_*`; no se crearon tablas `rbac_*` ni se modificaron usuarios oficiales.
+
+## Actualización Fase 4 (2026-11-20)
+
+- Precedencia `deny` corregida en middleware, `/authz/me`, navegación y controles de UI.
+- Bootstrap por correo **eliminado**; sustituido por `src/scripts/bootstrap-authz.ts`.
+- Escrituras de roles/permisos/auditoría **transaccionales** con el patrón oficial de Medusa.
+- Revocación inmediata en el proceso al cambiar asignaciones; TTL máximo de 15 s en
+  procesos que no reciben la invalidación.
+- Regresión vigente: unit 376, módulos 47, HTTP 93, E2E 31/31, typecheck/lint/build correctos.
+- Limitaciones abiertas: staging/HTTPS, backup/recuperación, invalidación distribuida y
+  filtrado del sidebar nativo. Dictamen: **NO-GO** para producción (ver `docs/44`).

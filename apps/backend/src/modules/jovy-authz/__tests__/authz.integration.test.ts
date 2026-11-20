@@ -1,5 +1,9 @@
 import { moduleIntegrationTestRunner, TestDatabaseUtils } from "@medusajs/test-utils"
-import { permissionAllows } from "@jovy/lib/jovy/authz/permissions"
+import {
+  effectivePermissionKeys,
+  isGlobalAdmin,
+  permissionAllows,
+} from "@jovy/lib/jovy/authz/permissions"
 import { JOVY_AUTHZ_MODULE } from "@jovy/modules/jovy-authz"
 import JovyAuthzAssignment from "@jovy/modules/jovy-authz/models/assignment"
 import JovyAuthzPolicy from "@jovy/modules/jovy-authz/models/policy"
@@ -144,17 +148,70 @@ moduleIntegrationTestRunner<JovyAuthzModuleService>({
       expect(JSON.stringify(logs)).not.toContain("password")
     })
 
-    it("asigna el bootstrap solo al correo configurado", async () => {
-      const previous = process.env.JOVY_AUTHZ_BOOTSTRAP_EMAILS
-      process.env.JOVY_AUTHZ_BOOTSTRAP_EMAILS = "bootstrap@example.test"
-      try {
-        expect(await service.ensureBootstrapAssignment("user_bootstrap", "otro@example.test")).toBe(false)
-        expect(await service.ensureBootstrapAssignment("user_bootstrap", "bootstrap@example.test")).toBe(true)
-        const effective = await service.resolveEffectivePermissions("user_bootstrap")
-        expect(effective.roles).toContain("superadmin")
-      } finally {
-        process.env.JOVY_AUTHZ_BOOTSTRAP_EMAILS = previous
-      }
+    it("asigna el bootstrap solo mediante el comando explícito", async () => {
+      expect(
+        await service.assignBootstrapSuperadmin({ userId: "user_bootstrap", mode: "bootstrap" }),
+      ).toBe("created")
+      expect(
+        await service.assignBootstrapSuperadmin({ userId: "user_bootstrap", mode: "bootstrap" }),
+      ).toBe("already")
+      const effective = await service.resolveEffectivePermissions("user_bootstrap")
+      expect(effective.roles).toContain("superadmin")
+
+      const logs = await service.listJovyAuthzAuditLogs({ action: "bootstrap" })
+      expect(
+        logs.some(
+          (log) => log.target_id === "user_bootstrap" && (log.metadata as { mode?: string })?.mode === "bootstrap",
+        ),
+      ).toBe(true)
+    })
+
+    it("rechaza un segundo bootstrap y protege al último Superadministrador", async () => {
+      await service.assignBootstrapSuperadmin({ userId: "user_bootstrap", mode: "bootstrap" })
+      await expect(
+        service.assignBootstrapSuperadmin({ userId: "user_bootstrap_2", mode: "bootstrap" }),
+      ).rejects.toThrow(/ya tiene un Superadministrador/i)
+
+      await expect(service.replaceUserAccess("user_bootstrap", [], [])).rejects.toThrow(
+        /último Superadministrador/i,
+      )
+    })
+
+    it("permite recuperación explícita sin abrir un segundo bootstrap", async () => {
+      await service.assignBootstrapSuperadmin({ userId: "user_bootstrap", mode: "bootstrap" })
+      expect(
+        await service.assignBootstrapSuperadmin({ userId: "user_recovery", mode: "recovery" }),
+      ).toBe("created")
+      const effective = await service.resolveEffectivePermissions("user_recovery")
+      expect(effective.roles).toContain("superadmin")
+    })
+
+    it("una denegación individual anula el wildcard del Superadministrador", async () => {
+      const [superadmin] = await service.listJovyAuthzRoles({ code: "superadmin" })
+      await service.replaceUserAccess(
+        "user_wildcard",
+        [superadmin.id],
+        [
+          { resource: "medusa_users", operation: "manage_settings", effect: "deny" },
+          { resource: "jovy_contacts_national", operation: "export", effect: "deny" },
+        ],
+      )
+      const effective = await service.resolveEffectivePermissions("user_wildcard")
+      expect(isGlobalAdmin(effective.allow, effective.deny)).toBe(false)
+      expect(
+        permissionAllows(effective.allow, effective.deny, "medusa_users", "manage_settings"),
+      ).toBe(false)
+      expect(
+        permissionAllows(effective.allow, effective.deny, "jovy_contacts_national", "export"),
+      ).toBe(false)
+      expect(permissionAllows(effective.allow, effective.deny, "medusa_products", "read")).toBe(
+        true,
+      )
+      const keys = effectivePermissionKeys(effective.allow, effective.deny)
+      expect(keys).not.toContain("*:*")
+      expect(keys).not.toContain("medusa_users:manage_settings")
+      expect(keys).not.toContain("jovy_contacts_national:export")
+      expect(keys).toContain("medusa_products:read")
     })
   },
 })
