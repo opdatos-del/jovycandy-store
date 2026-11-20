@@ -11,7 +11,12 @@ module.exports = defineConfig({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
-    }
+    },
+    // El Admin se sirve por HTTP en local (localhost:9000). En producción,
+    // Express marca la cookie de sesión como Secure y express-session no la
+    // envía fuera de HTTPS, lo que deja /admin/* en 401 tras el login. Detrás
+    // de HTTPS, cambiar a `{ secure: true }`.
+    cookieOptions: { secure: false },
   },
   modules: [
     {

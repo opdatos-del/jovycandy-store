@@ -336,6 +336,7 @@ conserva la fila y su auditoría para la política de retención de
 | Rate limit en memoria | Aceptable con una instancia local | **Sí** si hay más de una instancia o exposición pública |
 | Dashboard como control | No usar como control en ningún entorno | **Sí**: ocultar botones no autoriza |
 | CORS/secretos/JWT | `.env` local, no versionado | Deben configurarse por entorno y rotarse; no evaluado aquí |
+| Cookie de sesión sobre HTTP | `cookieOptions.secure=false` solo para `localhost` | **Sí**: en producción detrás de HTTPS debe ser `Secure` |
 
 El repositorio es de laboratorio local (sin Docker ni despliegue). Estas
 condiciones son requisitos de salida, no una afirmación de que el sistema esté

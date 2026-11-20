@@ -27,6 +27,11 @@ El binario `psql` está instalado en `C:\Program Files\PostgreSQL\18\bin\psql.ex
 No son secretos: solo describen el entorno local. Si el servidor escucha en otro puerto, defina
 `FILE_BACKEND_URL` para que las URLs de imágenes y videos coincidan con el puerto real.
 
+El Admin local se sirve por HTTP. Por eso `medusa-config.ts` fija `cookieOptions: { secure: false }`:
+con `medusa start` (`NODE_ENV=production`), Medusa marca la cookie de sesión como `Secure` y
+`express-session` no la envía fuera de HTTPS, lo que deja `/admin/*` en `401` después del login.
+Detrás de HTTPS debe volver a `{ secure: true }`.
+
 En PowerShell, para crear una plantilla nueva sin sobrescribir un `.env` existente:
 
 ```powershell
