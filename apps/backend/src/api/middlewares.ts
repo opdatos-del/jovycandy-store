@@ -1,5 +1,4 @@
 import {
-  authenticate,
   configureStoreSearch,
   defineMiddlewares,
   MedusaNextFunction,
@@ -8,6 +7,7 @@ import {
 } from '@medusajs/framework/http'
 import multer from "multer"
 import { createEventVideoUpload } from "@jovy/lib/jovy/event-video-upload"
+import { authorizeJovyAdmin } from "@jovy/lib/jovy/authz/middleware"
 import {
   acquireEventVideoUploadLock,
   consumeEventVideoUpload,
@@ -144,9 +144,11 @@ function jovyEventVideoMedia(req: MedusaRequest, res: MedusaResponse, next: Medu
 // the route narrows it to published products in the key's sales channels.
 export default defineMiddlewares({
   routes: [
+    // La autenticación nativa de `/admin` ya se ejecutó; aquí solo se autoriza.
+    // Reautenticar por duplicado rompía las lecturas del shell del Admin.
     {
-      matcher: '/admin/jovy/*',
-      middlewares: [authenticate('user', ['session', 'bearer', 'api-key'])],
+      matcher: '/admin/*',
+      middlewares: [authorizeJovyAdmin],
     },
     {
       method: ["POST"],

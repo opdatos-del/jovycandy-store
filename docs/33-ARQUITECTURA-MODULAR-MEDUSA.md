@@ -103,6 +103,11 @@ src/admin/
 │   │   ├── types.ts
 │   │   ├── hooks/use-novelties.ts
 │   │   └── components/{novelties-page,header,filters,empty-state,card,form}
+│   ├── access/
+│   │   ├── api.ts
+│   │   ├── types.ts
+│   │   ├── hooks/use-access.ts
+│   │   └── components/{access-page,role-editor,role-create,users-panel}
 │   └── product-editorial/
 │       ├── api.ts
 │       ├── model.ts
@@ -110,9 +115,10 @@ src/admin/
 │       ├── hooks/use-product-editorial.ts
 │       └── components/{product-editorial-widget,editorial-form,editorial-*-section}
 ├── shared/
-│   ├── components/{admin-dialog,page-header}
+│   ├── components/{admin-dialog,page-header,permission-gate}
+│   ├── hooks/use-jovy-permissions.ts
 │   └── lib/{admin-api,event-ordering,media,color}
-├── widgets/product-editorial.tsx
+├── widgets/{product-editorial,user-access,user-access-link}.tsx
 ├── __tests__/architecture.test.ts
 └── styles/jovy-quality.css
 ```
@@ -124,17 +130,18 @@ Las rutas de `features/` se importan con el alias `@admin/*`. `page.tsx` sigue e
 ```text
 src/
 ├── api/
-│   ├── admin/jovy/{content,marketing,events,brand,catalogue,launches,contacts,products}
+│   ├── admin/jovy/{content,marketing,events,brand,catalogue,launches,contacts,products,authz}
 │   ├── store/jovy/
-│   └── middlewares.ts
+│   └── middlewares.ts        # authenticate + authorizeJovyAdmin en /admin/*
 ├── modules/
-│   └── jovy-{content,marketing,events,brand,catalogue,launches,contacts,product-editorial}
+│   └── jovy-{content,marketing,events,brand,catalogue,launches,contacts,product-editorial,authz}
 ├── workflows/
 │   └── jovy-*/
 ├── links/
 ├── jobs/
 ├── subscribers/
 └── lib/jovy/
+    └── authz/{catalog,permissions,route-policy,middleware,contacts,cache,http,schemas}
 ```
 
 ## 5. Responsabilidades por dominio
@@ -149,6 +156,7 @@ src/
 | Lanzamientos | `jovy-launches` | launch, settings, reorder | `launches` | activos |
 | Contactos | `jovy-contacts` | create/update/delete/restore | `contacts` | solo POST público |
 | Producto editorial | `jovy-product-editorial` | editorial/restore | widget | ficha publicada |
+| Autorización | `jovy-authz` | — | `access` | — |
 
 ## 6. Reglas de dependencia
 
@@ -163,6 +171,7 @@ routes -> features -> shared
 - `shared` no importa features ni API de dominio.
 - No se importan módulos Node ni `src/modules/**` en el bundle de Vite.
 - Los imports profundos se evitan con `@admin/*`.
+- El gating de UI usa `useJovyPermissions`/`PermissionGate`; nunca es la única defensa.
 
 ### Backend
 
@@ -175,6 +184,7 @@ api -> workflows -> modules
 - Las lecturas simples usan Module Service o Query; no se crean workflows artificiales.
 - Los workflows coordinan varios pasos y conservan idempotencia/compensación cuando ya existe.
 - Las rutas validan con los esquemas de `src/lib/jovy` y traducen errores; no contienen reglas de negocio.
+- `/admin/*` pasa por `authorizeJovyAdmin`; una ruta Jovy nueva sin regla en el inventario se deniega.
 
 ## 7. Flujo de una petición
 

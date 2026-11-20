@@ -10,5 +10,5 @@ const CatalogueInbox = () => (
   <ContactInbox title="Catálogo — Solicitudes" contactType="catalogue" description="Solicitudes de catálogo impreso o digital." />
 )
 
-export const config = defineRouteConfig({ label: "Catálogo — Solicitudes", icon: Tag, rank: 11 })
+export const config = defineRouteConfig({ label: "Catálogo — Solicitudes", icon: Tag, rank: 11, permissions: "jovy_contacts_catalogue:read" })
 export default CatalogueInbox

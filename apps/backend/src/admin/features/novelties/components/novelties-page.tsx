@@ -1,6 +1,7 @@
 import { canMoveEventWithinPriority } from "@admin/shared/lib/event-ordering"
 import { NoveltyCard } from "./novelty-card"
 import { NoveltyForm } from "./novelty-form"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { NoveltiesEmptyState } from "./novelties-empty-state"
 import { NoveltiesFilters } from "./novelties-filters"
 import { NoveltiesHeader } from "./novelties-header"
@@ -14,6 +15,12 @@ import { noveltyStoreState } from "../model"
  * efectiva separados para no etiquetar como publicada una novedad oculta.
  */
 export const NoveltiesPage = () => {
+  const permissions = useJovyPermissions()
+  const canCreate = permissions.can("jovy_events", "create")
+  const canUpdate = permissions.can("jovy_events", "update")
+  const canDelete = permissions.can("jovy_events", "delete")
+  const canPublish = permissions.can("jovy_events", "publish")
+  const canArchive = permissions.can("jovy_events", "archive")
   const novelties = useNovelties()
 
   return (
@@ -27,9 +34,10 @@ export const NoveltiesPage = () => {
         actionError={novelties.actionError}
         onCreate={novelties.openCreate}
         onReload={() => void novelties.load()}
+        canCreate={canCreate}
       />
 
-      {novelties.editorOpen && novelties.draft && (
+      {novelties.editorOpen && novelties.draft && (novelties.editingEvent ? canUpdate : canCreate) && (
         <NoveltyForm
           draft={novelties.draft}
           editing={novelties.editingEvent}
@@ -90,6 +98,10 @@ export const NoveltiesPage = () => {
               onDelete={() => void novelties.deleteEvent(event)}
               onReplaceMedia={(file) => void novelties.replaceCardMedia(event, file)}
               onRemoveMedia={() => void novelties.removeMedia(event)}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+              canPublish={canPublish}
+              canArchive={canArchive}
             />
           ))}
         </section>

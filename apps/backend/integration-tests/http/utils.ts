@@ -31,17 +31,19 @@ export function adminHeaders(token: string) {
   return { authorization: `Bearer ${token}` }
 }
 
-/**
- * Creates an admin user linked to an emailpass auth identity and returns the
- * bearer token issued by the real authentication route. Signing a token by hand
- * would test the JWT secret instead of the admin contract.
- */
-export async function createAdminSession(container: MedusaContainer, api: TestApi) {
+async function createEmailpassUser(
+  container: MedusaContainer,
+  api: TestApi,
+  email: string,
+  password: string,
+  firstName: string,
+  lastName: string,
+) {
   const authModule = container.resolve(Modules.AUTH)
   const userModule = container.resolve(Modules.USER)
 
   const registration = await authModule.register("emailpass", {
-    body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+    body: { email, password },
     protocol: "https",
   })
 
@@ -49,14 +51,12 @@ export async function createAdminSession(container: MedusaContainer, api: TestAp
   // identidad o el usuario, `register`/`createUsers` fallan y todas las pruebas
   // del suite caen en `beforeAll`. Reutilizamos esas entidades en lugar de
   // asumir una base limpia, sin tocar el comportamiento del contrato probado.
-  let authIdentity = registration.authIdentity as
-    | { id: string }
-    | undefined
+  let authIdentity = registration.authIdentity as { id: string } | undefined
   if (!authIdentity) {
     // El email vive en la identidad del proveedor, no en `auth_identity`.
     const providerIdentities = (await authModule.listProviderIdentities({
       provider: "emailpass",
-      entity_id: ADMIN_EMAIL,
+      entity_id: email,
     })) as Array<{ auth_identity_id: string }>
     const existing = providerIdentities[0]
     if (existing) {
@@ -71,13 +71,13 @@ export async function createAdminSession(container: MedusaContainer, api: TestAp
     )
   }
 
-  const existingUsers = await userModule.listUsers({ email: ADMIN_EMAIL })
+  const existingUsers = await userModule.listUsers({ email })
   const user =
     existingUsers[0] ??
     (await userModule.createUsers({
-      email: ADMIN_EMAIL,
-      first_name: "Integration",
-      last_name: "Admin",
+      email,
+      first_name: firstName,
+      last_name: lastName,
     }))
 
   await authModule.updateAuthIdentities({
@@ -85,10 +85,33 @@ export async function createAdminSession(container: MedusaContainer, api: TestAp
     app_metadata: { user_id: user.id },
   })
 
-  const { data } = await api.post("/auth/user/emailpass", {
-    email: ADMIN_EMAIL,
-    password: ADMIN_PASSWORD,
-  })
+  const { data } = await api.post("/auth/user/emailpass", { email, password })
+  return { token: data.token as string, user }
+}
 
-  return data.token as string
+/**
+ * Creates an admin user linked to an emailpass auth identity and returns the
+ * bearer token issued by the real authentication route. Signing a token by hand
+ * would test the JWT secret instead of the admin contract.
+ */
+export async function createAdminSession(container: MedusaContainer, api: TestApi) {
+  const session = await createAdminUserSession(container, api)
+  return session.token
+}
+
+/** Igual que `createAdminSession`, pero expone el usuario para pruebas de RBAC. */
+export async function createAdminUserSession(container: MedusaContainer, api: TestApi) {
+  return createEmailpassUser(container, api, ADMIN_EMAIL, ADMIN_PASSWORD, "Integration", "Admin")
+}
+
+/** Crea una identidad nativa adicional para probar permisos distintos. */
+export async function createUserSession(
+  container: MedusaContainer,
+  api: TestApi,
+  email: string,
+  password: string,
+  firstName = "Integration",
+  lastName = "User",
+) {
+  return createEmailpassUser(container, api, email, password, firstName, lastName)
 }

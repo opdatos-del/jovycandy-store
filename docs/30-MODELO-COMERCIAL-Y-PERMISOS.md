@@ -4,9 +4,10 @@
 producto y estado real del modelo de permisos. Prosa en español; identificadores, campos,
 rutas y operaciones en inglés.
 
-**Estado:** las decisiones de seguridad comercial (secciones 2 y 3) están implementadas y
-verificadas en local. El modelo de permisos de la sección 5 es **solo DISEÑO, NO
-IMPLEMENTADO**. RBAC Enterprise no está disponible ni activo (sección 4).
+**Estado (2026-11-20):** las decisiones de seguridad comercial (secciones 2 y 3) están
+implementadas y verificadas en local. El modelo de permisos de la sección 5 está
+**IMPLEMENTADO** como capa propia (`jovy-authz`); RBAC Enterprise sigue **NO LICENCIADO**
+(sección 4). Matriz vigente en `docs/37`; seguridad de endpoints en `docs/38`.
 
 Relación con otros documentos: `docs/21` (estado de implementación), `docs/28` (matriz por
 pantalla), `docs/29` (paridad visual; conserva sus conteos de regresión), `docs/19`
@@ -102,7 +103,18 @@ El grupo **«JovyCandy CMS»** del Admin tiene **11 entradas**, en este orden:
   (`publish`, `archive`, `restore`, `export`); eso **no cambia la ausencia de licencia**.
   La corrección del afirmado «`publish` no se puede modelar» está registrada en `docs/19`.
 
-## 5. Modelo de permisos DISEÑADO (NO IMPLEMENTADO)
+## 5. Modelo de permisos IMPLEMENTADO (capa propia)
+
+La sección conserva el diseño original; la implementación real vive en
+`src/modules/jovy-authz` + `src/lib/jovy/authz` y se documenta en `docs/36`–`docs/39`.
+Las diferencias relevantes:
+
+- `jovy_events` cubre Eventos y Novedades (misma tabla).
+- Se añaden recursos `jovy_content` y `jovy_product_editorial`.
+- Se añaden recursos nativos `medusa_*` con cobertura por prefijo.
+- `jovy_access` administra roles y asignaciones.
+- `deny` individual gana sobre la unión de roles.
+- Las API keys secretas quedan fuera del Admin.
 
 ### 5.1 Recursos
 
@@ -194,6 +206,7 @@ El campo `sellable_requirements` se produce en las respuestas Admin (detalle y l
 producto editorial) y se comprueba en pruebas unitarias y de integración HTTP; las respuestas
 Store no lo exponen.
 
-**RBAC sigue SIN implementar**: solo existe el diseño de la sección 5; no hay guardas
-`authorize`, UI de roles ni asignación persistida, y `@medusajs/rbac` no está registrado ni
-licenciado (secciones 4 y 5).
+**RBAC Enterprise sigue SIN activar**, pero la capa propia `jovy-authz` sí está implementada:
+roles, políticas, asignaciones, middleware deny-by-default, aislamiento de contactos, cobertura
+nativa por prefijo y pantalla de accesos. La migración `Migration20261120100000` creó solo las
+tablas `jovy_authz_*`; no se crearon tablas `rbac_*` ni se modificaron usuarios oficiales.

@@ -12,6 +12,7 @@ import {
 import { toContactXlsxBuffer } from "@jovy/lib/jovy/contacts-xlsx"
 import { JOVY_CONTACTS_MODULE } from "@jovy/modules/jovy-contacts"
 import JovyContactsModuleService from "@jovy/modules/jovy-contacts/service"
+import { assertContactQueryAccess } from "@jovy/lib/jovy/authz/contacts"
 
 /**
  * CSV or XLSX export of one inbox. `contact_type` is mandatory so a download
@@ -31,6 +32,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const service = req.scope.resolve(JOVY_CONTACTS_MODULE) as JovyContactsModuleService
   const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const query = parsed.data
+  if (!assertContactQueryAccess(req, res, "export", query.contact_type)) return
 
   const contacts = await service.listJovyContactRequests(contactListFilters(query), {
     // One extra row is enough to know the ceiling was crossed.

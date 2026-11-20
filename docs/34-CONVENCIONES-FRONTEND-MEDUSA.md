@@ -99,6 +99,17 @@ Candidatos ya compartidos:
 - `validateImageFile`, `uploadMarketingImage`, `uploadImageTo`.
 - `isValidHexColor`, `expandHexColor`.
 
+## 7.1 Permisos en la UI
+
+- `useJovyPermissions()` obtiene `/admin/jovy/authz/me`; si falla, la UI cae en sin permisos.
+- `can(resource, operation)` y `canContact(type, operation)` deciden qué controles mostrar.
+- `PermissionGate` es útil para bloques pequeños; en tablas se pasa `can` al componente.
+- Ocultar un botón **no autoriza**: el middleware y el handler vuelven a validar.
+- Las pantallas sin permiso muestran «Acceso denegado» cuando la ruta lo permite; el backend responde 403.
+- La asignación de roles a una persona vive en el widget `user.details` del detalle nativo de Usuarios. El catálogo global de roles vive en `Settings → Accesos y permisos` (`/app/settings/access`).
+- No se eliminan pantallas del código: la navegación sigue registrada y el servidor decide.
+- Los permisos nuevos se añaden al catálogo `src/lib/jovy/authz/catalog.ts`, no como strings sueltos.
+
 ## 8. Formularios y modales
 
 - Conservar labels, `name`, `id`, `aria-label`, `data-testid` y mensajes existentes.

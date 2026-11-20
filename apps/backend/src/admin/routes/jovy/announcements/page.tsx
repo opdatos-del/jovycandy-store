@@ -32,6 +32,7 @@ export const config = defineRouteConfig({
   label: "Anuncios de portada",
   icon: BellAlert,
   rank: 6,
+  permissions: "jovy_announcements:read",
 })
 
 export default AnnouncementsPage

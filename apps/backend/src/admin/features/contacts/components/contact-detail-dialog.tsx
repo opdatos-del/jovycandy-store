@@ -23,6 +23,9 @@ type ContactDetailDialogProps = {
   statusBusy: boolean
   deleteBusy: boolean
   restoreBusy: boolean
+  canUpdate: boolean
+  canDelete: boolean
+  canRestore: boolean
   onNotesChange: (value: string) => void
   onSaveNotes: () => void
   onClose: () => void
@@ -63,6 +66,9 @@ export function ContactDetailDialog({
   statusBusy,
   deleteBusy,
   restoreBusy,
+  canUpdate,
+  canDelete,
+  canRestore,
   onNotesChange,
   onSaveNotes,
   onClose,
@@ -90,41 +96,49 @@ export function ContactDetailDialog({
             Cerrar
           </Button>
           {deleted ? (
-            <Button
-              type="button"
-              size="small"
-              onClick={onRestore}
-              isLoading={restoreBusy}
-              disabled={busy}
-            >
-              <ArrowUturnLeft /> Restaurar
-            </Button>
+            canRestore && (
+              <Button
+                type="button"
+                size="small"
+                onClick={onRestore}
+                isLoading={restoreBusy}
+                disabled={busy}
+              >
+                <ArrowUturnLeft /> Restaurar
+              </Button>
+            )
           ) : (
             <>
-              <Button
-                type="button"
-                size="small"
-                variant="secondary"
-                onClick={contact.status === "handled" ? onMarkPending : onMarkHandled}
-                isLoading={statusBusy}
-                disabled={busy}
-              >
-                {contact.status === "handled" ? <XMark /> : <Check />}
-                {contact.status === "handled" ? "Volver pendiente" : "Marcar atendido"}
-              </Button>
-              <Button type="button" size="small" variant="secondary" onClick={onEdit} disabled={busy}>
-                <PencilSquare /> Editar
-              </Button>
-              <Button
-                type="button"
-                size="small"
-                variant="danger"
-                onClick={onDelete}
-                isLoading={deleteBusy}
-                disabled={busy}
-              >
-                <Trash /> Eliminar
-              </Button>
+              {canUpdate && (
+                <Button
+                  type="button"
+                  size="small"
+                  variant="secondary"
+                  onClick={contact.status === "handled" ? onMarkPending : onMarkHandled}
+                  isLoading={statusBusy}
+                  disabled={busy}
+                >
+                  {contact.status === "handled" ? <XMark /> : <Check />}
+                  {contact.status === "handled" ? "Volver pendiente" : "Marcar atendido"}
+                </Button>
+              )}
+              {canUpdate && (
+                <Button type="button" size="small" variant="secondary" onClick={onEdit} disabled={busy}>
+                  <PencilSquare /> Editar
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  type="button"
+                  size="small"
+                  variant="danger"
+                  onClick={onDelete}
+                  isLoading={deleteBusy}
+                  disabled={busy}
+                >
+                  <Trash /> Eliminar
+                </Button>
+              )}
             </>
           )}
         </>
@@ -205,7 +219,7 @@ export function ContactDetailDialog({
           <h3 id="contact-detail-notes" className="text-ui-fg-base text-sm font-semibold">
             Notas internas
           </h3>
-          {deleted ? (
+          {deleted || !canUpdate ? (
             <p className="text-ui-fg-subtle mt-2 text-sm break-words whitespace-pre-wrap">
               {contact.admin_notes || "Sin notas internas."}
             </p>

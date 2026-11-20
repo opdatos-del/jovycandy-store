@@ -12,6 +12,7 @@ import {
 import { toContactXlsxBuffer, type ContactExportSheet } from "@jovy/lib/jovy/contacts-xlsx"
 import { JOVY_CONTACTS_MODULE } from "@jovy/modules/jovy-contacts"
 import JovyContactsModuleService from "@jovy/modules/jovy-contacts/service"
+import { allowedContactTypes } from "@jovy/lib/jovy/authz/contacts"
 
 /**
  * Consolidated XLSX export: one sheet per selected bandeja, with the same
@@ -33,6 +34,10 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const selectedTypes = parseContactTypesParam(query.contact_types)
   if (!selectedTypes) {
     return res.status(400).json({ message: "contact_types contiene una bandeja desconocida" })
+  }
+  const exportable = allowedContactTypes(req, "export")
+  if (!selectedTypes.every((contactType) => exportable.includes(contactType))) {
+    return res.status(403).json({ type: "not_allowed", message: "No autorizado para esta operación." })
   }
 
   const service = req.scope.resolve(JOVY_CONTACTS_MODULE) as JovyContactsModuleService

@@ -1,4 +1,5 @@
 import { Badge, Container, Heading, Text } from "@medusajs/ui"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { useProductEditorial } from "../hooks/use-product-editorial"
 import { STATUS_BADGE, STATUS_LABELS } from "../model"
 import type { ProductEditorialWidgetProps } from "../types"
@@ -11,6 +12,12 @@ import { EditorialDeletedState, EditorialLoadError, EditorialLoading } from "./e
  * precios, inventario, variantes e imágenes siguen en Medusa.
  */
 const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
+  const permissions = useJovyPermissions()
+  const canUpdate = permissions.can("jovy_product_editorial", "update")
+  const canPublish = permissions.can("jovy_product_editorial", "publish")
+  const canArchive = permissions.can("jovy_product_editorial", "archive")
+  const canRestore = permissions.can("jovy_product_editorial", "restore")
+  const canDelete = permissions.can("jovy_product_editorial", "delete")
   const {
     editorial,
     deleted,
@@ -52,6 +59,7 @@ const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
           saving={saving}
           onRestore={() => void restoreDeleted()}
           onReload={() => void reload()}
+          canRestore={canRestore}
         />
       )}
 
@@ -70,6 +78,11 @@ const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
           onRestoreArchived={restoreArchived}
           onRemove={remove}
           onReload={reload}
+          canUpdate={canUpdate}
+          canPublish={canPublish}
+          canArchive={canArchive}
+          canRestore={canRestore}
+          canDelete={canDelete}
         />
       )}
     </Container>

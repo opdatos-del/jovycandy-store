@@ -11,6 +11,7 @@ export const config = defineRouteConfig({
   label: "Dashboard",
   icon: SquaresPlus,
   rank: 1,
+  permissions: "jovy_dashboard:read",
 })
 
 export default DashboardPage

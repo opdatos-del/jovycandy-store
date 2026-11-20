@@ -7,6 +7,7 @@ import { useContactExport } from "../hooks/use-contact-export"
 import { useContactMutations } from "../hooks/use-contact-mutations"
 import { useContactQuery } from "../hooks/use-contact-query"
 import { ContactAuditDialog } from "./contact-audit-dialog"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { ContactDetailDialog } from "./contact-detail-dialog"
 import { ContactEditDialog } from "./contact-edit-dialog"
 import { ContactInboxFilters } from "./contact-inbox-filters"
@@ -119,6 +120,11 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
   })
 
   const audit = useContactAudit()
+  const permissions = useJovyPermissions()
+  const canExportCurrent = listType ? permissions.canContact(listType, "export") : false
+  const contactResources = Object.values(permissions.contact_resources)
+  const canExportAll =
+    contactResources.length > 0 && contactResources.every((resource) => permissions.can(resource, "export"))
 
   const { exportingFormat, exportingAll, runExport, runExportAll } = useContactExport({
     exportType,
@@ -335,41 +341,43 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
             >
               <ArrowPath /> Actualizar
             </Button>
-            {exportType ? (
-              <>
-                <Button
-                  type="button"
-                  size="small"
-                  variant="secondary"
-                  onClick={() => void runExport("csv")}
-                  isLoading={exportingFormat === "csv"}
-                  disabled={exportingFormat !== null || exportingAll}
-                >
-                  <ArrowDownTray /> Exportar CSV
-                </Button>
-                <Button
-                  type="button"
-                  size="small"
-                  variant="secondary"
-                  onClick={() => void runExport("xlsx")}
-                  isLoading={exportingFormat === "xlsx"}
-                  disabled={exportingFormat !== null || exportingAll}
-                >
-                  <ArrowDownTray /> Exportar Excel
-                </Button>
-              </>
-            ) : (
-              <Button
-                type="button"
-                size="small"
-                variant="secondary"
-                onClick={() => void runExportAll()}
-                isLoading={exportingAll}
-                disabled={exportingAll || exportingFormat !== null}
-              >
-                <ArrowDownTray /> Exportar todo (Excel)
-              </Button>
-            )}
+            {exportType
+              ? canExportCurrent && (
+                  <>
+                    <Button
+                      type="button"
+                      size="small"
+                      variant="secondary"
+                      onClick={() => void runExport("csv")}
+                      isLoading={exportingFormat === "csv"}
+                      disabled={exportingFormat !== null || exportingAll}
+                    >
+                      <ArrowDownTray /> Exportar CSV
+                    </Button>
+                    <Button
+                      type="button"
+                      size="small"
+                      variant="secondary"
+                      onClick={() => void runExport("xlsx")}
+                      isLoading={exportingFormat === "xlsx"}
+                      disabled={exportingFormat !== null || exportingAll}
+                    >
+                      <ArrowDownTray /> Exportar Excel
+                    </Button>
+                  </>
+                )
+              : canExportAll && (
+                  <Button
+                    type="button"
+                    size="small"
+                    variant="secondary"
+                    onClick={() => void runExportAll()}
+                    isLoading={exportingAll}
+                    disabled={exportingAll || exportingFormat !== null}
+                  >
+                    <ArrowDownTray /> Exportar todo (Excel)
+                  </Button>
+                )}
           </div>
         </div>
 
@@ -454,6 +462,7 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
           newIds={newIds}
           busyId={busy?.id ?? null}
           busyAction={busy?.action ?? null}
+          can={(contact, operation) => permissions.canContact(contact.contact_type, operation)}
           onRetry={() => void reload()}
           onShowDetail={(contact, trigger) => void showDetail(contact, trigger)}
           onEdit={(contact) => setEditTarget(contact)}
@@ -529,6 +538,9 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
           statusBusy={busy?.id === detail.id && busy.action === "status"}
           deleteBusy={busy?.id === detail.id && busy.action === "delete"}
           restoreBusy={busy?.id === detail.id && busy.action === "restore"}
+          canUpdate={permissions.canContact(detail.contact_type, "update")}
+          canDelete={permissions.canContact(detail.contact_type, "delete")}
+          canRestore={permissions.canContact(detail.contact_type, "restore")}
           onNotesChange={setNotes}
           onSaveNotes={() => void saveNotes()}
           onClose={closeDetail}

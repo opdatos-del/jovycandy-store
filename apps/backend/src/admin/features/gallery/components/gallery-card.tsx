@@ -25,6 +25,10 @@ type Props = {
   onChangeStatus: (status: GalleryStatus) => void
   onToggleEnabled: () => void
   onRemove: () => void
+  canUpdate: boolean
+  canDelete: boolean
+  canPublish: boolean
+  canArchive: boolean
 }
 
 /**
@@ -43,6 +47,10 @@ export const GalleryCard = ({
   onChangeStatus,
   onToggleEnabled,
   onRemove,
+  canUpdate,
+  canDelete,
+  canPublish,
+  canArchive,
 }: Props) => {
   const title = galleryTitle(item)
   const state = publicationState(item)
@@ -56,26 +64,30 @@ export const GalleryCard = ({
       <span className="text-ui-fg-subtle text-xs font-medium uppercase md:hidden">Orden</span>
       <span className="text-sm font-medium tabular-nums">{index + 1}</span>
       <div className="flex items-center gap-1">
-        <Button
-          size="small"
-          variant="secondary"
-          className="jovy-icon-button h-7 w-7 p-0"
-          aria-label={`Subir ${title}`}
-          onClick={() => onMove(index, -1)}
-          disabled={busy || index === 0}
-        >
-          <ArrowUpMini />
-        </Button>
-        <Button
-          size="small"
-          variant="secondary"
-          className="jovy-icon-button h-7 w-7 p-0"
-          aria-label={`Bajar ${title}`}
-          onClick={() => onMove(index, 1)}
-          disabled={busy || index === total - 1}
-        >
-          <ArrowDownMini />
-        </Button>
+        {canUpdate && (
+          <>
+            <Button
+              size="small"
+              variant="secondary"
+              className="jovy-icon-button h-7 w-7 p-0"
+              aria-label={`Subir ${title}`}
+              onClick={() => onMove(index, -1)}
+              disabled={busy || index === 0}
+            >
+              <ArrowUpMini />
+            </Button>
+            <Button
+              size="small"
+              variant="secondary"
+              className="jovy-icon-button h-7 w-7 p-0"
+              aria-label={`Bajar ${title}`}
+              onClick={() => onMove(index, 1)}
+              disabled={busy || index === total - 1}
+            >
+              <ArrowDownMini />
+            </Button>
+          </>
+        )}
       </div>
     </div>
 
@@ -109,16 +121,18 @@ export const GalleryCard = ({
     </div>
 
     <div className="jovy-actions flex flex-wrap gap-2 md:justify-end">
-      <Button
-        size="small"
-        variant="secondary"
-        aria-label={`Editar ${title}`}
-        onClick={onEdit}
-        disabled={busy}
-      >
-        Editar
-      </Button>
-      {item.status === "published"
+      {canUpdate && (
+        <Button
+          size="small"
+          variant="secondary"
+          aria-label={`Editar ${title}`}
+          onClick={onEdit}
+          disabled={busy}
+        >
+          Editar
+        </Button>
+      )}
+      {canPublish && (item.status === "published"
         ? <Button
           size="small"
           variant="secondary"
@@ -136,7 +150,8 @@ export const GalleryCard = ({
           isLoading={pending}
         >
           Publicar
-        </Button>}
+        </Button>)}
+      {(canUpdate || canDelete || canArchive) && (
       <DropdownMenu>
         <DropdownMenu.Trigger asChild>
           <Button
@@ -150,31 +165,38 @@ export const GalleryCard = ({
           </Button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Content align="end">
-          {item.status !== "archived" && <DropdownMenu.Item
+          {canArchive && item.status !== "archived" && <DropdownMenu.Item
             aria-label={`Archivar ${title}`}
             onSelect={() => onChangeStatus("archived")}
             disabled={busy}
           >
             Archivar
           </DropdownMenu.Item>}
-          <DropdownMenu.Item
-            aria-label={`${item.enabled ? "Desactivar" : "Activar"} ${title}`}
-            onSelect={onToggleEnabled}
-            disabled={busy}
-          >
-            {item.enabled ? "Desactivar" : "Activar"}
-          </DropdownMenu.Item>
-          <DropdownMenu.Separator />
-          <DropdownMenu.Item
-            className="text-ui-fg-error"
-            aria-label={`Eliminar ${title}`}
-            onSelect={onRemove}
-            disabled={busy}
-          >
-            Eliminar
-          </DropdownMenu.Item>
+          {canUpdate && (
+            <DropdownMenu.Item
+              aria-label={`${item.enabled ? "Desactivar" : "Activar"} ${title}`}
+              onSelect={onToggleEnabled}
+              disabled={busy}
+            >
+              {item.enabled ? "Desactivar" : "Activar"}
+            </DropdownMenu.Item>
+          )}
+          {canDelete && (
+            <>
+              <DropdownMenu.Separator />
+              <DropdownMenu.Item
+                className="text-ui-fg-error"
+                aria-label={`Eliminar ${title}`}
+                onSelect={onRemove}
+                disabled={busy}
+              >
+                Eliminar
+              </DropdownMenu.Item>
+            </>
+          )}
         </DropdownMenu.Content>
       </DropdownMenu>
+      )}
     </div>
   </li>
 }

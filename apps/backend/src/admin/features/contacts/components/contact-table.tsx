@@ -31,6 +31,7 @@ type ContactTableProps = {
   newIds: ReadonlySet<string>
   busyId: string | null
   busyAction: BusyAction
+  can: (contact: Contact, operation: "read" | "update" | "delete" | "restore") => boolean
   onRetry: () => void
   onShowDetail: (contact: Contact, trigger: HTMLButtonElement) => void
   onEdit: (contact: Contact) => void
@@ -88,6 +89,7 @@ export function ContactTable({
   newIds,
   busyId,
   busyAction,
+  can,
   onRetry,
   onShowDetail,
   onEdit,
@@ -171,6 +173,10 @@ export function ContactTable({
               const isNew = newIds.has(contact.id)
               const date = formatDateParts(contact.created_at)
               const busy = busyId === contact.id
+              const canUpdate = can(contact, "update")
+              const canDelete = can(contact, "delete")
+              const canRestore = can(contact, "restore")
+              const canRead = can(contact, "read")
               return (
                 <tr
                   key={contact.id}
@@ -233,80 +239,96 @@ export function ContactTable({
                     <div className="flex flex-wrap items-center justify-end gap-0.5">
                       {deleted ? (
                         <>
-                          <RowAction
-                            label="Ver más"
-                            title={`Ver detalle de ${contactName(contact)}`}
-                            onClick={(event) => onShowDetail(contact, event.currentTarget)}
-                          >
-                            <Eye />
-                          </RowAction>
-                          <RowAction
-                            label="Auditoría"
-                            title={`Ver auditoría de ${contactName(contact)}`}
-                            onClick={() => onAudit(contact)}
-                          >
-                            <InformationCircle />
-                          </RowAction>
-                          <RowAction
-                            label="Restaurar"
-                            title={`Restaurar ${contactName(contact)}`}
-                            onClick={() => onRestore(contact)}
-                            busy={busy && busyAction === "restore"}
-                            disabled={busy}
-                          >
-                            <ArrowUturnLeft />
-                          </RowAction>
+                          {canRead && (
+                            <RowAction
+                              label="Ver más"
+                              title={`Ver detalle de ${contactName(contact)}`}
+                              onClick={(event) => onShowDetail(contact, event.currentTarget)}
+                            >
+                              <Eye />
+                            </RowAction>
+                          )}
+                          {canRead && (
+                            <RowAction
+                              label="Auditoría"
+                              title={`Ver auditoría de ${contactName(contact)}`}
+                              onClick={() => onAudit(contact)}
+                            >
+                              <InformationCircle />
+                            </RowAction>
+                          )}
+                          {canRestore && (
+                            <RowAction
+                              label="Restaurar"
+                              title={`Restaurar ${contactName(contact)}`}
+                              onClick={() => onRestore(contact)}
+                              busy={busy && busyAction === "restore"}
+                              disabled={busy}
+                            >
+                              <ArrowUturnLeft />
+                            </RowAction>
+                          )}
                         </>
                       ) : (
                         <>
-                          <RowAction
-                            label={contact.status === "handled" ? "Marcar pendiente" : "Marcar atendido"}
-                            title={
-                              contact.status === "handled"
-                                ? `Volver pendiente: ${contactName(contact)}`
-                                : `Marcar atendido: ${contactName(contact)}`
-                            }
-                            onClick={() =>
-                              contact.status === "handled"
-                                ? onMarkPending(contact)
-                                : onMarkHandled(contact)
-                            }
-                            busy={busy && busyAction === "status"}
-                            disabled={busy}
-                          >
-                            {contact.status === "handled" ? <XMark /> : <Check />}
-                          </RowAction>
-                          <RowAction
-                            label="Ver más"
-                            title={`Ver detalle de ${contactName(contact)}`}
-                            onClick={(event) => onShowDetail(contact, event.currentTarget)}
-                          >
-                            <Eye />
-                          </RowAction>
-                          <RowAction
-                            label="Editar"
-                            title={`Editar ${contactName(contact)}`}
-                            onClick={() => onEdit(contact)}
-                            disabled={busy}
-                          >
-                            <PencilSquare />
-                          </RowAction>
-                          <RowAction
-                            label="Auditoría"
-                            title={`Ver auditoría de ${contactName(contact)}`}
-                            onClick={() => onAudit(contact)}
-                          >
-                            <InformationCircle />
-                          </RowAction>
-                          <RowAction
-                            label="Eliminar"
-                            title={`Enviar a papelera: ${contactName(contact)}`}
-                            onClick={() => onDelete(contact)}
-                            busy={busy && busyAction === "delete"}
-                            disabled={busy}
-                          >
-                            <Trash />
-                          </RowAction>
+                          {canUpdate && (
+                            <RowAction
+                              label={contact.status === "handled" ? "Marcar pendiente" : "Marcar atendido"}
+                              title={
+                                contact.status === "handled"
+                                  ? `Volver pendiente: ${contactName(contact)}`
+                                  : `Marcar atendido: ${contactName(contact)}`
+                              }
+                              onClick={() =>
+                                contact.status === "handled"
+                                  ? onMarkPending(contact)
+                                  : onMarkHandled(contact)
+                              }
+                              busy={busy && busyAction === "status"}
+                              disabled={busy}
+                            >
+                              {contact.status === "handled" ? <XMark /> : <Check />}
+                            </RowAction>
+                          )}
+                          {canRead && (
+                            <RowAction
+                              label="Ver más"
+                              title={`Ver detalle de ${contactName(contact)}`}
+                              onClick={(event) => onShowDetail(contact, event.currentTarget)}
+                            >
+                              <Eye />
+                            </RowAction>
+                          )}
+                          {canUpdate && (
+                            <RowAction
+                              label="Editar"
+                              title={`Editar ${contactName(contact)}`}
+                              onClick={() => onEdit(contact)}
+                              disabled={busy}
+                            >
+                              <PencilSquare />
+                            </RowAction>
+                          )}
+                          {canRead && (
+                            <RowAction
+                              label="Auditoría"
+                              title={`Ver auditoría de ${contactName(contact)}`}
+                              onClick={() => onAudit(contact)}
+                            >
+                              <InformationCircle />
+                            </RowAction>
+                          )}
+                          {canDelete && (
+                            <RowAction
+                              label="Eliminar"
+                              title={`Enviar a papelera: ${contactName(contact)}`}
+                              onClick={() => onDelete(contact)}
+                              busy={busy && busyAction === "delete"}
+                              disabled={busy}
+                            >
+                              <Trash />
+                            </RowAction>
+                          )}
                         </>
                       )}
                     </div>

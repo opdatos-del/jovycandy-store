@@ -28,6 +28,10 @@ type Props = {
   onDelete: () => void
   onReplaceMedia: (file: File) => void
   onRemoveMedia: () => void
+  canUpdate: boolean
+  canDelete: boolean
+  canPublish: boolean
+  canArchive: boolean
 }
 
 /** Etiquetas legibles del medio; el valor crudo de la API no se muestra al editor. */
@@ -60,6 +64,10 @@ export const NoveltyCard = ({
   onDelete,
   onReplaceMedia,
   onRemoveMedia,
+  canUpdate,
+  canDelete,
+  canPublish,
+  canArchive,
 }: Props) => {
   const [priority, setPriority] = useState(String(event.priority))
   const [sortOrder, setSortOrder] = useState(String(event.sort_order))
@@ -190,7 +198,7 @@ export const NoveltyCard = ({
                   max={1000}
                   aria-label={`Prioridad de ${event.title}`}
                   value={priority}
-                  disabled={busy}
+                  disabled={busy || !canUpdate}
                   onChange={(changeEvent) => setPriority(changeEvent.target.value)}
                   className="w-full"
                 />
@@ -205,7 +213,7 @@ export const NoveltyCard = ({
                   min={0}
                   aria-label={`Orden de ${event.title}`}
                   value={sortOrder}
-                  disabled={busy}
+                  disabled={busy || !canUpdate}
                   onChange={(changeEvent) => setSortOrder(changeEvent.target.value)}
                   className="w-full"
                 />
@@ -215,7 +223,7 @@ export const NoveltyCard = ({
               size="small"
               variant="secondary"
               isLoading={busy}
-              disabled={!orderDirty}
+              disabled={!orderDirty || !canUpdate}
               className="w-full"
               onClick={() =>
                 onSaveOrder({
@@ -233,10 +241,12 @@ export const NoveltyCard = ({
         </details>
 
         <div className="jovy-actions border-ui-border-base mt-auto flex flex-wrap items-center gap-2 border-t pt-3">
-          <Button size="small" variant="secondary" disabled={busy} onClick={onEdit}>
-            Editar novedad
-          </Button>
-          {event.status !== "published" && (
+          {canUpdate && (
+            <Button size="small" variant="secondary" disabled={busy} onClick={onEdit}>
+              Editar novedad
+            </Button>
+          )}
+          {canPublish && event.status !== "published" && (
             <Button size="small" variant="secondary" disabled={busy} onClick={onPublish}>
               Publicar
             </Button>
@@ -247,6 +257,7 @@ export const NoveltyCard = ({
             </Text>
           )}
 
+          {(canUpdate || canDelete || canArchive) && (
           <DropdownMenu>
             <DropdownMenu.Trigger asChild>
               <Button
@@ -260,61 +271,74 @@ export const NoveltyCard = ({
               </Button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Content align="end">
-              <DropdownMenu.Item
-                aria-label={`Subir ${event.title}`}
-                title={moveHint}
-                disabled={busy || !canMoveUp}
-                onSelect={() => onMove(-1)}
-              >
-                Subir
-              </DropdownMenu.Item>
-              <DropdownMenu.Item
-                aria-label={`Bajar ${event.title}`}
-                title={moveHint}
-                disabled={busy || !canMoveDown}
-                onSelect={() => onMove(1)}
-              >
-                Bajar
-              </DropdownMenu.Item>
+              {canUpdate && (
+                <>
+                  <DropdownMenu.Item
+                    aria-label={`Subir ${event.title}`}
+                    title={moveHint}
+                    disabled={busy || !canMoveUp}
+                    onSelect={() => onMove(-1)}
+                  >
+                    Subir
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    aria-label={`Bajar ${event.title}`}
+                    title={moveHint}
+                    disabled={busy || !canMoveDown}
+                    onSelect={() => onMove(1)}
+                  >
+                    Bajar
+                  </DropdownMenu.Item>
+                </>
+              )}
               <DropdownMenu.Separator />
-              {event.status !== "archived" && (
+              {canArchive && event.status !== "archived" && (
                 <DropdownMenu.Item disabled={busy} onSelect={onArchive}>
                   Archivar
                 </DropdownMenu.Item>
               )}
-              <DropdownMenu.Item disabled={busy} onSelect={onToggleEnabled}>
-                {event.enabled ? "Desactivar" : "Activar"}
-              </DropdownMenu.Item>
-              <DropdownMenu.Separator />
-              <DropdownMenu.Item
-                aria-label={`Multimedia de ${event.title}`}
-                aria-describedby={`novelty-media-help-${event.id}`}
-                disabled={busy}
-                onSelect={(selectEvent) => {
-                  // Radix cierra el menú y devuelve el foco al disparador; se evita
-                  // para que el diálogo nativo de archivos conserve el gesto.
-                  selectEvent.preventDefault()
-                  mediaInput.current?.click()
-                }}
-              >
-                {event.media_file_id ? "Reemplazar multimedia" : "Añadir multimedia"}
-              </DropdownMenu.Item>
-              <DropdownMenu.Item
-                disabled={busy || !event.media_file_id}
-                onSelect={onRemoveMedia}
-              >
-                Retirar medio
-              </DropdownMenu.Item>
-              <DropdownMenu.Separator />
-              <DropdownMenu.Item
-                className="text-ui-fg-error"
-                disabled={busy}
-                onSelect={onDelete}
-              >
-                Eliminar
-              </DropdownMenu.Item>
+              {canUpdate && (
+                <>
+                  <DropdownMenu.Item disabled={busy} onSelect={onToggleEnabled}>
+                    {event.enabled ? "Desactivar" : "Activar"}
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Separator />
+                  <DropdownMenu.Item
+                    aria-label={`Multimedia de ${event.title}`}
+                    aria-describedby={`novelty-media-help-${event.id}`}
+                    disabled={busy}
+                    onSelect={(selectEvent) => {
+                      // Radix cierra el menú y devuelve el foco al disparador; se evita
+                      // para que el diálogo nativo de archivos conserve el gesto.
+                      selectEvent.preventDefault()
+                      mediaInput.current?.click()
+                    }}
+                  >
+                    {event.media_file_id ? "Reemplazar multimedia" : "Añadir multimedia"}
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    disabled={busy || !event.media_file_id}
+                    onSelect={onRemoveMedia}
+                  >
+                    Retirar medio
+                  </DropdownMenu.Item>
+                </>
+              )}
+              {canDelete && (
+                <>
+                  <DropdownMenu.Separator />
+                  <DropdownMenu.Item
+                    className="text-ui-fg-error"
+                    disabled={busy}
+                    onSelect={onDelete}
+                  >
+                    Eliminar
+                  </DropdownMenu.Item>
+                </>
+              )}
             </DropdownMenu.Content>
           </DropdownMenu>
+          )}
 
           <input
             ref={mediaInput}

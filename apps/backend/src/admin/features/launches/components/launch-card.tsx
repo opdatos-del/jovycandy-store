@@ -15,6 +15,8 @@ type Props = {
   onToggleActive: () => void
   onEdit: () => void
   onDelete: () => void
+  canUpdate: boolean
+  canDelete: boolean
 }
 
 /**
@@ -34,6 +36,8 @@ export const LaunchCard = ({
   onToggleActive,
   onEdit,
   onDelete,
+  canUpdate,
+  canDelete,
 }: Props) => {
   const previewUrl = launch.image_resolved_url ?? product?.thumbnail ?? null
 
@@ -77,48 +81,56 @@ export const LaunchCard = ({
         </div>
         <div className="flex items-center justify-between gap-2">
           <Text size="xsmall" className="text-ui-fg-subtle">Orden {index + 1}</Text>
-          <div className="flex items-center gap-1">
-            <Button
-              size="small"
-              variant="secondary"
-              aria-label={`Subir ${launch.title}`}
-              disabled={isFirst || reordering}
-              onClick={() => onMove(-1)}
-            >
-              Subir
-            </Button>
-            <Button
-              size="small"
-              variant="secondary"
-              aria-label={`Bajar ${launch.title}`}
-              disabled={isLast || reordering}
-              onClick={() => onMove(1)}
-            >
-              Bajar
-            </Button>
-          </div>
+          {canUpdate && (
+            <div className="flex items-center gap-1">
+              <Button
+                size="small"
+                variant="secondary"
+                aria-label={`Subir ${launch.title}`}
+                disabled={isFirst || reordering}
+                onClick={() => onMove(-1)}
+              >
+                Subir
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
+                aria-label={`Bajar ${launch.title}`}
+                disabled={isLast || reordering}
+                onClick={() => onMove(1)}
+              >
+                Bajar
+              </Button>
+            </div>
+          )}
         </div>
         <div className="jovy-actions jovy-actions--end-danger mt-auto flex flex-wrap gap-2">
-          <Button
-            size="small"
-            variant="secondary"
-            isLoading={changing}
-            disabled={deleting || reordering}
-            onClick={onToggleActive}
-          >
-            {launch.active ? "Desactivar" : "Activar"}
-          </Button>
-          <Button
-            size="small"
-            variant="secondary"
-            aria-label={`Editar ${launch.title}`}
-            onClick={onEdit}
-          >
-            Editar
-          </Button>
-          <Button size="small" variant="danger" isLoading={deleting} disabled={changing || reordering} onClick={onDelete}>
-            Eliminar
-          </Button>
+          {canUpdate && (
+            <Button
+              size="small"
+              variant="secondary"
+              isLoading={changing}
+              disabled={deleting || reordering}
+              onClick={onToggleActive}
+            >
+              {launch.active ? "Desactivar" : "Activar"}
+            </Button>
+          )}
+          {canUpdate && (
+            <Button
+              size="small"
+              variant="secondary"
+              aria-label={`Editar ${launch.title}`}
+              onClick={onEdit}
+            >
+              Editar
+            </Button>
+          )}
+          {canDelete && (
+            <Button size="small" variant="danger" isLoading={deleting} disabled={changing || reordering} onClick={onDelete}>
+              Eliminar
+            </Button>
+          )}
         </div>
       </div>
     </li>

@@ -72,13 +72,13 @@ function fakeRequest(session: Record<string, unknown> = {}, extra: Record<string
   }
 }
 
-const adminRoute = middlewares.routes?.find((route) => route.matcher === "/admin/jovy/*")
+const adminRoute = middlewares.routes?.find((route) => route.matcher === "/admin/*")
 const guard = adminRoute?.middlewares?.[0]
 
-describe("autenticación de las rutas administrativas de Jovy", () => {
-  it("aplica el guardia a todos los métodos de /admin/jovy/*", () => {
+describe("autorización de las rutas administrativas", () => {
+  it("aplica el guardia a /admin/*", () => {
     expect(adminRoute).toBeDefined()
-    // `methods` ausente significa que el matcher cubre GET, POST, PUT y DELETE.
+    // `methods` ausente significa que el matcher cubre todos los métodos.
     expect(adminRoute!.methods).toBeUndefined()
     expect(guard).toBeDefined()
     expect(adminRoute!.middlewares).toHaveLength(1)
@@ -90,14 +90,13 @@ describe("autenticación de las rutas administrativas de Jovy", () => {
       const response = fakeResponse()
       await guard!(fakeRequest() as never, response as never, next)
       expect(response.statusCode).toBe(401)
-      expect(response.body).toEqual({ message: "Unauthorized" })
+      expect(response.body).toEqual({ type: "unauthorized", message: "Sesión no válida." })
     }
     expect(next).not.toHaveBeenCalled()
   })
 
   it("sólo acepta actores de tipo user", async () => {
     const next = jest.fn()
-
     const customer = fakeResponse()
     await guard!(
       fakeRequest({ auth_context: { actor_id: "cus_01", actor_type: "customer" } }) as never,
@@ -106,14 +105,6 @@ describe("autenticación de las rutas administrativas de Jovy", () => {
     )
     expect(customer.statusCode).toBe(401)
     expect(next).not.toHaveBeenCalled()
-
-    const user = fakeResponse()
-    await guard!(
-      fakeRequest({ auth_context: { actor_id: "usr_01", actor_type: "user" } }) as never,
-      user as never,
-      next,
-    )
-    expect(next).toHaveBeenCalledTimes(1)
   })
 })
 

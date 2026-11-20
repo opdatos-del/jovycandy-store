@@ -20,6 +20,7 @@ export const config = defineRouteConfig({
   label: "Logos",
   icon: Swatch,
   rank: 5,
+  permissions: "jovy_logos:read",
 })
 
 export default LogosPage

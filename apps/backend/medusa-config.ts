@@ -76,6 +76,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/jovy-product-editorial",
     },
     {
+      resolve: "./src/modules/jovy-authz",
+    },
+    {
       resolve: "@medusajs/medusa/locking",
       options: {
         providers: [

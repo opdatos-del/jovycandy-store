@@ -12,6 +12,7 @@ import {
   validateLogoMedia,
 } from "@admin/features/logos/api"
 import { LogoCard } from "@admin/features/logos/components/logo-card"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { LogoFormPanel } from "@admin/features/logos/components/logo-form"
 import {
   DEFAULT_CROP,
@@ -31,6 +32,10 @@ import { errorMessage } from "@admin/shared/lib/admin-api"
  */
 export function BrandLogoManager() {
   const prompt = usePrompt()
+  const permissions = useJovyPermissions()
+  const canCreate = permissions.can("jovy_logos", "create")
+  const canUpdate = permissions.can("jovy_logos", "update")
+  const canDelete = permissions.can("jovy_logos", "delete")
   const saveButton = useRef<HTMLButtonElement>(null)
   const [logos, setLogos] = useState<Logo[]>([])
   const [families, setFamilies] = useState<Family[]>([])
@@ -317,7 +322,7 @@ export function BrandLogoManager() {
   />
 
   return <Container className="p-6" data-testid="jovy-logos-panel">
-    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-ui-border-base pb-4"><div><p className="text-ui-fg-subtle text-sm">Activos corporativos, familias canónicas y orden de aparición.</p></div><Button onClick={openCreate}>Nuevo logo</Button></div>
+    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-ui-border-base pb-4"><div><p className="text-ui-fg-subtle text-sm">Activos corporativos, familias canónicas y orden de aparición.</p></div>{canCreate && <Button onClick={openCreate}>Nuevo logo</Button>}</div>
     {error && <p role="alert" className="mt-4 text-ui-fg-error">{error}</p>}
     {notice && <p role="status" className="mt-4 text-ui-fg-success">{notice}</p>}
     <section aria-label="Filtros de logos" className="mt-4 rounded-md border border-ui-border-base bg-ui-bg-subtle p-3">
@@ -367,6 +372,6 @@ export function BrandLogoManager() {
       {categories.length === 0 && <p className="mt-2 text-ui-fg-subtle text-xs">El catálogo aún no tiene categorías; el filtro de categoría queda vacío hasta sembrarlas.</p>}
     </section>
     <p className="mt-4 rounded-md bg-ui-bg-component px-3 py-2 text-ui-fg-subtle text-sm">El orden actual es global. Este contrato no persiste un orden independiente por categoría; usa las flechas accesibles para cambiarlo.</p>
-    {loading ? <p className="mt-6 text-ui-fg-subtle" role="status">Cargando logos…</p> : logos.length === 0 ? <div className="mt-6 rounded-md border border-dashed border-ui-border-base p-8 text-center"><Heading level="h3">Aún no hay logos</Heading><p className="mt-2 text-ui-fg-subtle text-sm">Crea primer logo para definir recurso, familias y visibilidad.</p><Button className="mt-4" onClick={openCreate}>Crear logo</Button></div> : filteredLogos.length === 0 ? <div className="mt-6 rounded-md border border-dashed border-ui-border-base p-8 text-center" data-testid="jovy-logo-empty-filtered"><Heading level="h3">No hay logos con esos filtros</Heading><p className="mt-2 text-ui-fg-subtle text-sm">Ajusta la búsqueda, la categoría o el estado para volver a ver el orden completo.</p><Button className="mt-4" size="small" variant="secondary" onClick={clearFilters}>Limpiar filtros</Button></div> : <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="jovy-logo-grid">{filteredLogos.map((logo) => { const index = logos.findIndex((item) => item.id === logo.id); return <LogoCard key={logo.id} logo={logo} index={index} total={logos.length} isBusy={pendingLogoId === logo.id} isReordering={reordering} onEdit={() => openEdit(logo)} onDelete={() => void remove(logo)} onToggle={() => void toggle(logo)} onMove={(direction) => void move(index, direction)} /> })}</div>}
+    {loading ? <p className="mt-6 text-ui-fg-subtle" role="status">Cargando logos…</p> : logos.length === 0 ? <div className="mt-6 rounded-md border border-dashed border-ui-border-base p-8 text-center"><Heading level="h3">Aún no hay logos</Heading><p className="mt-2 text-ui-fg-subtle text-sm">Crea primer logo para definir recurso, familias y visibilidad.</p><Button className="mt-4" onClick={openCreate} disabled={!canCreate}>Crear logo</Button></div> : filteredLogos.length === 0 ? <div className="mt-6 rounded-md border border-dashed border-ui-border-base p-8 text-center" data-testid="jovy-logo-empty-filtered"><Heading level="h3">No hay logos con esos filtros</Heading><p className="mt-2 text-ui-fg-subtle text-sm">Ajusta la búsqueda, la categoría o el estado para volver a ver el orden completo.</p><Button className="mt-4" size="small" variant="secondary" onClick={clearFilters}>Limpiar filtros</Button></div> : <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="jovy-logo-grid">{filteredLogos.map((logo) => { const index = logos.findIndex((item) => item.id === logo.id); return <LogoCard key={logo.id} logo={logo} index={index} total={logos.length} isBusy={pendingLogoId === logo.id} isReordering={reordering} onEdit={() => openEdit(logo)} onDelete={() => void remove(logo)} onToggle={() => void toggle(logo)} onMove={(direction) => void move(index, direction)} canUpdate={canUpdate} canDelete={canDelete} /> })}</div>}
   </Container>
 }

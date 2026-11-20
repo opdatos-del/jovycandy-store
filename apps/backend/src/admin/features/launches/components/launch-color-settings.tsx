@@ -10,6 +10,7 @@ type Props = {
   error: string | null
   onChange: (color: string) => void
   onSave: () => void
+  canEdit: boolean
 }
 
 /**
@@ -24,6 +25,7 @@ export const LaunchColorSettings = ({
   error,
   onChange,
   onSave,
+  canEdit,
 }: Props) => (
   <Container className="p-4 sm:p-6">
     <section aria-labelledby="launch-color-heading" className="jovy-card rounded-lg border border-ui-border-base bg-ui-bg-base p-4 sm:p-5">
@@ -45,6 +47,7 @@ export const LaunchColorSettings = ({
                 className={`h-8 w-8 rounded-md border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ui-border-interactive ${selected ? "border-ui-fg-interactive" : "border-ui-border-base"}`}
                 style={{ backgroundColor: color }}
                 onClick={() => onChange(color)}
+                disabled={!canEdit}
               />
             )
           })}
@@ -60,6 +63,7 @@ export const LaunchColorSettings = ({
               className="h-9 w-16 p-1"
               value={expandHexColor(colorDraft)}
               onChange={(event) => onChange(event.target.value.toUpperCase())}
+              disabled={!canEdit}
             />
           </div>
           <div className="flex min-w-48 flex-1 flex-col gap-y-1">
@@ -73,13 +77,14 @@ export const LaunchColorSettings = ({
               placeholder="#00AFAA"
               onChange={(event) => onChange(event.target.value)}
               aria-invalid={!colorValid}
+              disabled={!canEdit}
             />
           </div>
           <Button
             size="small"
             onClick={onSave}
             isLoading={saving}
-            disabled={!colorValid}
+            disabled={!colorValid || !canEdit}
           >
             Guardar color
           </Button>

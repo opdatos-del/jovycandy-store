@@ -19,6 +19,11 @@ type EditorialFormProps = {
   onRestoreArchived: () => void | Promise<void>
   onRemove: () => void | Promise<void>
   onReload: () => void | Promise<void>
+  canUpdate: boolean
+  canPublish: boolean
+  canArchive: boolean
+  canRestore: boolean
+  canDelete: boolean
 }
 
 /**
@@ -39,6 +44,11 @@ export const EditorialForm = ({
   onRestoreArchived,
   onRemove,
   onReload,
+  canUpdate,
+  canPublish,
+  canArchive,
+  canRestore,
+  canDelete,
 }: EditorialFormProps) => {
   const publishIssues = editorial
     ? editorial.publish_issues
@@ -75,6 +85,11 @@ export const EditorialForm = ({
         onRestoreArchived={() => void onRestoreArchived()}
         onRemove={() => void onRemove()}
         onReload={() => void onReload()}
+        canUpdate={canUpdate}
+        canPublish={canPublish}
+        canArchive={canArchive}
+        canRestore={canRestore}
+        canDelete={canDelete}
       />
     </form>
   )

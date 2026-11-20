@@ -9,6 +9,10 @@ type Props = {
   onEdit: (item: Hero) => void
   onStatus: (item: Hero, status: Hero["status"]) => void
   onRemove: (item: Hero) => void
+  canUpdate: boolean
+  canDelete: boolean
+  canPublish: boolean
+  canArchive: boolean
 }
 
 const statusColor = (status: Hero["status"]) =>
@@ -23,6 +27,10 @@ export const HeroList = ({
   onEdit,
   onStatus,
   onRemove,
+  canUpdate,
+  canDelete,
+  canPublish,
+  canArchive,
 }: Props) => (
   <Container className="p-6">
     <Heading level="h2" id="hero-list-heading" tabIndex={-1}>
@@ -44,48 +52,56 @@ export const HeroList = ({
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Badge color={statusColor(item.status)}>{item.status}</Badge>
-              <Button
-                size="small"
-                variant="secondary"
-                onClick={() => void onMove(item.id, -1)}
-                disabled={index === 0}
-              >
-                Subir
-              </Button>
-              <Button
-                size="small"
-                variant="secondary"
-                onClick={() => void onMove(item.id, 1)}
-                disabled={index === items.length - 1}
-              >
-                Bajar
-              </Button>
-              {item.status !== "published" && (
+              {canUpdate && (
+                <>
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={() => void onMove(item.id, -1)}
+                    disabled={index === 0}
+                  >
+                    Subir
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={() => void onMove(item.id, 1)}
+                    disabled={index === items.length - 1}
+                  >
+                    Bajar
+                  </Button>
+                </>
+              )}
+              {canPublish && item.status !== "published" && (
                 <Button size="small" variant="secondary" onClick={() => void onStatus(item, "published")}>
                   Publicar
                 </Button>
               )}
-              {item.status === "published" && (
+              {canPublish && item.status === "published" && (
                 <Button size="small" variant="secondary" onClick={() => void onStatus(item, "draft")}>
                   Despublicar
                 </Button>
               )}
-              {item.status !== "archived" && (
+              {canArchive && item.status !== "archived" && (
                 <Button size="small" variant="secondary" onClick={() => void onStatus(item, "archived")}>
                   Archivar
                 </Button>
               )}
-              <Button size="small" variant="secondary" onClick={() => void onEdit(item)}>
-                Editar
-              </Button>
-              <Button
-                size="small"
-                variant="danger"
-                isLoading={deletingId === item.id}
-                onClick={() => void onRemove(item)}
-              >
-                Eliminar
-              </Button>
+              {canUpdate && (
+                <Button size="small" variant="secondary" onClick={() => void onEdit(item)}>
+                  Editar
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  size="small"
+                  variant="danger"
+                  isLoading={deletingId === item.id}
+                  onClick={() => void onRemove(item)}
+                >
+                  Eliminar
+                </Button>
+              )}
             </div>
           </li>
         ))}

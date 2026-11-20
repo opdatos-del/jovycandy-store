@@ -12,6 +12,11 @@ type EditorialPublicationSectionProps = {
   onRestoreArchived: () => void
   onRemove: () => void
   onReload: () => void
+  canUpdate: boolean
+  canPublish: boolean
+  canArchive: boolean
+  canRestore: boolean
+  canDelete: boolean
 }
 
 /**
@@ -28,6 +33,11 @@ export const EditorialPublicationSection = ({
   onRestoreArchived,
   onRemove,
   onReload,
+  canUpdate,
+  canPublish,
+  canArchive,
+  canRestore,
+  canDelete,
 }: EditorialPublicationSectionProps) => (
   <section aria-labelledby="editorial-publication-heading" className="border-ui-border-base rounded-lg border p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -43,11 +53,11 @@ export const EditorialPublicationSection = ({
       ) : <Text size="small" className="text-ui-fg-subtle">La ficha cumple los requisitos editoriales conocidos. Store también exige que el producto comercial esté publicado.</Text>}
     </div>
     <div className="mt-4 flex flex-wrap gap-2">
-      <Button type="submit" size="small" isLoading={saving}>Guardar cambios</Button>
-      <Button type="button" size="small" variant="secondary" disabled={saving || draft.editorial_status === "published"} onClick={onPublish}>Publicar en Store</Button>
-      <Button type="button" size="small" variant="secondary" disabled={saving || draft.editorial_status === "archived"} onClick={onArchive}>Archivar ficha</Button>
-      {draft.editorial_status === "archived" && <Button type="button" size="small" variant="secondary" disabled={saving} onClick={onRestoreArchived}>Restaurar a borrador</Button>}
-      {editorial && <Button type="button" size="small" variant="danger" disabled={saving} onClick={onRemove}>Eliminar ficha</Button>}
+      {canUpdate && <Button type="submit" size="small" isLoading={saving}>Guardar cambios</Button>}
+      {canPublish && <Button type="button" size="small" variant="secondary" disabled={saving || draft.editorial_status === "published"} onClick={onPublish}>Publicar en Store</Button>}
+      {canArchive && <Button type="button" size="small" variant="secondary" disabled={saving || draft.editorial_status === "archived"} onClick={onArchive}>Archivar ficha</Button>}
+      {canRestore && draft.editorial_status === "archived" && <Button type="button" size="small" variant="secondary" disabled={saving} onClick={onRestoreArchived}>Restaurar a borrador</Button>}
+      {canDelete && editorial && <Button type="button" size="small" variant="danger" disabled={saving} onClick={onRemove}>Eliminar ficha</Button>}
       <Button type="button" size="small" variant="secondary" disabled={saving} onClick={onReload}>Actualizar</Button>
     </div>
   </section>

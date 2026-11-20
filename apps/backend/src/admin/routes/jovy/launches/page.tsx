@@ -10,6 +10,7 @@ export const config = defineRouteConfig({
   label: "Nuevos Lanzamientos",
   icon: RocketLaunch,
   rank: 3,
+  permissions: "jovy_launches:read",
 })
 
 export default LaunchesPage

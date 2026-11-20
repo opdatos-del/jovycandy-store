@@ -1,4 +1,5 @@
 import { Button, Container, Heading, Input, usePrompt } from "@medusajs/ui"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { useHero } from "../hooks/use-hero"
 import { HeroFormSection } from "./hero-form"
 import { HeroList } from "./hero-list"
@@ -10,6 +11,13 @@ import type { Hero } from "../types"
  */
 export const HeroManager = () => {
   const prompt = usePrompt()
+  const permissions = useJovyPermissions()
+  const canCreate = permissions.can("jovy_marketing", "create")
+  const canUpdate = permissions.can("jovy_marketing", "update")
+  const canDelete = permissions.can("jovy_marketing", "delete")
+  const canPublish = permissions.can("jovy_marketing", "publish")
+  const canArchive = permissions.can("jovy_marketing", "archive")
+  const canSettings = permissions.can("jovy_marketing", "manage_settings")
   const hero = useHero()
 
   const remove = async (item: Hero) => {
@@ -34,9 +42,11 @@ export const HeroManager = () => {
               Contenido bilingüe, programación, multimedia y producto destacado.
             </p>
           </div>
-          <Button variant="secondary" onClick={hero.resetForm}>
-            Nuevo Hero
-          </Button>
+          {canCreate && (
+            <Button variant="secondary" onClick={hero.resetForm}>
+              Nuevo Hero
+            </Button>
+          )}
         </div>
         {hero.message && (
           <p role="alert" className="mt-3 text-ui-fg-error">
@@ -53,8 +63,13 @@ export const HeroManager = () => {
         onEdit={hero.edit}
         onStatus={hero.updateStatus}
         onRemove={remove}
+        canUpdate={canUpdate}
+        canDelete={canDelete}
+        canPublish={canPublish}
+        canArchive={canArchive}
       />
 
+      {(hero.editingId ? canUpdate : canCreate) && (
       <HeroFormSection
         form={hero.form}
         setForm={hero.setForm}
@@ -70,6 +85,7 @@ export const HeroManager = () => {
         onUpload={hero.upload}
         onSubmit={hero.save}
       />
+      )}
 
       <Container className="p-6">
         <Heading level="h2">Color global</Heading>
@@ -79,7 +95,7 @@ export const HeroManager = () => {
             value={hero.settingsColor}
             onChange={(event) => hero.setSettingsColor(event.target.value)}
           />
-          <Button isLoading={hero.saving} onClick={() => void hero.saveSettings()}>
+          <Button isLoading={hero.saving} onClick={() => void hero.saveSettings()} disabled={!canSettings}>
             Guardar
           </Button>
         </div>

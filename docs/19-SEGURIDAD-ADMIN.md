@@ -9,48 +9,50 @@
 > documentación oficial de Medusa v2 (`packages/modules/rbac/README.md` y
 > `AGENTS.md`, versión 2.22.3).
 
+**Nota 2026-11-20:** se implementó una capa de autorización **propia** sobre la identidad
+nativa; RBAC Enterprise sigue **sin licenciar y sin registrar**. El detalle está en
+[docs/36](36-DECISION-ARQUITECTURA-AUTORIZACION.md), [docs/37](37-MATRIZ-ROLES-PERMISOS.md),
+[docs/38](38-SEGURIDAD-ENDPOINTS-CMS.md) y [docs/39](39-IMPLEMENTACION-Y-PRUEBAS-RBAC.md).
+La sección 6 conserva el diseño oficial como referencia, pero ya no es el único camino.
+
 **Nota 2026-11-17:** RBAC sigue **sin licenciar y sin registrar**. `@medusajs/rbac@2.22.6`
 es solo dependencia transitiva, con licencia *Medusa Enterprise Edition License*;
 `MEDUSA_LICENSE_KEY` / `MEDUSA_LICENSE_PUBLIC_KEY` están ausentes, `authorize` → `next()`,
-`hasPermission` → `true` y las rutas `/rbac/*` están desactivadas. La sección 6 es **diseño
-no implementado**; registrar el módulo sin acuerdo comercial sería un incumplimiento. En
-paralelo, la seguridad comercial se refuerza con los hooks `validate` del carrito en
-`src/workflows/hooks/jovy-commercial-mode.ts`: la modalidad `commercial_mode` de
-`jovy_product_editorial` se valida en servidor y se rechaza con `MedusaError(NOT_ALLOWED)`
-lo que no sea `SELLABLE` (nunca se confía en `metadata` ni en `product_id` del cliente).
-Modelo comercial, recursos y roles propuestos en
+`hasPermission` → `true` y las rutas `/rbac/*` están desactivadas. Registrar el módulo sin
+acuerdo comercial sería un incumplimiento. En paralelo, la seguridad comercial se refuerza
+con los hooks `validate` del carrito en `src/workflows/hooks/jovy-commercial-mode.ts`: la
+modalidad `commercial_mode` de `jovy_product_editorial` se valida en servidor y se rechaza
+con `MedusaError(NOT_ALLOWED)` lo que no sea `SELLABLE` (nunca se confía en `metadata` ni en
+`product_id` del cliente). Modelo comercial, recursos y roles en
 [docs/30](30-MODELO-COMERCIAL-Y-PERMISOS.md).
 
 ## 1. Resumen ejecutivo
 
-- La instalación **autentica** correctamente a los actores administrativos, pero
-  **no autoriza por rol**: no hay RBAC activo.
-- Medusa 2.22.6 **sí incluye RBAC nativo** (`@medusajs/rbac@2.22.6`, middleware
-  `authorize`, rutas `/rbac/*`, pantallas de roles en el dashboard), pero el
-  módulo **no está registrado** en `medusa-config.ts`. Mientras no se registre,
-  `authorize` es un no-op y `hasPermission` devuelve `true`.
-- Consecuencia práctica: **cualquier actor autenticado como `user`** (sesión,
-  bearer JWT o API key secreta) es **admin pleno** sobre contenido, marketing,
-  eventos, galerías, consultas de contacto (incluida PII) y configuración
-  sensible. No existe hoy ningún rol que limite nada.
-- El gap es de **producción**; en laboratorio con un solo operador es aceptable,
-  siempre que no haya PII real ni credenciales compartidas.
+- Medusa **autentica** a los actores administrativos. La autorización por roles se cubre con
+  la capa propia `jovy-authz`, no con el módulo Enterprise.
+- `/admin/jovy/**` exige permisos `jovy_*`; las rutas Jovy no clasificadas se deniegan.
+- `/admin/**` nativo se clasifica por prefijo y exige permisos `medusa_*`; lo no clasificado
+  se deniega salvo para `*:*`. Es una cobertura coercitiva, no las políticas oficiales.
+- Las API keys secretas quedan fuera del Admin (`401`); las sesiones y JWT de usuario son la
+  única identidad aceptada.
+- Contactos: cada bandeja exige su propio permiso; por ID se resuelve el tipo real (404 si no
+  corresponde). El consolidado y sus exportaciones exigen las bandejas incluidas.
+- Sigue siendo necesario licenciar RBAC Enterprise para granularidad nativa completa y para
+  sustituir el mapa de prefijos por políticas oficiales.
 
 ## 2. Cómo se autentica hoy (evidencia)
 
 | Capa | Dónde | Efecto real |
 | --- | --- | --- |
 | Autenticación global de `/admin` | `@medusajs/framework/dist/http/router.js:93-97` | `authenticate("user", ["bearer","session","api-key"])` para todo `/admin*` |
-| Middleware propio duplicado | `apps/backend/src/api/middlewares.ts:13-16` | Repite `authenticate("user", ["session","bearer","api-key"])` sobre `/admin/jovy/*`; no añade autorización |
+| Middleware propio | `apps/backend/src/api/middlewares.ts` | `authenticate('user', ['session','bearer'])` + `authorizeJovyAdmin` sobre `/admin/*`; la API key secreta se rechaza |
 | Opt-out de autenticación | `@medusajs/framework/dist/http/routes-loader.js:19-22,49` y `router.js:292-295` | Un `route.ts` puede exportar la bandera `AUTHENTICATE`; **ninguna ruta del proyecto la usa** (verificado en `src/`) |
 | Autenticación de `/rbac` | `router.js:104-111` | `bearer`/`session`; tipos de actor desde `http.rbacActorTypes` (por defecto `["user"]`). No acepta API keys secretas |
 | Autenticación de `/store` | `router.js:118-120` | `authenticate("customer", ["bearer","session"], { allowUnauthenticated: true })` |
-| API keys secretas | `@medusajs/framework/dist/http/middlewares/authenticate-middleware.js:21-38`; `set-secret-api-key-context.js:5-28` | Solo se aceptan en Basic auth cuando el actor permitido es exactamente `["user"]`; el `auth_context` queda con `actor_type: "api-key"` y el usuario creador en `req.secret_key_context.created_by` |
+| API keys secretas | `@medusajs/framework/dist/http/middlewares/authenticate-middleware.js:21-38`; `set-secret-api-key-context.js:5-28` | Solo se aceptan en Basic auth cuando el actor permitido es exactamente `["user"]`; ahora el Admin no las acepta |
 
-Conclusión: la protección declarada en `src/api/middlewares.ts` es redundante
-(defensa en profundidad) pero **no aporta autorización**. Retirarla no cambia el
-resultado, porque el loader ya autentica `/admin`. Lo que falta es la capa de
-permisos.
+Conclusión: la autenticación nativa sigue siendo la única puerta de entrada. La autorización
+se aplica después con `authorizeJovyAdmin`; la cobertura real y sus límites están en `docs/38`.
 
 ## 3. RBAC nativo en 2.22.6: existe, está apagado
 
@@ -137,17 +139,20 @@ Regla de activación (confirmada con la documentación oficial): añadir
 | Formulario público de contacto | `POST /store/jovy/contacts` | Público + `publicContactSchema.strict()` + rate limit 5/10 min por IP + honeypot (`src/api/store/jovy/contacts/route.ts:7-19`) | Público | No aplica |
 | Lectura pública del CMS | `/store/jovy/**` | Público; filtra por `status`/ventana temporal antes de responder | Público | No aplica |
 
-## 5. Matriz usuario/rol × capacidad (estado real hoy)
+## 5. Matriz usuario/rol × capacidad (estado actual)
 
-Medusa 2.22.6 solo ofrece hoy **un nivel efectivo**: admin pleno.
+La matriz vigente de recursos, operaciones y roles está en `docs/37`. Resumen:
 
-| Actor | Contenido | Marketing/eventos/marca | Contactos (PII) | Configuración sensible | Roles/usuarios |
-| --- | --- | --- | --- | --- | --- |
-| `user` con sesión o JWT | Total | Total | Leer, anotar, cambiar estado, exportar CSV, eliminar y restaurar | Total | Total (incluye crear API keys e invitar usuarios) |
-| API key secreta (`sk_`) | Total | Total | Total | Total | Total |
-| `user` autenticado sin rol | No aplica: RBAC apagado, el rol no existe | Ídem | Ídem | Ídem | Ídem |
-| Cliente de tienda (`customer`) | Solo lectura pública | Solo lectura pública | Solo `POST` público | Sin acceso | Sin acceso |
-| Anónimo | Solo lectura pública | Solo lectura pública | Solo `POST` limitado + honeypot | Sin acceso | Sin acceso |
+| Actor | Jovy CMS | Contactos | Superficies nativas | Accesos |
+|---|---|---|---|---|
+| Superadministrador (`*:*`) | Total | Total | Total | Total |
+| Rol CMS | Solo recursos/operaciones concedidos | Sin acceso por defecto | Sin acceso por defecto | No |
+| Rol de bandeja | No | Solo su bandeja; exportación separada | No | No |
+| Consulta de productos | Ficha/catálogo según rol | No | Lectura de productos, precios, inventario y settings | No |
+| Usuario autenticado sin rol | Denegado | Denegado | Denegado salvo shell mínimo | Denegado |
+| API key secreta | 401 | 401 | 401 en Admin | 401 |
+| Cliente de tienda | Sin acceso | Solo `POST` público | Sin acceso | Sin acceso |
+| Anónimo | Sin acceso | Solo `POST` limitado + honeypot | Sin acceso | Sin acceso |
 
 No hay una matriz rol × capacidad que aplicar: no existe hoy ningún rol
 persistido ni verificación de permisos. Cualquier afirmación de "editor" o

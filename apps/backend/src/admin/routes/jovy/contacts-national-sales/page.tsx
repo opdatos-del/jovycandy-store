@@ -6,5 +6,5 @@ const NationalSalesInbox = () => (
   <ContactInbox title="Ventas Nacionales" contactType="national-sales" description="Solicitudes de mayoreo y distribución en México." />
 )
 
-export const config = defineRouteConfig({ label: "Ventas Nacionales", icon: BuildingStorefront, rank: 8 })
+export const config = defineRouteConfig({ label: "Ventas Nacionales", icon: BuildingStorefront, rank: 8, permissions: "jovy_contacts_national:read" })
 export default NationalSalesInbox

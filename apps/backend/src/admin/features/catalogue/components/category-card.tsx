@@ -13,6 +13,7 @@ type Props = {
   onEdit: () => void
   onMove: (direction: -1 | 1) => void
   onToggleComingSoon: () => void
+  canUpdate: boolean
 }
 
 type Accent = { card: string; marker: string; badge: "orange" | "red" | "blue" | "green" | "grey" }
@@ -75,6 +76,7 @@ export const CatalogueCategoryCard = ({
   onEdit,
   onMove,
   onToggleComingSoon,
+  canUpdate,
 }: Props) => {
   const titleId = `catalogue-title-${category.key}`
   const accent = accentByKey[category.key] ?? fallbackAccent
@@ -115,9 +117,11 @@ export const CatalogueCategoryCard = ({
               {category.name}
             </Heading>
           </div>
-          <Button size="small" variant="secondary" aria-label={`Editar ${category.name}`} onClick={onEdit}>
-            Editar
-          </Button>
+          {canUpdate && (
+            <Button size="small" variant="secondary" aria-label={`Editar ${category.name}`} onClick={onEdit}>
+              Editar
+            </Button>
+          )}
         </div>
 
         <Text
@@ -162,7 +166,7 @@ export const CatalogueCategoryCard = ({
                 aria-label="Próximamente"
                 aria-describedby={titleId}
                 checked={category.coming_soon}
-                disabled={comingSoonPending}
+                disabled={comingSoonPending || !canUpdate}
                 onCheckedChange={onToggleComingSoon}
               />
             </span>
@@ -200,26 +204,28 @@ export const CatalogueCategoryCard = ({
           </div>
         </details>
 
-        <div className="jovy-actions mt-auto flex flex-wrap gap-2 border-t border-ui-border-base pt-3">
-          <Button
-            size="small"
-            variant="secondary"
-            aria-label={`Subir ${category.name}`}
-            disabled={position === 0 || reordering}
-            onClick={() => onMove(-1)}
-          >
-            Subir
-          </Button>
-          <Button
-            size="small"
-            variant="secondary"
-            aria-label={`Bajar ${category.name}`}
-            disabled={position === total - 1 || reordering}
-            onClick={() => onMove(1)}
-          >
-            Bajar
-          </Button>
-        </div>
+        {canUpdate && (
+          <div className="jovy-actions mt-auto flex flex-wrap gap-2 border-t border-ui-border-base pt-3">
+            <Button
+              size="small"
+              variant="secondary"
+              aria-label={`Subir ${category.name}`}
+              disabled={position === 0 || reordering}
+              onClick={() => onMove(-1)}
+            >
+              Subir
+            </Button>
+            <Button
+              size="small"
+              variant="secondary"
+              aria-label={`Bajar ${category.name}`}
+              disabled={position === total - 1 || reordering}
+              onClick={() => onMove(1)}
+            >
+              Bajar
+            </Button>
+          </div>
+        )}
       </div>
     </article>
   )

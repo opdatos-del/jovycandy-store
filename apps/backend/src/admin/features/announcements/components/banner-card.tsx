@@ -28,6 +28,10 @@ export type BannerCardProps = {
   onChangeStatus: (banner: Banner, next: Status) => void
   onMove: (banner: Banner, direction: -1 | 1) => void
   onRemove: (banner: Banner) => void
+  canUpdate: boolean
+  canDelete: boolean
+  canPublish: boolean
+  canArchive: boolean
 }
 
 /** Tarjeta del listado: vista previa, insignias, vigencia, detalles y acciones. */
@@ -43,6 +47,10 @@ export const BannerCard = ({
   onChangeStatus,
   onMove,
   onRemove,
+  canUpdate,
+  canDelete,
+  canPublish,
+  canArchive,
 }: BannerCardProps) => {
   const title = banner.translations.es.title
 
@@ -134,6 +142,7 @@ export const BannerCard = ({
         </details>
 
         <div className="jovy-actions jovy-actions--end-danger mt-auto flex flex-wrap gap-2 border-t border-ui-border-base pt-3">
+          {canUpdate && (
           <Button
             size="small"
             variant="secondary"
@@ -144,8 +153,9 @@ export const BannerCard = ({
             <PencilSquare />
             Editar
           </Button>
+          )}
 
-          {banner.status === "published" ? (
+          {canPublish && (banner.status === "published" ? (
             <Button
               size="small"
               variant="secondary"
@@ -167,8 +177,9 @@ export const BannerCard = ({
             >
               Publicar
             </Button>
-          )}
+          ))}
 
+          {(canUpdate || canDelete || canArchive) && (
           <DropdownMenu>
             <DropdownMenu.Trigger asChild>
               <Button
@@ -182,38 +193,49 @@ export const BannerCard = ({
               </Button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Content align="end">
-              <DropdownMenu.Item
-                aria-label={`Archivar ${title}`}
-                disabled={busy || reordering || banner.status === "archived"}
-                onSelect={() => onChangeStatus(banner, "archived")}
-              >
-                Archivar
-              </DropdownMenu.Item>
-              <DropdownMenu.Item
-                aria-label={`Subir ${title}`}
-                disabled={busy || reordering || !canMoveUp}
-                onSelect={() => onMove(banner, -1)}
-              >
-                Subir
-              </DropdownMenu.Item>
-              <DropdownMenu.Item
-                aria-label={`Bajar ${title}`}
-                disabled={busy || reordering || !canMoveDown}
-                onSelect={() => onMove(banner, 1)}
-              >
-                Bajar
-              </DropdownMenu.Item>
-              <DropdownMenu.Separator />
-              <DropdownMenu.Item
-                className="text-ui-fg-error"
-                aria-label={`Eliminar ${title}`}
-                disabled={busy || reordering}
-                onSelect={() => onRemove(banner)}
-              >
-                Eliminar
-              </DropdownMenu.Item>
+              {canArchive && (
+                <DropdownMenu.Item
+                  aria-label={`Archivar ${title}`}
+                  disabled={busy || reordering || banner.status === "archived"}
+                  onSelect={() => onChangeStatus(banner, "archived")}
+                >
+                  Archivar
+                </DropdownMenu.Item>
+              )}
+              {canUpdate && (
+                <>
+                  <DropdownMenu.Item
+                    aria-label={`Subir ${title}`}
+                    disabled={busy || reordering || !canMoveUp}
+                    onSelect={() => onMove(banner, -1)}
+                  >
+                    Subir
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    aria-label={`Bajar ${title}`}
+                    disabled={busy || reordering || !canMoveDown}
+                    onSelect={() => onMove(banner, 1)}
+                  >
+                    Bajar
+                  </DropdownMenu.Item>
+                </>
+              )}
+              {canDelete && (
+                <>
+                  <DropdownMenu.Separator />
+                  <DropdownMenu.Item
+                    className="text-ui-fg-error"
+                    aria-label={`Eliminar ${title}`}
+                    disabled={busy || reordering}
+                    onSelect={() => onRemove(banner)}
+                  >
+                    Eliminar
+                  </DropdownMenu.Item>
+                </>
+              )}
             </DropdownMenu.Content>
           </DropdownMenu>
+          )}
         </div>
       </div>
     </li>

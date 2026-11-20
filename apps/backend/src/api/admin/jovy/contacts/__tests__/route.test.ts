@@ -63,6 +63,16 @@ function fakeRequest(overrides: Record<string, unknown> = {}) {
     query: {},
     params: {},
     body: {},
+    // Las pruebas de ruta ejercitan reglas de negocio; la autorización se cubre
+    // en authz.spec.ts e inventory.test.ts. El middleware real siempre adjunta
+    // este snapshot antes de llegar al handler.
+    jovy_authz: {
+      userId: "usr_123",
+      roles: ["superadmin"],
+      permissions: ["*:*"],
+      wildcard: true,
+      can: () => true,
+    },
     scope: {
       resolve: (key: string) => {
         if (key === ContainerRegistrationKeys.PG_CONNECTION) return knex
@@ -222,7 +232,7 @@ describe("GET /admin/jovy/contacts/:id", () => {
   })
 
   it("devuelve la solicitud encontrada", async () => {
-    const contact = { id: "req_01", email: "ana@example.test" }
+    const contact = { id: "req_01", email: "ana@example.test", contact_type: "national-sales" }
     listContact.mockResolvedValue([contact])
     const response = fakeResponse()
 
@@ -266,7 +276,7 @@ describe("PUT /admin/jovy/contacts/:id", () => {
   })
 
   it("envía los campos del solicitante al workflow con el actor autenticado", async () => {
-    listContact.mockResolvedValue([{ id: "req_01" }])
+    listContact.mockResolvedValue([{ id: "req_01", contact_type: "national-sales" }])
     const run = jest.fn(async ({ input }: { input: Record<string, unknown> }) => ({ result: { id: input.id } }))
     jest.mocked(updateContactWorkflow).mockReturnValue({ run } as never)
 
@@ -316,7 +326,7 @@ describe("POST /admin/jovy/contacts/:id/restore", () => {
   })
 
   it("busca con withDeleted y delega en el workflow idempotente", async () => {
-    const contact = { id: "req_01", deleted_at: new Date() }
+    const contact = { id: "req_01", deleted_at: new Date(), contact_type: "national-sales" }
     listContact.mockResolvedValue([contact])
     const run = jest.fn(async () => ({ result: { id: "req_01", deleted_at: null } }))
     jest.mocked(restoreContactWorkflow).mockReturnValue({ run } as never)

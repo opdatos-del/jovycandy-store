@@ -216,6 +216,12 @@ test("JovyCandy CMS: dashboard real, rangos honestos y navegación por tarjetas"
   const herramientasLinks = sidebar.locator('a[href^="/app/jovy-herramientas/"]')
   const herramientasLabels = (await herramientasLinks.allTextContents()).map((label) => label.trim())
   expect(herramientasLabels.slice(0, 4)).toEqual(toolLabels)
+  expect(herramientasLabels).toHaveLength(4)
+
+  await page.goto("/app/settings/access")
+  await expect(page.getByRole("heading", { name: "Accesos y permisos", level: 1 })).toBeVisible()
+  await expect(page.getByTestId("access-page")).toBeVisible()
+  await expect(page.getByTestId("access-users")).toBeVisible()
 
   expect(pageErrors).toEqual([])
 })

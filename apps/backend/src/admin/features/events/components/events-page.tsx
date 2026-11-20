@@ -1,4 +1,5 @@
 import { Badge, Button, Container, Heading } from "@medusajs/ui"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { canMoveEventWithinPriority } from "@admin/shared/lib/event-ordering"
 import { EventFormPanel } from "./event-form"
 import { EventTypeSection } from "./event-type-form"
@@ -10,6 +11,12 @@ import { useEvents } from "../hooks/use-events"
  * delega en `@admin/shared/lib/event-ordering` para no duplicar la regla.
  */
 export const EventsPage = () => {
+  const permissions = useJovyPermissions()
+  const canCreate = permissions.can("jovy_events", "create")
+  const canUpdate = permissions.can("jovy_events", "update")
+  const canDelete = permissions.can("jovy_events", "delete")
+  const canPublish = permissions.can("jovy_events", "publish")
+  const canArchive = permissions.can("jovy_events", "archive")
   const events = useEvents()
 
   return (
@@ -22,7 +29,7 @@ export const EventsPage = () => {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="secondary"><a href="/app/jovy/novelties">Gestionar multimedia en Novedades</a></Button>
-            <Button variant="secondary" onClick={events.reset}>Nuevo evento</Button>
+            {canCreate && <Button variant="secondary" onClick={events.reset}>Nuevo evento</Button>}
           </div>
         </div>
         {events.message && <p role="alert" className="mt-3 text-ui-fg-error">{events.message}</p>}
@@ -38,6 +45,7 @@ export const EventsPage = () => {
         onEdit={(type) => events.setTypeForm({ id: type.id, code: type.code, name: type.name, description: type.description ?? "" })}
         onDelete={(type) => void events.removeType(type)}
         onReset={events.resetType}
+        canWrite={canCreate || canUpdate}
       />
 
       <Container className="p-6">
@@ -55,12 +63,14 @@ export const EventsPage = () => {
                 <div className="flex flex-wrap gap-2">
                   <Badge color={event.status === "published" ? "green" : event.status === "cancelled" ? "red" : "orange"}>{event.status}</Badge>
                   <Button asChild size="small" variant="secondary"><a href={`/app/jovy/novelties?event=${encodeURIComponent(event.id)}`}>Multimedia en Novedades</a></Button>
-                  <Button size="small" variant="secondary" onClick={() => void events.move(event.id, -1)} disabled={!canMoveEventWithinPriority(events.events, event.id, -1)}>Subir</Button>
-                  <Button size="small" variant="secondary" onClick={() => void events.move(event.id, 1)} disabled={!canMoveEventWithinPriority(events.events, event.id, 1)}>Bajar</Button>
-                  {event.status !== "published" && <Button size="small" variant="secondary" onClick={() => void events.patch(event, "published")}>Publicar</Button>}
-                  {event.status !== "archived" && <Button size="small" variant="secondary" onClick={() => void events.patch(event, "archived")}>Archivar</Button>}
-                  <Button size="small" variant="secondary" onClick={() => void events.edit(event)}>Editar</Button>
-                  <Button size="small" variant="danger" isLoading={events.deletingId === event.id} onClick={() => void events.remove(event)}>Eliminar</Button>
+                  {canUpdate && <>
+                    <Button size="small" variant="secondary" onClick={() => void events.move(event.id, -1)} disabled={!canMoveEventWithinPriority(events.events, event.id, -1)}>Subir</Button>
+                    <Button size="small" variant="secondary" onClick={() => void events.move(event.id, 1)} disabled={!canMoveEventWithinPriority(events.events, event.id, 1)}>Bajar</Button>
+                  </>}
+                  {canPublish && event.status !== "published" && <Button size="small" variant="secondary" onClick={() => void events.patch(event, "published")}>Publicar</Button>}
+                  {canArchive && event.status !== "archived" && <Button size="small" variant="secondary" onClick={() => void events.patch(event, "archived")}>Archivar</Button>}
+                  {canUpdate && <Button size="small" variant="secondary" onClick={() => void events.edit(event)}>Editar</Button>}
+                  {canDelete && <Button size="small" variant="danger" isLoading={events.deletingId === event.id} onClick={() => void events.remove(event)}>Eliminar</Button>}
                 </div>
               </li>
             ))}
@@ -68,6 +78,7 @@ export const EventsPage = () => {
         )}
       </Container>
 
+      {(events.editing || canCreate) && (
       <EventFormPanel
         form={events.form}
         types={events.types}
@@ -79,6 +90,7 @@ export const EventsPage = () => {
         onRemoveMedia={events.removeMedia}
         onSubmit={(event) => void events.save(event)}
       />
+      )}
     </div>
   )
 }

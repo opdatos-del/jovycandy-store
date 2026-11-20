@@ -1,4 +1,5 @@
 import { Button, Container, Heading, Text } from "@medusajs/ui"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { searchPublishedProducts, uploadLaunchImage } from "../api"
 import { useLaunchForm } from "../hooks/use-launch-form"
 import { useLaunchList } from "../hooks/use-launch-list"
@@ -14,6 +15,11 @@ import { LaunchForm } from "./launch-form"
  * fondo se comparte con Store.
  */
 export const LaunchesPage = () => {
+  const permissions = useJovyPermissions()
+  const canCreate = permissions.can("jovy_launches", "create")
+  const canUpdate = permissions.can("jovy_launches", "update")
+  const canDelete = permissions.can("jovy_launches", "delete")
+  const canSettings = permissions.can("jovy_launches", "manage_settings")
   const query = useLaunches()
   const form = useLaunchForm({ launches: query.launches, reload: query.load })
   const list = useLaunchList({
@@ -47,9 +53,11 @@ export const LaunchesPage = () => {
             <Button size="small" variant="secondary" onClick={() => void query.load()} isLoading={query.loading}>
               Actualizar
             </Button>
-            <Button size="small" onClick={form.startNew}>
-              Nuevo Slide
-            </Button>
+            {canCreate && (
+              <Button size="small" onClick={form.startNew}>
+                Nuevo Slide
+              </Button>
+            )}
           </div>
         </div>
         {query.loadError && (
@@ -67,6 +75,7 @@ export const LaunchesPage = () => {
         error={color.settingsError}
         onChange={color.changeColor}
         onSave={() => void color.saveSettings()}
+        canEdit={canSettings}
       />
 
       <Container className="p-4 sm:p-6">
@@ -83,7 +92,11 @@ export const LaunchesPage = () => {
             <Text size="small" className="text-ui-fg-subtle">
               Aún no hay lanzamientos. Crea el primero para que aparezca en la portada.
             </Text>
-            <Button className="mt-4" size="small" onClick={form.startNew}>Crear primer lanzamiento</Button>
+            {canCreate && (
+              <Button className="mt-4" size="small" onClick={form.startNew}>
+                Crear primer lanzamiento
+              </Button>
+            )}
           </div>
         ) : (
           <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))]" aria-label="Lanzamientos">
@@ -102,6 +115,8 @@ export const LaunchesPage = () => {
                 onToggleActive={() => void list.toggleActive(launch)}
                 onEdit={() => form.startEditing(launch)}
                 onDelete={() => void list.remove(launch)}
+                canUpdate={canUpdate}
+                canDelete={canDelete}
               />
             ))}
           </ul>

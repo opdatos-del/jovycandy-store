@@ -18,6 +18,7 @@ import { GalleryCard } from "./gallery-card"
 import { GalleryForm } from "./gallery-form"
 import { GalleryLightbox, type GalleryLightboxImage } from "./gallery-lightbox"
 import { GalleryUpload } from "./gallery-upload"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 
 const restoreFocus = (element: HTMLElement | null) => {
   if (element?.isConnected) requestAnimationFrame(() => element.focus())
@@ -30,6 +31,12 @@ const restoreFocus = (element: HTMLElement | null) => {
  */
 export const BrandGalleryManager = () => {
   const prompt = usePrompt()
+  const permissions = useJovyPermissions()
+  const canCreate = permissions.can("jovy_gallery", "create")
+  const canUpdate = permissions.can("jovy_gallery", "update")
+  const canDelete = permissions.can("jovy_gallery", "delete")
+  const canPublish = permissions.can("jovy_gallery", "publish")
+  const canArchive = permissions.can("jovy_gallery", "archive")
   const headingRef = useRef<HTMLDivElement>(null)
   const nextOrderRef = useRef(0)
 
@@ -310,13 +317,18 @@ export const BrandGalleryManager = () => {
 
   return <div className="flex flex-col gap-y-4" data-testid="gallery-panel">
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(20rem,0.8fr)_minmax(0,1.2fr)]">
-      <GalleryUpload
+      {canCreate ? <GalleryUpload
         visibleNow={visibleNowCount}
         draftCount={draftCount}
         onConfirm={confirmUpload}
         onUploadOne={uploadOne}
         onComplete={() => load(true)}
-      />
+      /> : <Container className="p-6">
+        <Heading level="h2" className="jovy-subtitle">Carga de imágenes</Heading>
+        <Text size="small" className="text-ui-fg-subtle mt-1">
+          Tu rol puede consultar la galería, pero no crear elementos.
+        </Text>
+      </Container>}
 
       <Container className="p-6" data-testid="gallery-list-panel">
         <div className="border-ui-border-base flex flex-wrap items-end justify-between gap-3 border-b pb-4">
@@ -352,6 +364,7 @@ export const BrandGalleryManager = () => {
               <Button
                 className="mt-4"
                 onClick={() => document.getElementById("gallery-file-input")?.focus()}
+                disabled={!canCreate}
               >
                 Cargar imágenes
               </Button>
@@ -376,6 +389,10 @@ export const BrandGalleryManager = () => {
                   onChangeStatus={(status) => void changeStatus(item, status)}
                   onToggleEnabled={() => void toggleEnabled(item)}
                   onRemove={() => void remove(item)}
+                  canUpdate={canUpdate}
+                  canDelete={canDelete}
+                  canPublish={canPublish}
+                  canArchive={canArchive}
                 />)}
               </ul>
             </>}

@@ -41,6 +41,7 @@ import {
 } from "../types"
 import { BannerCard } from "./banner-card"
 import { BannerForm } from "./banner-form"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 
 /**
  * Administración de los anuncios de portada: `promo` es el modal de entrada y
@@ -91,6 +92,12 @@ export const BannerManager = ({
   onBannersChange,
 }: BannerManagerProps = {}) => {
   const prompt = usePrompt()
+  const permissions = useJovyPermissions()
+  const canCreate = permissions.can("jovy_announcements", "create")
+  const canUpdate = permissions.can("jovy_announcements", "update")
+  const canDelete = permissions.can("jovy_announcements", "delete")
+  const canPublish = permissions.can("jovy_announcements", "publish")
+  const canArchive = permissions.can("jovy_announcements", "archive")
   const [items, setItems] = useState<Banner[]>([])
   const [mediaUrls, setMediaUrls] = useState<Record<string, string | null>>({})
   const [loading, setLoading] = useState(true)
@@ -350,10 +357,12 @@ export const BannerManager = ({
       <Button size="small" variant="secondary" onClick={() => void load()} isLoading={loading}>
         Actualizar
       </Button>
-      <Button size="small" onClick={startCreate}>
-        <PlusMini />
-        Nuevo banner
-      </Button>
+      {canCreate && (
+        <Button size="small" onClick={startCreate}>
+          <PlusMini />
+          Nuevo banner
+        </Button>
+      )}
     </>
   )
 
@@ -536,7 +545,7 @@ export const BannerManager = ({
             <Text size="small" className="text-ui-fg-subtle mt-1">
               Crea el primero para el modal de entrada o para el banner bajo el logo.
             </Text>
-            <Button className="mt-4" size="small" onClick={startCreate}>
+            <Button className="mt-4" size="small" onClick={startCreate} disabled={!canCreate}>
               Crear el primer banner
             </Button>
           </div>
@@ -571,6 +580,10 @@ export const BannerManager = ({
                   onChangeStatus={(item, next) => void changeStatus(item, next)}
                   onMove={(item, direction) => void move(item, direction)}
                   onRemove={(item) => void remove(item)}
+                  canUpdate={canUpdate}
+                  canDelete={canDelete}
+                  canPublish={canPublish}
+                  canArchive={canArchive}
                 />
               )
             })}

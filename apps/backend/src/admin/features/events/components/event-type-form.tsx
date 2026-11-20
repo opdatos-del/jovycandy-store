@@ -11,6 +11,7 @@ type EventTypeSectionProps = {
   onEdit: (type: EventType) => void
   onDelete: (type: EventType) => void
   onReset: () => void
+  canWrite: boolean
 }
 
 /**
@@ -27,6 +28,7 @@ export const EventTypeSection = ({
   onEdit,
   onDelete,
   onReset,
+  canWrite,
 }: EventTypeSectionProps) => (
   <Container className="p-6">
     <Heading level="h2" id="event-types-heading" tabIndex={-1}>Tipos de evento</Heading>
@@ -42,12 +44,13 @@ export const EventTypeSection = ({
             </div>
             <div className="flex gap-2">
               <Button size="small" variant="secondary" onClick={() => onEdit(type)}>Editar tipo</Button>
-              <Button size="small" variant="danger" isLoading={deletingTypeId === type.id} onClick={() => onDelete(type)}>Eliminar tipo</Button>
+              {canWrite && <Button size="small" variant="danger" isLoading={deletingTypeId === type.id} onClick={() => onDelete(type)}>Eliminar tipo</Button>}
             </div>
           </li>
         ))}
       </ul>
     )}
+    {canWrite && (
     <form className="mt-4 flex max-w-2xl flex-col gap-3" onSubmit={onSubmit}>
       <Input required aria-label="Código tipo evento" value={form.code} onChange={(event) => onChange({ ...form, code: event.target.value })} placeholder="feria" />
       <Input required aria-label="Nombre tipo evento" value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} placeholder="Feria" />
@@ -57,5 +60,6 @@ export const EventTypeSection = ({
         {form.id && <Button type="button" variant="secondary" onClick={onReset}>Cancelar tipo</Button>}
       </div>
     </form>
+    )}
   </Container>
 )

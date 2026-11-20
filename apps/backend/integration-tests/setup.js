@@ -28,3 +28,8 @@ function deriveDatabaseCredentials() {
 }
 
 deriveDatabaseCredentials()
+
+// El suite HTTP crea su propio administrador de pruebas. Solo ese correo recibe
+// bootstrap de RBAC en tests; ningún usuario adicional hereda privilegios.
+// Se asigna siempre para que un `.env` local no filtre el bootstrap de desarrollo.
+process.env.JOVY_AUTHZ_BOOTSTRAP_EMAILS = 'admin.integration@jovy.test'

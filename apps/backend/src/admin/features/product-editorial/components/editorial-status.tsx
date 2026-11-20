@@ -23,18 +23,21 @@ type EditorialDeletedStateProps = {
   saving: boolean
   onRestore: () => void
   onReload: () => void
+  canRestore: boolean
 }
 
 /** La ficha está eliminada, pero el producto comercial sigue activo en Medusa. */
-export const EditorialDeletedState = ({ saving, onRestore, onReload }: EditorialDeletedStateProps) => (
+export const EditorialDeletedState = ({ saving, onRestore, onReload, canRestore }: EditorialDeletedStateProps) => (
   <div className="mt-4 flex flex-col gap-y-3">
     <Text size="small" role="status">
       La ficha editorial está eliminada. El producto comercial sigue activo.
     </Text>
     <div className="flex flex-wrap gap-2">
-      <Button size="small" onClick={onRestore} isLoading={saving}>
-        Restaurar ficha
-      </Button>
+      {canRestore && (
+        <Button size="small" onClick={onRestore} isLoading={saving}>
+          Restaurar ficha
+        </Button>
+      )}
       <Button type="button" size="small" variant="secondary" onClick={onReload} disabled={saving}>
         Actualizar
       </Button>

@@ -1,4 +1,5 @@
 import { Badge, Button, Container, Heading, Input } from "@medusajs/ui"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { useContent } from "../hooks/use-content"
 import type { ContentStatus, LocalizedContent } from "../types"
 
@@ -7,6 +8,10 @@ import type { ContentStatus, LocalizedContent } from "../types"
  * formulario de alta/edición. La lógica y las peticiones viven en la feature.
  */
 export const ContentPage = () => {
+  const permissions = useJovyPermissions()
+  const canCreate = permissions.can("jovy_content", "create")
+  const canUpdate = permissions.can("jovy_content", "update")
+  const canDelete = permissions.can("jovy_content", "delete")
   const content = useContent()
   const { form, setForm } = content
 
@@ -28,7 +33,7 @@ export const ContentPage = () => {
             <Heading level="h1" id="content-list-heading" tabIndex={-1}>Contenido Jovy</Heading>
             <p className="text-ui-fg-subtle text-sm">Páginas editoriales bilingües y su estado de publicación.</p>
           </div>
-          <Button type="button" variant="secondary" onClick={content.reset}>Nueva página</Button>
+          {canCreate && <Button type="button" variant="secondary" onClick={content.reset}>Nueva página</Button>}
         </div>
         <div className="p-6">
           {content.error && <p className="text-ui-fg-error mb-4" role="alert">{content.error}</p>}
@@ -46,8 +51,8 @@ export const ContentPage = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge color={page.status === "published" ? "green" : page.status === "archived" ? "grey" : "orange"}>{page.status}</Badge>
-                    <Button type="button" size="small" variant="secondary" onClick={() => content.edit(page)}>Editar</Button>
-                    <Button type="button" size="small" variant="secondary" isLoading={content.deletingId === page.id} onClick={() => void content.remove(page)}>Eliminar</Button>
+                    {canUpdate && <Button type="button" size="small" variant="secondary" onClick={() => content.edit(page)}>Editar</Button>}
+                    {canDelete && <Button type="button" size="small" variant="secondary" isLoading={content.deletingId === page.id} onClick={() => void content.remove(page)}>Eliminar</Button>}
                   </div>
                 </li>
               ))}
@@ -56,6 +61,7 @@ export const ContentPage = () => {
         </div>
       </Container>
 
+      {(content.editingId ? canUpdate : canCreate) && (
       <Container className="p-6">
         <Heading level="h2" className="mb-4">{content.editingId ? "Editar página" : "Nueva página"}</Heading>
         <form className="flex max-w-3xl flex-col gap-y-4" onSubmit={(event) => void content.save(event)}>
@@ -86,6 +92,7 @@ export const ContentPage = () => {
           </div>
         </form>
       </Container>
+      )}
     </div>
   )
 }

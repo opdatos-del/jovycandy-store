@@ -9,6 +9,7 @@ type Props = {
   actionError: string | null
   onCreate: () => void
   onReload: () => void
+  canCreate: boolean
 }
 
 /** Encabezado de la bandeja: título, acciones y avisos de carga. */
@@ -21,6 +22,7 @@ export const NoveltiesHeader = ({
   actionError,
   onCreate,
   onReload,
+  canCreate,
 }: Props) => (
   <Container className="p-6">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -32,9 +34,11 @@ export const NoveltiesHeader = ({
         </Text>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button size="small" onClick={onCreate}>
-          Nueva novedad
-        </Button>
+        {canCreate && (
+          <Button size="small" onClick={onCreate}>
+            Nueva novedad
+          </Button>
+        )}
         <Button size="small" variant="secondary" onClick={onReload} isLoading={loading}>
           Actualizar
         </Button>

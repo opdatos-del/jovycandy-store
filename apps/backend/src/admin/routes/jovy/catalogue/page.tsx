@@ -10,6 +10,7 @@ export const config = defineRouteConfig({
   label: "Categorías",
   icon: Tag,
   rank: 2,
+  permissions: "jovy_catalogue:read",
 })
 
 export default CataloguePage

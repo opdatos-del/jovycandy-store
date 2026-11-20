@@ -10,6 +10,7 @@ export const config = defineRouteConfig({
   label: "Contenido Jovy",
   icon: DocumentText,
   rank: 2,
+  permissions: "jovy_content:read",
 })
 
 export default ContentPage

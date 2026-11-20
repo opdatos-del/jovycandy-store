@@ -1,4 +1,5 @@
 import { Button, Container, Heading, Text } from "@medusajs/ui"
+import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { useCatalogue } from "../hooks/use-catalogue"
 import { CatalogueCategoryCard } from "./category-card"
 import { CatalogueCategoryForm } from "./category-form"
@@ -9,6 +10,9 @@ import { CatalogueCategoryForm } from "./category-form"
  * las tarjetas/formulario son componentes de la feature.
  */
 export const CataloguePage = () => {
+  const permissions = useJovyPermissions()
+  const canSeed = permissions.can("jovy_catalogue", "create")
+  const canUpdate = permissions.can("jovy_catalogue", "update")
   const {
     categories,
     families,
@@ -100,7 +104,7 @@ export const CataloguePage = () => {
           <Text size="small" className="text-ui-fg-subtle mt-1">
             Las tarjetas se crean únicamente con el seed manual; cargar esta pantalla nunca modifica configuración.
           </Text>
-          <Button className="mt-4" size="small" variant="secondary" onClick={() => void seed()} isLoading={seeding}>
+          <Button className="mt-4" size="small" variant="secondary" onClick={() => void seed()} isLoading={seeding} disabled={!canSeed}>
             Sembrar seis tarjetas
           </Button>
         </Container>
@@ -123,6 +127,7 @@ export const CataloguePage = () => {
                   comingSoonPending={togglingId === category.id}
                   onEdit={() => startEditing(category)}
                   onMove={(direction) => void move(index, direction)}
+                  canUpdate={canUpdate}
                   onToggleComingSoon={() => void toggleComingSoon(category)}
                 />
               )
