@@ -27,10 +27,12 @@ El binario `psql` está instalado en `C:\Program Files\PostgreSQL\18\bin\psql.ex
 No son secretos: solo describen el entorno local. Si el servidor escucha en otro puerto, defina
 `FILE_BACKEND_URL` para que las URLs de imágenes y videos coincidan con el puerto real.
 
-El Admin local se sirve por HTTP. Por eso `medusa-config.ts` fija `cookieOptions: { secure: false }`:
-con `medusa start` (`NODE_ENV=production`), Medusa marca la cookie de sesión como `Secure` y
+El Admin local se sirve por HTTP. `medusa-config.ts` calcula la cookie por entorno: en
+producción es `Secure` salvo que `ADMIN_ALLOW_HTTP=true` se declare de forma explícita. Ese flag
+existe solo para el build local servido por HTTP en `localhost:9000`; con `medusa start`
+(`NODE_ENV=production`) y sin el flag, Medusa marca la cookie como `Secure` y
 `express-session` no la envía fuera de HTTPS, lo que deja `/admin/*` en `401` después del login.
-Detrás de HTTPS debe volver a `{ secure: true }`.
+Detrás de HTTPS, elimina `ADMIN_ALLOW_HTTP` o ponlo en `false`.
 
 Si el build se arranca desde `apps/backend/.medusa/server`, el provider `file-local` busca
 `static/` relativo a ese directorio. Enlaza el directorio real para que imágenes y vídeos sigan

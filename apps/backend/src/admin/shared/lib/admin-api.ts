@@ -29,21 +29,30 @@ function bodyMessage(body: ApiErrorBody | null): string | undefined {
 }
 
 export async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  const body = init?.body
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData
+  const isBlob = typeof Blob !== "undefined" && body instanceof Blob
+  const isUrlEncoded = typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams
+
+  // Solo se asume JSON para cuerpos que lo son. Las cabeceras explícitas del
+  // llamador siempre ganan y FormData/Blob/URLSearchParams conservan su tipo.
+  if (body != null && !isFormData && !isBlob && !isUrlEncoded && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
+
   const response = await fetch(path, {
-    credentials: "include",
     ...init,
-    headers: {
-      ...init?.headers,
-      ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-    },
+    credentials: init?.credentials ?? "include",
+    headers,
   })
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as ApiErrorBody | null
+    const bodyError = (await response.json().catch(() => null)) as ApiErrorBody | null
     throw new AdminApiError(
-      bodyMessage(body) ?? `La operación falló (${response.status}).`,
+      bodyMessage(bodyError) ?? `La operación falló (${response.status}).`,
       response.status,
-      body,
+      bodyError,
     )
   }
 

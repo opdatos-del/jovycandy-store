@@ -1,8 +1,10 @@
 import { ArrowDownTray, ArrowPath } from "@medusajs/icons"
 import { Button, Container, Heading, Text, toast, usePrompt } from "@medusajs/ui"
 import { useEffect, useRef, useState } from "react"
-import { errorMessage, saveBlob } from "@admin/shared/lib/admin-api"
-import { contactsApi } from "../api/contacts-api"
+import { useContactAudit } from "../hooks/use-contact-audit"
+import { useContactDetail } from "../hooks/use-contact-detail"
+import { useContactExport } from "../hooks/use-contact-export"
+import { useContactMutations } from "../hooks/use-contact-mutations"
 import { useContactQuery } from "../hooks/use-contact-query"
 import { ContactAuditDialog } from "./contact-audit-dialog"
 import { ContactDetailDialog } from "./contact-detail-dialog"
@@ -14,15 +16,12 @@ import {
   CONTACT_POLL_INTERVAL_MS,
   CONTACT_TYPE_LABELS,
   contactName,
-  contactUpdatePayload,
   inboxCounts,
   inboxTabCounts,
   normalizeContactLimit,
   paginationItems,
   type Contact,
-  type ContactAuditLog,
   type ContactDraft,
-  type ContactExportFormat,
   type ContactPageSize,
   type ContactStatus,
   type ContactStatusFilter,
@@ -35,8 +34,6 @@ type ContactInboxProps = {
   /** Fixed inboxes keep the type on the server side; the consolidated view omits it. */
   contactType?: ContactType
 }
-
-type BusyAction = "status" | "delete" | "restore"
 
 /**
  * Bandeja compartida por las cuatro rutas laterales y la vista consolidada.
@@ -59,29 +56,8 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
   const [limit, setLimit] = useState<ContactPageSize>(CONTACT_PAGE_SIZE)
 
   const [filterError, setFilterError] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-
-  const [busy, setBusy] = useState<{ id: string; action: BusyAction } | null>(null)
-  const [exportingFormat, setExportingFormat] = useState<ContactExportFormat | null>(null)
-  const [exportingAll, setExportingAll] = useState(false)
-
-  const [detail, setDetail] = useState<Contact | null>(null)
-  const [detailAudit, setDetailAudit] = useState<ContactAuditLog[]>([])
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [detailError, setDetailError] = useState<string | null>(null)
-  const [notes, setNotes] = useState("")
-  const [savingNotes, setSavingNotes] = useState(false)
-
   const [editTarget, setEditTarget] = useState<Contact | null>(null)
-  const [savingEdit, setSavingEdit] = useState(false)
-  const [auditTarget, setAuditTarget] = useState<Contact | null>(null)
-  const [auditLogs, setAuditLogs] = useState<ContactAuditLog[]>([])
-  const [auditLoading, setAuditLoading] = useState(false)
-  const [auditError, setAuditError] = useState<string | null>(null)
 
-  const detailRequestRef = useRef(0)
-  const auditRequestRef = useRef(0)
   const lastTriggerRef = useRef<HTMLElement | null>(null)
 
   const listType = contactType ?? (typeFilter || undefined)
@@ -108,6 +84,55 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     limit,
     page,
     queryVersion,
+  })
+
+  const {
+    actionError,
+    setActionError,
+    notice,
+    setNotice,
+    busy,
+    savingEdit,
+    setStatus,
+    remove,
+    restore,
+    saveEdit,
+  } = useContactMutations({ reload, loadCounts, setNewIds })
+
+  const {
+    detail,
+    audit: detailAudit,
+    loading: detailLoading,
+    error: detailError,
+    notes,
+    setNotes,
+    savingNotes,
+    open: openDetail,
+    close: closeDetail,
+    sync: syncDetail,
+    saveNotes,
+  } = useContactDetail({
+    onSaved: (message) => {
+      setNotice(message)
+      toast.success(message)
+    },
+  })
+
+  const audit = useContactAudit()
+
+  const { exportingFormat, exportingAll, runExport, runExportAll } = useContactExport({
+    exportType,
+    typeFilter,
+    statusFilter,
+    search,
+    dateFrom,
+    dateTo,
+    onStart: () => setActionError(null),
+    onNotice: setNotice,
+    onError: (message) => {
+      setActionError(message)
+      toast.error(message)
+    },
   })
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
@@ -201,40 +226,7 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
 
   const showDetail = async (contact: Contact, trigger?: HTMLButtonElement) => {
     if (trigger) lastTriggerRef.current = trigger
-    const requestId = ++detailRequestRef.current
-    setDetail(contact)
-    setNotes(contact.admin_notes ?? "")
-    setDetailAudit([])
-    setDetailError(null)
-    setDetailLoading(true)
-    setSavingNotes(false)
-
-    try {
-      const [contactResult, auditResult] = await Promise.all([
-        contactsApi.detail(contact.id),
-        contactsApi.audit(contact.id),
-      ])
-      if (requestId !== detailRequestRef.current) return
-      setDetail(contactResult.contact)
-      setNotes(contactResult.contact.admin_notes ?? "")
-      setDetailAudit(auditResult.audit_logs)
-    } catch (error) {
-      if (requestId === detailRequestRef.current) {
-        setDetailError(errorMessage(error, "No se pudo abrir la solicitud."))
-      }
-    } finally {
-      if (requestId === detailRequestRef.current) setDetailLoading(false)
-    }
-  }
-
-  const closeDetail = () => {
-    detailRequestRef.current += 1
-    setDetail(null)
-    setDetailAudit([])
-    setDetailError(null)
-    setDetailLoading(false)
-    setSavingNotes(false)
-    setNotes("")
+    await openDetail(contact)
   }
 
   const closeEdit = () => {
@@ -250,63 +242,17 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     closeDetail()
   }
 
-  const saveEdit = async (draft: ContactDraft) => {
+  const saveEditAndClose = async (draft: ContactDraft) => {
     const id = editTarget?.id
     if (!id) return "No hay una solicitud seleccionada."
-    setSavingEdit(true)
-    try {
-      await contactsApi.update(id, contactUpdatePayload(draft))
-      setEditTarget(null)
-      requestAnimationFrame(() => {
-        if (lastTriggerRef.current?.isConnected) lastTriggerRef.current.focus()
-      })
-      const message = "Solicitud actualizada."
-      setNotice(message)
-      toast.success(message)
-      await Promise.all([reload({ silent: true, force: true }), loadCounts(true)])
-      return null
-    } catch (error) {
-      const message = errorMessage(error, "No se pudo guardar la solicitud.")
-      toast.error(message)
-      return message
-    } finally {
-      setSavingEdit(false)
-    }
+    const error = await saveEdit(id, draft)
+    if (!error) closeEdit()
+    return error
   }
 
   const markStatus = async (contact: Contact, status: ContactStatus) => {
-    setActionError(null)
-    setBusy({ id: contact.id, action: "status" })
-    try {
-      const result = await contactsApi.update(contact.id, { status })
-      const message =
-        status === "handled" ? "Solicitud marcada como atendida." : "Solicitud devuelta a pendientes."
-      setNotice(message)
-      toast.success(message)
-      setNewIds((current) => {
-        if (!current.has(contact.id)) return current
-        const next = new Set(current)
-        next.delete(contact.id)
-        return next
-      })
-      if (detail?.id === contact.id) {
-        setDetail(result.contact)
-        setNotes(result.contact.admin_notes ?? "")
-        try {
-          const auditResult = await contactsApi.audit(contact.id)
-          setDetailAudit(auditResult.audit_logs)
-        } catch {
-          // El cambio de estado ya se guardó; la auditoría se reintenta al reabrir.
-        }
-      }
-      await Promise.all([reload({ silent: true, force: true }), loadCounts(true)])
-    } catch (error) {
-      const message = errorMessage(error, "No se pudo cambiar el estado de la solicitud.")
-      setActionError(message)
-      toast.error(message)
-    } finally {
-      setBusy(null)
-    }
+    const updated = await setStatus(contact, status)
+    if (updated) syncDetail(updated)
   }
 
   const deleteContact = async (contact: Contact) => {
@@ -318,22 +264,8 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     })
     if (!confirmed) return
 
-    setActionError(null)
-    setBusy({ id: contact.id, action: "delete" })
-    try {
-      await contactsApi.remove(contact.id)
-      if (detail?.id === contact.id) closeDetail()
-      const message = "Solicitud movida a la papelera."
-      setNotice(message)
-      toast.success(message)
-      await Promise.all([reload({ silent: true, force: true }), loadCounts(true)])
-    } catch (error) {
-      const message = errorMessage(error, "No se pudo eliminar la solicitud.")
-      setActionError(message)
-      toast.error(message)
-    } finally {
-      setBusy(null)
-    }
+    const removed = await remove(contact)
+    if (removed && detail?.id === contact.id) closeDetail()
   }
 
   const restoreContact = async (contact: Contact) => {
@@ -345,134 +277,8 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
     })
     if (!confirmed) return
 
-    setActionError(null)
-    setBusy({ id: contact.id, action: "restore" })
-    try {
-      await contactsApi.restore(contact.id)
-      if (detail?.id === contact.id) closeDetail()
-      const message = "Solicitud restaurada."
-      setNotice(message)
-      toast.success(message)
-      await Promise.all([reload({ silent: true, force: true }), loadCounts(true)])
-    } catch (error) {
-      const message = errorMessage(error, "No se pudo restaurar la solicitud.")
-      setActionError(message)
-      toast.error(message)
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const openAudit = async (contact: Contact) => {
-    // Cada apertura invalida la anterior: abrir A y luego B no permite que la
-    // respuesta lenta de A sobrescriba el historial de B.
-    const requestId = ++auditRequestRef.current
-    setAuditTarget(contact)
-    setAuditLogs([])
-    setAuditError(null)
-    setAuditLoading(true)
-    try {
-      const result = await contactsApi.audit(contact.id)
-      if (requestId !== auditRequestRef.current) return
-      setAuditLogs(result.audit_logs)
-    } catch (error) {
-      if (requestId !== auditRequestRef.current) return
-      setAuditError(errorMessage(error, "No se pudo cargar la auditoría."))
-    } finally {
-      if (requestId === auditRequestRef.current) setAuditLoading(false)
-    }
-  }
-
-  const closeAudit = () => {
-    auditRequestRef.current += 1
-    setAuditTarget(null)
-    setAuditLogs([])
-    setAuditError(null)
-    setAuditLoading(false)
-  }
-
-  const saveNotes = async () => {
-    if (!detail) return
-    const id = detail.id
-    const requestId = detailRequestRef.current
-    setSavingNotes(true)
-    setDetailError(null)
-    try {
-      const result = await contactsApi.update(id, {
-        admin_notes: notes.trim() ? notes.trim() : null,
-      })
-      if (requestId !== detailRequestRef.current) return
-      setDetail(result.contact)
-      setNotes(result.contact.admin_notes ?? "")
-      try {
-        const auditResult = await contactsApi.audit(id)
-        if (requestId === detailRequestRef.current) setDetailAudit(auditResult.audit_logs)
-      } catch {
-        // Las notas ya se guardaron; el historial se recupera al reabrir el detalle.
-      }
-      const message = "Notas internas guardadas."
-      setNotice(message)
-      toast.success(message)
-    } catch (error) {
-      if (requestId === detailRequestRef.current) {
-        setDetailError(errorMessage(error, "No se pudieron guardar las notas."))
-      }
-    } finally {
-      if (requestId === detailRequestRef.current) setSavingNotes(false)
-    }
-  }
-
-  const runExport = async (format: ContactExportFormat) => {
-    if (!exportType) return
-    setExportingFormat(format)
-    setActionError(null)
-    try {
-      const download = await contactsApi.exportInbox(exportType, format, {
-        status: statusFilter,
-        q: search,
-        dateFrom,
-        dateTo,
-      })
-      saveBlob(download.blob, download.fileName)
-
-      const count = download.count ?? 0
-      const label = format === "xlsx" ? "Excel" : "CSV"
-      const message = `${label} exportado: ${count} ${count === 1 ? "solicitud" : "solicitudes"} de ${CONTACT_TYPE_LABELS[exportType]}.`
-      setNotice(message)
-    } catch (error) {
-      const message = errorMessage(error, "No se pudo exportar la bandeja.")
-      setActionError(message)
-      toast.error(message)
-    } finally {
-      setExportingFormat(null)
-    }
-  }
-
-  const runExportAll = async () => {
-    if (contactType) return
-    setExportingAll(true)
-    setActionError(null)
-    try {
-      const download = await contactsApi.exportAll({
-        contactTypes: typeFilter ? [typeFilter] : undefined,
-        status: statusFilter,
-        q: search,
-        dateFrom,
-        dateTo,
-      })
-      saveBlob(download.blob, download.fileName)
-
-      const count = download.count ?? 0
-      const sheets = download.sheets ?? 0
-      const message = `Excel consolidado: ${count} ${count === 1 ? "solicitud" : "solicitudes"} en ${sheets} ${sheets === 1 ? "bandeja" : "bandejas"}.`
-      setNotice(message)
-    } catch (error) {
-      const message = errorMessage(error, "No se pudo exportar el consolidado.")
-      setActionError(message)
-      toast.error(message)
-    } finally {
-      setExportingAll(false)
-    }
+    const restored = await restore(contact)
+    if (restored && detail?.id === contact.id) closeDetail()
   }
 
   const filtersActive = Boolean(search || dateFrom || dateTo)
@@ -651,7 +457,7 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
           onRetry={() => void reload()}
           onShowDetail={(contact, trigger) => void showDetail(contact, trigger)}
           onEdit={(contact) => setEditTarget(contact)}
-          onAudit={(contact) => void openAudit(contact)}
+          onAudit={(contact) => void audit.open(contact)}
           onMarkHandled={(contact) => void markStatus(contact, "handled")}
           onMarkPending={(contact) => void markStatus(contact, "pending")}
           onDelete={(contact) => void deleteContact(contact)}
@@ -740,17 +546,17 @@ export function ContactInbox({ title, description, contactType }: ContactInboxPr
           contact={editTarget}
           saving={savingEdit}
           onClose={closeEdit}
-          onSave={saveEdit}
+          onSave={saveEditAndClose}
         />
       )}
 
-      {auditTarget && (
+      {audit.target && (
         <ContactAuditDialog
-          contact={auditTarget}
-          audit={auditLogs}
-          loading={auditLoading}
-          error={auditError}
-          onClose={closeAudit}
+          contact={audit.target}
+          audit={audit.logs}
+          loading={audit.loading}
+          error={audit.error}
+          onClose={audit.close}
         />
       )}
     </div>

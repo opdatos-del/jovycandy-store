@@ -41,6 +41,19 @@ const FOCUSABLE =
   "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), " +
   "textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
 
+// Los diálogos pueden apilarse (por ejemplo, un detalle sobre un modal). Solo
+// el último montado debe consumir Escape; los demás esperan cerrados.
+const dialogStack: symbol[] = []
+
+function visibleFocusable(panel: HTMLElement | null): HTMLElement[] {
+  const elements = panel?.querySelectorAll<HTMLElement>(FOCUSABLE)
+  if (!elements) return []
+  return [...elements].filter((element) => {
+    const style = window.getComputedStyle(element)
+    return style.visibility !== "hidden" && style.display !== "none" && element.getClientRects().length > 0
+  })
+}
+
 /**
  * Diálogo modal accesible compartido por las features del Admin. Monta en un
  * portal, atrapa el foco, cierra con Escape, bloquea el scroll del documento y
@@ -64,20 +77,28 @@ export function AdminDialog({
 }: AdminDialogProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const dialogIdRef = useRef(Symbol("admin-dialog"))
   const onCloseRef = useRef(onClose)
   const closeDisabledRef = useRef(closeDisabled)
   onCloseRef.current = onClose
   closeDisabledRef.current = closeDisabled
 
   useEffect(() => {
+    const dialogId = dialogIdRef.current
+    dialogStack.push(dialogId)
+
     const previousFocus = document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
-    ;(initialFocusRef?.current ?? closeRef.current)?.focus()
+    const initial = initialFocusRef?.current ?? closeRef.current
+    if (initial) initial.focus()
+    else panelRef.current?.focus()
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
-      // El Prompt de Medusa se monta por encima; su Escape no cierra el modal.
+      // Solo el diálogo superior consume Escape; el Prompt de Medusa se monta
+      // por encima y conserva su propio cierre.
+      if (dialogStack[dialogStack.length - 1] !== dialogId) return
       if (document.querySelector('[role="alertdialog"]')) return
       if (closeDisabledRef.current) return
       event.preventDefault()
@@ -87,16 +108,22 @@ export function AdminDialog({
 
     return () => {
       window.removeEventListener("keydown", onKeyDown)
+      const index = dialogStack.lastIndexOf(dialogId)
+      if (index >= 0) dialogStack.splice(index, 1)
       document.body.style.overflow = previousOverflow
       if (previousFocus?.isConnected) previousFocus.focus()
     }
     // Solo corre al montar/desmontar; el cierre se lee desde el ref.
-  }, [])
+  }, [initialFocusRef])
 
   const trapFocus = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Tab") return
-    const focusable = panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE)
-    if (!focusable?.length) return
+    const focusable = visibleFocusable(panelRef.current)
+    if (!focusable.length) {
+      event.preventDefault()
+      panelRef.current?.focus()
+      return
+    }
     const first = focusable[0]
     const last = focusable[focusable.length - 1]
     if (event.shiftKey && document.activeElement === first) {
@@ -124,6 +151,7 @@ export function AdminDialog({
         id={panelId}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-labelledby={titleId}
         aria-describedby={description ? `${titleId}-description` : undefined}
         onKeyDown={trapFocus}

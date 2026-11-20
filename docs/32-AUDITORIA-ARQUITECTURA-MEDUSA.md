@@ -148,6 +148,24 @@ Dos pruebas de integración tenían expectativas anteriores al contrato vigente:
 
 Validación visual (1440/375, claro/oscuro) de Contactos, Anuncios, Logos y Novedades: 0 overflow de página, 0 errores de consola. El DOM conserva clases, badges, `<details>`, menús y modales. El 404 de medios era operativo: al arrancar desde `.medusa/server` faltaba el enlace a `static`; se resolvió con un junction documentado en `docs/02`.
 
+### Segunda ola (2026-11-20)
+
+Sobre `785015f`, la segunda ola cierra los pendientes de la tabla anterior:
+
+| Área | Resultado |
+|---|---|
+| Cookies | Secure por entorno; `ADMIN_ALLOW_HTTP=true` solo para el build local HTTP |
+| HTTP | `adminRequest` normaliza `Headers`, pares y objetos; JSON solo para cuerpos JSON |
+| Novedades | Orden por prioridad en `@admin/shared/lib/event-ordering` |
+| Diálogo | Pila de modales, Escape solo en el superior y foco visible filtrado |
+| Contactos | Consulta, detalle, mutaciones, auditoría y exportación en hooks separados |
+| Dominios | Galería, Lanzamientos, Catálogo, Dashboard, Marketing, Contenido, Eventos y widget editorial en `features/` |
+| Rutas | Todos los `page.tsx` solo registran y renderizan |
+| Reglas | ESLint + `architecture.test.ts` fallan ante dependencias incorrectas |
+
+El detalle, los contratos preservados y la regresión están en
+`docs/35-SEGUNDA-OLA-REFACTORIZACION.md`.
+
 ## 9. Riesgos de regresión
 
 - **Banners:** prioridad/orden, `Subir/Bajar`, rotación, ventanas, `auto_open` y testids de E2E.

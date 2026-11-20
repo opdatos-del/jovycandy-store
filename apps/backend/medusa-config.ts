@@ -3,6 +3,13 @@ import { loadEnv, defineConfig } from '@medusajs/framework/utils'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
+// La cookie de sesión debe ser Secure en producción real. El build local se
+// sirve por HTTP en localhost, así que ese entorno declara ADMIN_ALLOW_HTTP=true.
+// Nunca se desactiva Secure de forma implícita en producción.
+const isProductionRuntime = process.env.NODE_ENV === 'production'
+const allowHttpCookies = process.env.ADMIN_ALLOW_HTTP === 'true'
+const secureSessionCookie = isProductionRuntime && !allowHttpCookies
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
@@ -13,11 +20,7 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
     },
-    // El Admin se sirve por HTTP en local (localhost:9000). En producción,
-    // Express marca la cookie de sesión como Secure y express-session no la
-    // envía fuera de HTTPS, lo que deja /admin/* en 401 tras el login. Detrás
-    // de HTTPS, cambiar a `{ secure: true }`.
-    cookieOptions: { secure: false },
+    cookieOptions: { secure: secureSessionCookie },
   },
   admin: {
     /**

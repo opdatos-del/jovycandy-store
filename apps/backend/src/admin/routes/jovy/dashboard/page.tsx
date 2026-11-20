@@ -1,6 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { SquaresPlus } from "@medusajs/icons"
-import { DashboardPage } from "../page"
+import DashboardPage from "../page"
 
 /**
  * Entrada «Dashboard» del grupo JovyCandy CMS. Reutiliza el tablero del padre

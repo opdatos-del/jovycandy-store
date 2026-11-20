@@ -52,20 +52,68 @@ src/admin/
 │   │   ├── api.ts
 │   │   ├── types.ts
 │   │   └── components/{banner-manager,banner-card,banner-form}
+│   ├── catalogue/              # Categorías del catálogo
+│   │   ├── api.ts
+│   │   ├── types.ts
+│   │   ├── hooks/use-catalogue.ts
+│   │   └── components/{catalogue-page,category-card,category-form}
 │   ├── contacts/
 │   │   ├── api/contacts-api.ts
-│   │   ├── hooks/use-contact-query.ts
+│   │   ├── hooks/{use-contact-query,use-contact-detail,use-contact-mutations,use-contact-audit,use-contact-export}.ts
 │   │   └── components/{contact-inbox,contact-table,contact-*-dialog}
+│   ├── content/
+│   │   ├── api.ts
+│   │   ├── types.ts
+│   │   ├── hooks/use-content.ts
+│   │   └── components/content-page.tsx
+│   ├── dashboard/
+│   │   ├── api.ts
+│   │   ├── hooks/use-dashboard.ts
+│   │   ├── lib/dashboard-model.ts
+│   │   └── components/{dashboard-page,header,kpis,operations,analytics}
+│   ├── events/
+│   │   ├── api.ts
+│   │   ├── types.ts
+│   │   ├── hooks/use-events.ts
+│   │   └── components/{events-page,event-form,event-type-form}
+│   ├── gallery/
+│   │   ├── api.ts
+│   │   ├── types.ts
+│   │   ├── model.ts
+│   │   └── components/{gallery-page,manager,form,card,upload,lightbox}
+│   ├── launches/
+│   │   ├── api.ts
+│   │   ├── types.ts
+│   │   ├── hooks/{use-launches,use-launch-form,use-launch-list,use-launch-settings}.ts
+│   │   └── components/{launches-page,launch-form,launch-card,launch-color-settings,product-picker}
 │   ├── logos/
 │   │   ├── api.ts
 │   │   ├── types.ts
 │   │   ├── lib/crop.ts
 │   │   └── components/{logo-manager,logo-card,logo-form,crop-modal}
-│   └── novelties/              # Misma estructura cuando aplique
+│   ├── marketing/
+│   │   ├── api.ts
+│   │   ├── types.ts
+│   │   ├── lib/datetime.ts
+│   │   ├── hooks/{use-hero,use-corporate-message}.ts
+│   │   └── components/{marketing-page,hero-manager,hero-list,hero-form,corporate-message-panel,corporate-message-form}
+│   ├── novelties/
+│   │   ├── api.ts
+│   │   ├── model.ts
+│   │   ├── types.ts
+│   │   ├── hooks/use-novelties.ts
+│   │   └── components/{novelties-page,header,filters,empty-state,card,form}
+│   └── product-editorial/
+│       ├── api.ts
+│       ├── model.ts
+│       ├── types.ts
+│       ├── hooks/use-product-editorial.ts
+│       └── components/{product-editorial-widget,editorial-form,editorial-*-section}
 ├── shared/
 │   ├── components/{admin-dialog,page-header}
-│   └── lib/{admin-api,media,color}
+│   └── lib/{admin-api,event-ordering,media,color}
 ├── widgets/product-editorial.tsx
+├── __tests__/architecture.test.ts
 └── styles/jovy-quality.css
 ```
 
@@ -172,11 +220,15 @@ sequenceDiagram
 | Capa | Herramienta | Qué cubre |
 |---|---|---|
 | Reglas puras | Jest unit | esquemas, orden, visibilidad, CSV/XLSX, helpers |
+| Arquitectura | Jest unit | features/shared, backend boundary, `fetch`, ciclos y rutas ligeras |
 | Módulos | Jest integration modules | persistencia, locks, restore, queries |
 | HTTP | Jest integration http | contratos Admin/Store |
 | UI | Playwright E2E | ciclos de pantalla, navegación, modales, Store |
 | Tipos | `tsc --noEmit` | contratos y alias |
 | Build | `medusa build` | Vite + backend + descubrimiento |
+
+La prueba de arquitectura vive en `src/admin/__tests__/architecture.test.ts` y se ejecuta con
+`pnpm --dir apps/backend test:unit`.
 
 ## 10. Cómo añadir una feature
 

@@ -1,0 +1,79 @@
+import { Badge, Container, Heading, Text } from "@medusajs/ui"
+import { useProductEditorial } from "../hooks/use-product-editorial"
+import { STATUS_BADGE, STATUS_LABELS } from "../model"
+import type { ProductEditorialWidgetProps } from "../types"
+import { EditorialForm } from "./editorial-form"
+import { EditorialDeletedState, EditorialLoadError, EditorialLoading } from "./editorial-status"
+
+/**
+ * Panel editorial dentro del detalle nativo del producto. Solo presenta la
+ * ficha editorial y su ciclo de publicación; el producto comercial, sus
+ * precios, inventario, variantes e imágenes siguen en Medusa.
+ */
+const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
+  const {
+    editorial,
+    deleted,
+    draft,
+    loading,
+    loadError,
+    formError,
+    saving,
+    reload,
+    update,
+    toggleCertification,
+    changeCommercialMode,
+    save,
+    publish,
+    archive,
+    restoreArchived,
+    remove,
+    restoreDeleted,
+  } = useProductEditorial(data.id)
+
+  return (
+    <Container className="p-4 sm:p-6" data-testid="product-editorial-widget">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-3xl">
+          <Heading level="h2">Editor editorial Jovy</Heading>
+          <Text size="small" className="text-ui-fg-subtle mt-1">
+            Panel separado del producto comercial. Edita presentación y ciclo editorial; SKU, precio, stock, variantes e
+            imágenes se mantienen en el detalle nativo de Medusa.
+          </Text>
+        </div>
+        {editorial && <Badge color={STATUS_BADGE[editorial.editorial_status]} data-testid="editorial-status-badge">{STATUS_LABELS[editorial.editorial_status]}</Badge>}
+      </div>
+
+      <EditorialLoading loading={loading} />
+      <EditorialLoadError error={loadError} />
+
+      {!loading && !loadError && deleted && (
+        <EditorialDeletedState
+          saving={saving}
+          onRestore={() => void restoreDeleted()}
+          onReload={() => void reload()}
+        />
+      )}
+
+      {!loading && !loadError && !deleted && (
+        <EditorialForm
+          editorial={editorial}
+          draft={draft}
+          saving={saving}
+          formError={formError}
+          onUpdate={update}
+          onToggleCertification={toggleCertification}
+          onChangeCommercialMode={changeCommercialMode}
+          onSave={save}
+          onPublish={publish}
+          onArchive={archive}
+          onRestoreArchived={restoreArchived}
+          onRemove={remove}
+          onReload={reload}
+        />
+      )}
+    </Container>
+  )
+}
+
+export default ProductEditorialWidget

@@ -45,7 +45,7 @@ Usar siempre:
 import { adminRequest, errorMessage, saveBlob } from "@admin/shared/lib/admin-api"
 ```
 
-- `adminRequest<T>` conserva cookies, añade JSON y normaliza errores con `AdminApiError` y `status`.
+- `adminRequest<T>` conserva cookies, normaliza `Headers`/pares/objetos, añade `Content-Type: application/json` solo a cuerpos JSON y convierte errores en `AdminApiError` con `status`.
 - `errorMessage(error, fallback)` produce el texto visible.
 - `downloadAdminFile` + `saveBlob` manejan CSV/XLSX y cabeceras de descarga.
 - No se crea un `fetch` propio por pantalla.
@@ -78,9 +78,9 @@ Extraer un hook cuando existe:
 - formularios con estado complejo;
 - carga de archivos.
 
-Ejemplo: `features/contacts/hooks/use-contact-query.ts` encapsula lista, contadores, polling y detección de nuevas solicitudes. La UI conserva filtros y render.
+Ejemplo: `features/contacts/hooks/` separa `use-contact-query` (lista, contadores, polling), `use-contact-detail` (contacto, notas, auditoría), `use-contact-mutations` (estado, papelera, restore), `use-contact-audit` y `use-contact-export`. Cada hook cubre una responsabilidad; la UI conserva filtros, confirmaciones y render.
 
-No se crea un hook para una operación trivial de una línea.
+No se crea un hook para una operación trivial de una línea ni un hook único que solo traslade todo el componente a otro archivo.
 
 ## 7. Componentes
 
@@ -95,6 +95,7 @@ Candidatos ya compartidos:
 - `AdminDialog` (foco, Escape, scroll, restauración).
 - `PageHeader` (título, descripción, acciones).
 - `AdminApiError`, `adminRequest`, `downloadAdminFile`, `saveBlob`.
+- `event-ordering` (`canMoveEventWithinPriority`, `moveEventWithinPriority`).
 - `validateImageFile`, `uploadMarketingImage`, `uploadImageTo`.
 - `isValidHexColor`, `expandHexColor`.
 
@@ -121,6 +122,25 @@ Candidatos ya compartidos:
 - No cadenas `../../..`; si aparecen, usar el alias.
 - No dependencias circulares entre features.
 - Una feature no importa componentes privados de otra.
+
+### Reglas automáticas
+
+Además de esta guía, la validación falla si se rompe una regla:
+
+- **ESLint** (`eslint.config.ts`):
+  - `fetch` prohibido en `src/admin/**` fuera de `shared/lib/admin-api.ts`.
+  - Admin no importa `@jovy/modules|workflows|api` ni `src/modules|workflows|api`.
+  - `shared` no importa `@admin/features/*` ni `@admin/routes/*`.
+- **Prueba de arquitectura** (`src/admin/__tests__/architecture.test.ts`):
+  - shared independiente;
+  - features sin imports privados entre sí;
+  - features sin imports a rutas;
+  - Admin sin backend Node;
+  - único `fetch`;
+  - `page.tsx` sin `fetch`, `adminRequest`, `useState` ni `useEffect`;
+  - ausencia de ciclos.
+
+No se añadió una herramienta nueva: ESLint y Jest ya forman parte del stack.
 
 ## 11. Contratos
 

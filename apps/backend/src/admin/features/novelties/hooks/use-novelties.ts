@@ -1,7 +1,7 @@
 import { toast, usePrompt } from "@medusajs/ui"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { errorMessage } from "@admin/shared/lib/admin-api"
-import { moveEventWithinPriority } from "@admin/routes/jovy-herramientas/events/ordering"
+import { moveEventWithinPriority } from "@admin/shared/lib/event-ordering"
 import {
   create,
   list,

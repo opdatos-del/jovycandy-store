@@ -1,4 +1,4 @@
-import { canMoveEventWithinPriority } from "@admin/routes/jovy-herramientas/events/ordering"
+import { canMoveEventWithinPriority } from "@admin/shared/lib/event-ordering"
 import { NoveltyCard } from "./novelty-card"
 import { NoveltyForm } from "./novelty-form"
 import { NoveltiesEmptyState } from "./novelties-empty-state"
