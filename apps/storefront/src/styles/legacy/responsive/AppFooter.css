@@ -1,0 +1,477 @@
+﻿.social-feed-section {
+  width: 100%;
+  padding: clamp(2rem, 4vw, 4rem) clamp(0.85rem, 3vw, 2rem) clamp(3rem, 6vw, 5rem);
+  text-align: center;
+}
+
+.social-title {
+  color: #ffffff;
+  font-size: clamp(1.25rem, 1.8vw, 1.75rem);
+  letter-spacing: 0.08em;
+  margin-bottom: clamp(1.5rem, 3vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.social-grid {
+  width: 100%;
+  max-width: min(100%, 760px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(1rem, 2.5vw, 2rem);
+  align-items: stretch;
+}
+
+.social-card {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: clamp(1rem, 2vw, 1.8rem);
+  padding: clamp(0.9rem, 2vw, 1.5rem);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.instagram-card,
+.facebook-card {
+  height: 100%;
+}
+
+.social-card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.6rem, 1.5vw, 0.9rem);
+  margin-bottom: clamp(1rem, 2vw, 1.4rem);
+  color: #ffffff;
+  text-align: center;
+  flex-wrap: wrap;
+  min-height: auto;
+}
+
+.social-card-header h3 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2vw, 2rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.social-card-header p {
+  margin: 0.25rem 0 0;
+  font-size: clamp(0.85rem, 1.2vw, 1.05rem);
+  opacity: 0.85;
+  line-height: 1.4;
+}
+
+.social-avatar {
+  width: clamp(3rem, 5vw, 4.4rem);
+  height: clamp(3rem, 5vw, 4.4rem);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1.1rem, 2vw, 1.8rem);
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+/* Contenedores principales */
+.instagram-feed-wrap,
+.facebook-feed-wrap {
+  width: 100%;
+  max-width: min(100%, 560px);
+  margin: 0 auto;
+  border-radius: clamp(1rem, 2vw, 1.4rem);
+  box-sizing: border-box;
+  background: #ffffff;
+  min-height: auto;
+  padding: clamp(0.75rem, 2vw, 1rem);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.instagram-feed-inner,
+.facebook-feed-inner {
+  width: 100%;
+  max-width: min(100%, 500px);
+  border-radius: clamp(0.85rem, 1.5vw, 1.1rem);
+  overflow: hidden;
+}
+
+.instagram-feed-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #111827;
+}
+
+.facebook-feed-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #111827;
+}
+
+/* Facebook profile bar â€” matches Instagram layout */
+.facebook-profile-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.facebook-profile-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.facebook-profile-photo {
+  width: clamp(2.8rem, 5vw, 3.8rem);
+  height: clamp(2.8rem, 5vw, 3.8rem);
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #f3f4f6;
+  border: 2px solid #e5e7eb;
+}
+
+.facebook-profile-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.facebook-profile-info {
+  min-width: 0;
+  text-align: center;
+}
+
+.facebook-profile-info h4 {
+  margin: 0;
+  font-size: clamp(0.95rem, 1.2vw, 1.1rem);
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.facebook-profile-info span {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: clamp(0.78rem, 1vw, 0.9rem);
+  color: #6b7280;
+  line-height: 1.3;
+}
+
+.facebook-follow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  background: #0b5ed7;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: clamp(0.82rem, 1vw, 0.95rem);
+  font-weight: 700;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.facebook-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(0.5rem, 1.5vw, 0.75rem);
+}
+
+.facebook-post {
+  display: block;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: clamp(0.75rem, 1.5vw, 1rem);
+  background: #f3f4f6;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.facebook-post img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  vertical-align: middle;
+}
+
+.facebook-footer-link {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.facebook-footer-link a {
+  color: #0b5ed7;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: clamp(0.85rem, 1vw, 1rem);
+}
+
+/* Instagram */
+.instagram-profile-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.instagram-profile-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.instagram-profile-photo {
+  width: clamp(2.8rem, 5vw, 3.8rem);
+  height: clamp(2.8rem, 5vw, 3.8rem);
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #f3f4f6;
+  border: 2px solid #e5e7eb;
+}
+
+.instagram-profile-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.instagram-profile-info {
+  min-width: 0;
+  text-align: center;
+}
+
+.instagram-profile-info h4 {
+  margin: 0;
+  font-size: clamp(0.95rem, 1.2vw, 1.1rem);
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.instagram-profile-info span {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: clamp(0.78rem, 1vw, 0.9rem);
+  color: #6b7280;
+  line-height: 1.3;
+}
+
+.instagram-follow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  background: var(--hero-theme-color, #007f7b);
+  color: #ffffff;
+  text-decoration: none;
+  font-size: clamp(0.82rem, 1vw, 0.95rem);
+  font-weight: 700;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.instagram-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(0.5rem, 1.5vw, 0.75rem);
+}
+
+.instagram-post {
+  display: block;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: clamp(0.75rem, 1.5vw, 1rem);
+  background: #f3f4f6;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.instagram-post img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  vertical-align: middle;
+}
+
+.instagram-footer-link {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.instagram-footer-link a {
+  color: var(--hero-theme-color, #007f7b);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: clamp(0.85rem, 1vw, 1rem);
+}
+
+.instagram-follow-btn:focus-visible,
+.instagram-footer-link a:focus-visible,
+.facebook-follow-btn:focus-visible,
+.facebook-footer-link a:focus-visible {
+  outline: 2px solid var(--hero-theme-color, #007f7b);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .instagram-follow-btn:hover {
+    transform: translateY(-2px);
+    opacity: 0.92;
+  }
+
+  .instagram-post:hover {
+    transform: scale(1.03);
+    opacity: 0.95;
+  }
+
+  .instagram-footer-link a:hover {
+    text-decoration: underline;
+  }
+
+  .facebook-follow-btn:hover {
+    transform: translateY(-2px);
+    opacity: 0.9;
+  }
+
+  .facebook-post:hover {
+    transform: scale(1.03);
+    opacity: 0.95;
+  }
+
+  .facebook-footer-link a:hover {
+    text-decoration: underline;
+  }
+}
+
+/* Tablet: 2 columnas y ajustes */
+@media (min-width: 640px) {
+  .social-card-header {
+    flex-direction: row;
+    text-align: left;
+    min-height: auto;
+  }
+
+  .instagram-profile-bar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .instagram-profile-left {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .instagram-profile-info {
+    text-align: left;
+  }
+
+  .instagram-follow-btn {
+    width: auto;
+  }
+
+  .instagram-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .facebook-profile-bar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .facebook-profile-left {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .facebook-profile-info {
+    text-align: left;
+  }
+
+  .facebook-follow-btn {
+    width: auto;
+  }
+
+  .facebook-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Desktop: grid 2 columnas */
+@media (min-width: 1024px) {
+  .social-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: min(100%, 1280px);
+  }
+}
+
+/* Pantallas grandes: escalado extra */
+@media (min-width: 1920px) {
+  .social-grid {
+    max-width: min(100%, 1480px);
+  }
+
+  .instagram-feed-wrap,
+  .facebook-feed-wrap {
+    max-width: min(100%, 680px);
+  }
+
+  .instagram-feed-inner,
+  .facebook-feed-inner {
+    max-width: min(100%, 600px);
+  }
+}
+
+@media (min-width: 2560px) {
+  .social-grid {
+    max-width: min(100%, 1720px);
+  }
+
+  .instagram-feed-wrap,
+  .facebook-feed-wrap {
+    max-width: min(100%, 780px);
+  }
+
+  .instagram-feed-inner,
+  .facebook-feed-inner {
+    max-width: min(100%, 700px);
+  }
+}
+

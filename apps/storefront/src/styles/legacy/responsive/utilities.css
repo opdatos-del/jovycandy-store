@@ -1,0 +1,37 @@
+@layer utilities {
+  .page-shell {
+    width: min(calc(100% - (var(--section-gutter) * 2)), calc(var(--section-max-width) * var(--content-scale)));
+    margin-inline: auto;
+  }
+
+  .page-shell-wide {
+    width: min(calc(100% - (var(--section-gutter) * 2)), calc(var(--section-max-width-wide) * var(--content-scale)));
+    margin-inline: auto;
+  }
+
+  .section-gutter {
+    padding-inline: var(--section-gutter);
+  }
+
+  .section-space {
+    padding-block: var(--section-space);
+  }
+
+  .min-h-viewport {
+    min-height: var(--viewport-h);
+  }
+
+  .max-h-viewport {
+    max-height: var(--viewport-h);
+  }
+
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .mobile-scroll::-webkit-scrollbar {
+    display: none;
+  }
+}

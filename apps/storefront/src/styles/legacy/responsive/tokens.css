@@ -1,0 +1,245 @@
+@layer base {
+  :root {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --viewport-h: 100svh;
+    --touch-target-min: 44px;
+
+    --site-nav-height: 4.5rem;
+    --section-gutter: 0.875rem;
+    --section-space: clamp(3.75rem, 8vw, 6rem);
+
+    --section-max-width: 24rem;
+    --section-max-width-wide: 26rem;
+    --hero-max-width: 25rem;
+
+    --modal-max-width: min(96vw, 28rem);
+    --modal-max-width-md: min(96vw, 32rem);
+    --modal-max-width-lg: min(96vw, 40rem);
+    --modal-max-width-xl: min(96vw, 54rem);
+
+    --content-scale: 0.97;
+    --display-scale: 0.95;
+  }
+
+  @supports (height: 100dvh) {
+    :root {
+      --viewport-h: 100dvh;
+    }
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  .touch-target {
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+  }
+
+  .touch-target-compact {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
+  body {
+    min-width: 280px;
+    min-height: var(--viewport-h);
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  img,
+  picture,
+  video,
+  canvas,
+  svg,
+  iframe {
+    display: block;
+    max-width: 100%;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@media (max-width: 359px) {
+  :root {
+    --section-gutter: 0.75rem;
+    --section-space: clamp(3.25rem, 9vw, 5.25rem);
+    --section-max-width: 22rem;
+    --section-max-width-wide: 24rem;
+    --hero-max-width: 23rem;
+    --modal-max-width: min(97vw, 26rem);
+    --modal-max-width-md: min(97vw, 30rem);
+    --modal-max-width-lg: min(97vw, 36rem);
+    --modal-max-width-xl: min(97vw, 48rem);
+    --content-scale: 0.95;
+    --display-scale: 0.93;
+  }
+}
+
+@media (min-width: 360px) {
+  :root {
+    --section-gutter: 0.875rem;
+    --section-max-width: 24rem;
+    --section-max-width-wide: 26rem;
+    --hero-max-width: 25rem;
+    --content-scale: 0.98;
+    --display-scale: 0.96;
+  }
+}
+
+@media (min-width: 390px) {
+  :root {
+    --section-gutter: 1rem;
+    --section-space: clamp(4rem, 8vw, 6.25rem);
+    --section-max-width: 25rem;
+    --section-max-width-wide: 28rem;
+    --hero-max-width: 26.5rem;
+    --modal-max-width: min(94vw, 30rem);
+    --modal-max-width-md: min(94vw, 34rem);
+    --modal-max-width-lg: min(94vw, 42rem);
+    --modal-max-width-xl: min(94vw, 56rem);
+    --content-scale: 1;
+    --display-scale: 0.98;
+  }
+}
+
+@media (min-width: 430px) {
+  :root {
+    --section-gutter: 1.125rem;
+    --site-nav-height: 4.75rem;
+    --section-max-width: 27rem;
+    --section-max-width-wide: 31rem;
+    --hero-max-width: 29rem;
+    --modal-max-width: min(92vw, 32rem);
+    --modal-max-width-md: min(92vw, 36rem);
+    --modal-max-width-lg: min(92vw, 46rem);
+    --modal-max-width-xl: min(92vw, 60rem);
+    --display-scale: 1;
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --site-nav-height: 5rem;
+    --section-gutter: 2rem;
+    --section-space: clamp(4.75rem, 7.25vw, 7.25rem);
+    --section-max-width: 44rem;
+    --section-max-width-wide: 48rem;
+    --hero-max-width: 48rem;
+    --modal-max-width: min(90vw, 36rem);
+    --modal-max-width-md: min(90vw, 42rem);
+    --modal-max-width-lg: min(90vw, 56rem);
+    --modal-max-width-xl: min(90vw, 68rem);
+    --content-scale: 1.01;
+    --display-scale: 1.02;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --site-nav-height: 5.25rem;
+    --section-gutter: 2.5rem;
+    --section-space: clamp(5.25rem, 6vw, 8rem);
+    --section-max-width: 64rem;
+    --section-max-width-wide: 72rem;
+    --hero-max-width: 72rem;
+    --modal-max-width: min(88vw, 40rem);
+    --modal-max-width-md: min(88vw, 46rem);
+    --modal-max-width-lg: min(88vw, 64rem);
+    --modal-max-width-xl: min(88vw, 74rem);
+    --content-scale: 1.02;
+    --display-scale: 1.04;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --site-nav-height: 5.5rem;
+    --section-gutter: 2.75rem;
+    --section-max-width: 78rem;
+    --section-max-width-wide: 88rem;
+    --hero-max-width: 88rem;
+    --modal-max-width: min(86vw, 44rem);
+    --modal-max-width-md: min(86vw, 52rem);
+    --modal-max-width-lg: min(86vw, 70rem);
+    --modal-max-width-xl: min(86vw, 82rem);
+    --content-scale: 1.03;
+    --display-scale: 1.06;
+  }
+}
+
+@media (min-width: 1536px) {
+  :root {
+    --section-gutter: 3.25rem;
+    --section-space: clamp(6rem, 5.4vw, 9.25rem);
+    --section-max-width: 96rem;
+    --section-max-width-wide: 108rem;
+    --hero-max-width: 108rem;
+    --modal-max-width: min(84vw, 48rem);
+    --modal-max-width-md: min(84vw, 58rem);
+    --modal-max-width-lg: min(84vw, 76rem);
+    --modal-max-width-xl: min(84vw, 90rem);
+    --content-scale: 1.06;
+    --display-scale: 1.1;
+  }
+}
+
+@media (min-width: 1920px) {
+  :root {
+    --site-nav-height: 5.75rem;
+    --section-gutter: 4rem;
+    --section-space: clamp(6.5rem, 5vw, 10rem);
+    --section-max-width: 112rem;
+    --section-max-width-wide: 126rem;
+    --hero-max-width: 126rem;
+    --modal-max-width: min(82vw, 54rem);
+    --modal-max-width-md: min(82vw, 66rem);
+    --modal-max-width-lg: min(82vw, 90rem);
+    --modal-max-width-xl: min(82vw, 104rem);
+    --content-scale: 1.12;
+    --display-scale: 1.18;
+  }
+}
+
+@media (min-width: 2240px) {
+  :root {
+    --site-nav-height: 6rem;
+    --section-gutter: 4.5rem;
+    --section-space: clamp(6.75rem, 4.8vw, 10.75rem);
+    --section-max-width: 124rem;
+    --section-max-width-wide: 140rem;
+    --hero-max-width: 140rem;
+    --modal-max-width: min(82vw, 58rem);
+    --modal-max-width-md: min(82vw, 72rem);
+    --modal-max-width-lg: min(82vw, 98rem);
+    --modal-max-width-xl: min(82vw, 112rem);
+    --content-scale: 1.15;
+    --display-scale: 1.23;
+  }
+}
+
+@media (min-width: 2560px) {
+  :root {
+    --site-nav-height: 6.25rem;
+    --section-gutter: 5rem;
+    --section-space: clamp(7rem, 4.6vw, 11.5rem);
+    --section-max-width: 136rem;
+    --section-max-width-wide: 152rem;
+    --hero-max-width: 152rem;
+    --modal-max-width: min(80vw, 62rem);
+    --modal-max-width-md: min(80vw, 76rem);
+    --modal-max-width-lg: min(80vw, 104rem);
+    --modal-max-width-xl: min(80vw, 120rem);
+    --content-scale: 1.2;
+    --display-scale: 1.28;
+  }
+}

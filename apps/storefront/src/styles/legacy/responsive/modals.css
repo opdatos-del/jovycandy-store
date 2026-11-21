@@ -1,0 +1,452 @@
+@layer components {
+  .modal-shell-overlay {
+    align-items: flex-end;
+    padding-top: calc(0.75rem + var(--safe-area-top));
+    padding-right: 0.75rem;
+    padding-bottom: calc(0.75rem + var(--safe-area-bottom));
+    padding-left: 0.75rem;
+  }
+
+  .modal-shell-surface {
+    border-radius: 1.5rem;
+    max-height: min(calc(var(--viewport-h) * 0.94), 56rem);
+  }
+
+  .modal-shell-header {
+    gap: 0.75rem;
+    padding-inline: 1rem;
+    padding-block: 1rem;
+  }
+
+  .modal-shell-subtitle {
+    letter-spacing: 0.24em;
+  }
+
+  .modal-shell-title {
+  }
+
+  .modal-shell-close {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .modal-shell-content {
+    padding-inline: 1rem;
+    padding-block: 1rem;
+  }
+
+  .location-modal-body {
+    padding-inline: 0.75rem;
+    padding-block: 0.75rem;
+  }
+
+  .location-modal-grid {
+    gap: 1rem;
+  }
+
+  .location-modal-intro {
+    gap: 1rem;
+    padding-inline: 1rem;
+    padding-block: 1rem;
+  }
+
+  .location-modal-title {
+  }
+
+  .location-modal-description {
+  }
+
+  .location-modal-frame {
+    padding: 0.625rem;
+  }
+
+  .location-modal-map {
+    height: 16rem;
+  }
+
+  .location-modal-aside {
+    gap: 1rem;
+  }
+
+  .contact-modal-layout {
+    gap: 1rem;
+  }
+
+  .contact-modal-panel {
+    padding: 1rem;
+  }
+
+  .contact-topic-list {
+    position: static;
+    top: auto;
+    align-self: auto;
+  }
+
+  .contact-topic-list-title {
+  }
+
+  .contact-topic-list-grid {
+    gap: 0.75rem;
+  }
+
+  .contact-topic-header-inner {
+    gap: 1.25rem;
+    padding: 1.25rem;
+  }
+
+  .contact-topic-header-title {
+  }
+
+  .contact-topic-header-description {
+  }
+
+  .contact-topic-icon {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .contact-form-footer {
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .contact-success-shell {
+    gap: 2rem;
+    padding: 1.25rem;
+  }
+
+  .contact-success-grid {
+    gap: 1.25rem;
+  }
+
+  .contact-success-actions {
+    gap: 0.75rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .modal-shell-overlay {
+    align-items: center;
+    padding-top: calc(1rem + (var(--safe-area-top) * 0.5));
+    padding-right: 1rem;
+    padding-bottom: calc(1rem + (var(--safe-area-bottom) * 0.35));
+    padding-left: 1rem;
+  }
+
+  .modal-shell-surface {
+    border-radius: 2rem;
+  }
+
+  .modal-shell-header {
+    gap: 1rem;
+    padding-inline: 1.5rem;
+    padding-block: 1.25rem;
+  }
+
+  .modal-shell-subtitle {
+    letter-spacing: 0.4em;
+  }
+
+  .modal-shell-title {
+  }
+
+  .modal-shell-close {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .modal-shell-content {
+    padding-inline: 1.5rem;
+    padding-block: 1.5rem;
+  }
+
+  .location-modal-body {
+    padding-inline: 1rem;
+    padding-block: 1rem;
+  }
+
+  .location-modal-title {
+  }
+
+  .location-modal-description {
+  }
+
+  .location-modal-map {
+    height: 18rem;
+  }
+
+  .contact-modal-panel {
+    padding: 1.25rem;
+  }
+
+  .contact-topic-list-title {
+  }
+
+  .contact-topic-list-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contact-topic-header-title {
+  }
+
+  .contact-topic-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+
+  .contact-form-footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem;
+  }
+
+  .contact-success-shell {
+    min-height: 24rem;
+    padding: 1.5rem;
+  }
+
+  .contact-success-actions {
+    flex-direction: row;
+  }
+}
+
+@media (min-width: 768px) {
+  .modal-shell-header {
+    padding-inline: 2rem;
+  }
+
+  .modal-shell-title {
+  }
+
+  .modal-shell-content {
+    padding-inline: 2rem;
+    padding-block: 2rem;
+  }
+
+  .location-modal-body {
+    padding-inline: 1.5rem;
+    padding-block: 1.25rem;
+  }
+
+  .location-modal-intro {
+    padding-inline: 1.25rem;
+    padding-block: 1.25rem;
+  }
+
+  .location-modal-frame {
+    padding: 0.75rem;
+  }
+
+  .location-modal-map {
+    height: 20rem;
+  }
+
+  .location-modal-aside {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contact-modal-panel {
+    padding: 1.5rem;
+  }
+
+  .contact-topic-header-inner {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 1.5rem;
+  }
+
+  .contact-topic-header-description {
+  }
+}
+
+@media (min-width: 1024px) {
+  .location-modal-intro {
+    grid-template-columns: minmax(0, 1fr) 13rem;
+    align-items: flex-start;
+  }
+
+  .contact-success-grid {
+    grid-template-columns: minmax(0, 1fr) 16rem;
+    align-items: flex-start;
+  }
+
+  .contact-modal-layout {
+    grid-template-columns: clamp(15rem, 22vw, 19.5rem) minmax(0, 1fr);
+    flex: 1;
+    min-height: 0;
+  }
+
+  .contact-topic-list {
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .contact-topic-list-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .contact-modal-panel {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  .location-modal-grid {
+    grid-template-columns: minmax(0, 1.55fr) 17.5rem;
+  }
+
+  .location-modal-map {
+    height: min(24rem, 38vh);
+  }
+
+  .location-modal-aside {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+  }
+}
+
+@media (min-width: 1536px) {
+  .modal-shell-surface {
+    max-height: min(calc(var(--viewport-h) * 0.94), 62rem);
+  }
+
+  .modal-shell-header {
+    padding-inline: clamp(2rem, 2.2vw, 2.75rem);
+    padding-block: clamp(1.25rem, 1.7vw, 1.8rem);
+  }
+
+  .modal-shell-title {
+  }
+
+  .modal-shell-content {
+    padding-inline: clamp(2rem, 2.2vw, 2.9rem);
+    padding-block: clamp(1.75rem, 1.8vw, 2.5rem);
+  }
+
+  .location-modal-map {
+    height: min(26rem, 42vh);
+  }
+}
+
+@media (min-width: 1920px) {
+  .modal-shell-overlay {
+    padding-top: calc(1.4rem + (var(--safe-area-top) * 0.35));
+    padding-right: 1.5rem;
+    padding-bottom: calc(1.4rem + (var(--safe-area-bottom) * 0.3));
+    padding-left: 1.5rem;
+  }
+
+  .modal-shell-surface {
+    max-height: min(calc(var(--viewport-h) * 0.95), 68rem);
+  }
+
+  .modal-shell-title {
+  }
+
+  .modal-shell-close {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .location-modal-grid {
+    grid-template-columns: minmax(0, 1.6fr) 19.5rem;
+  }
+
+  .location-modal-map {
+    height: min(28rem, 45vh);
+  }
+
+  .contact-modal-layout {
+    grid-template-columns: clamp(15rem, 22vw, 21rem) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 2560px) {
+  .modal-shell-overlay {
+    padding-top: calc(1.75rem + (var(--safe-area-top) * 0.35));
+    padding-right: 2rem;
+    padding-bottom: calc(1.75rem + (var(--safe-area-bottom) * 0.3));
+    padding-left: 2rem;
+  }
+
+  .modal-shell-surface {
+    max-height: min(calc(var(--viewport-h) * 0.95), 74rem);
+  }
+
+  .modal-shell-subtitle {
+    letter-spacing: 0.48em;
+  }
+
+  .modal-shell-close {
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+
+  .location-modal-map {
+    height: min(31rem, 44vh);
+  }
+}
+
+@media (min-width: 3440px) {
+  .modal-shell-overlay {
+    padding-top: calc(2rem + (var(--safe-area-top) * 0.3));
+    padding-right: 2.5rem;
+    padding-bottom: calc(2rem + (var(--safe-area-bottom) * 0.25));
+    padding-left: 2.5rem;
+  }
+
+  .modal-shell-surface {
+    max-height: min(calc(var(--viewport-h) * 0.95), 80rem);
+  }
+
+  .modal-shell-header {
+    padding-inline: clamp(2.75rem, 2.5vw, 3.5rem);
+    padding-block: clamp(1.8rem, 1.6vw, 2.25rem);
+  }
+
+  .modal-shell-subtitle {
+    letter-spacing: 0.52em;
+  }
+
+  .modal-shell-close {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+
+  .modal-shell-content {
+    padding-inline: clamp(2.75rem, 2.5vw, 3.5rem);
+    padding-block: clamp(2rem, 1.8vw, 2.75rem);
+  }
+
+  .location-modal-grid {
+    grid-template-columns: minmax(0, 1.65fr) 22rem;
+  }
+
+  .location-modal-map {
+    height: min(34rem, 46vh);
+  }
+
+  .contact-modal-layout {
+    grid-template-columns: 24rem minmax(0, 1fr);
+  }
+
+  .contact-topic-header-inner {
+    padding: clamp(1.75rem, 1.5vw, 2.5rem);
+    gap: clamp(1.5rem, 1.5vw, 2.5rem);
+  }
+
+  .contact-topic-header-title {
+  }
+
+  .contact-topic-header-description {
+  }
+
+  .contact-topic-icon {
+    width: clamp(3.75rem, 3vw, 5rem);
+    height: clamp(3.75rem, 3vw, 5rem);
+  }
+}

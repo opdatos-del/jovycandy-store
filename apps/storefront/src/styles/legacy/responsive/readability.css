@@ -1,0 +1,131 @@
+@layer components {
+  .app-final-cta-button {
+    @apply text-xs;
+    letter-spacing: clamp(0.18em, 0.14em + 0.18vw, 0.3em);
+  }
+
+  .app-footer-nav {
+    @apply text-sm lg:text-base;
+  }
+
+  .app-footer-info-item {
+    @apply text-sm;
+  }
+
+  .app-footer-copy {
+    @apply text-xs lg:text-sm;
+  }
+
+  .hero-promo-chip {
+    @apply text-xs lg:text-sm;
+  }
+
+  .hero-promo-note {
+    @apply text-base lg:text-lg;
+  }
+
+  .scroll-logo-hint-kicker {
+    @apply text-xs lg:text-sm;
+  }
+
+  .scroll-logo-hint-text {
+    @apply text-2xl lg:text-3xl;
+  }
+
+  .tagline-copy-text {
+    @apply text-2xl sm:text-3xl md:text-4xl;
+  }
+
+  .certifications-eyebrow {
+    @apply text-xs lg:text-sm;
+  }
+
+  .certifications-body {
+    @apply text-sm lg:text-base;
+    line-height: 1.5;
+  }
+
+  .category-grid-title {
+    @apply text-xs lg:text-sm;
+  }
+
+  .catalog-carousel-title {
+    @apply text-sm lg:text-base;
+  }
+
+  .catalog-carousel-filter-label,
+  .catalog-carousel-filter-chip,
+  .catalog-carousel-logo-fallback--mobile {
+    @apply text-xs;
+  }
+
+  .catalog-carousel-name {
+    @apply text-base lg:text-lg;
+  }
+
+  .catalog-carousel-spec {
+    @apply text-sm lg:text-base;
+  }
+
+  .modal-shell-subtitle {
+    @apply text-xs;
+  }
+
+  .location-modal-description,
+  .contact-topic-header-description {
+    @apply text-sm;
+  }
+
+  .contact-topic-list-title {
+    @apply text-lg lg:text-xl;
+    letter-spacing: 0.03em;
+  }
+
+  .certifications-title {
+    @apply text-3xl md:text-4xl lg:text-5xl;
+    letter-spacing: 0.03em;
+  }
+
+  .modal-shell-title {
+    @apply text-2xl sm:text-3xl;
+    letter-spacing: 0.03em;
+  }
+
+  .location-modal-title {
+    @apply text-2xl sm:text-3xl;
+    letter-spacing: 0.03em;
+  }
+
+  .contact-topic-header-title {
+    @apply text-2xl sm:text-3xl;
+    letter-spacing: 0.03em;
+  }
+
+  .category-card-title {
+    @apply text-2xl md:text-3xl lg:text-4xl;
+    letter-spacing: 0.03em;
+  }
+
+  .app-final-cta-title {
+    @apply text-3xl sm:text-4xl;
+    letter-spacing: 0.03em;
+  }
+}
+
+@media (max-width: 389px) {
+  @layer components {
+    .app-final-cta-button {
+      font-size: 0.74rem;
+      letter-spacing: 0.18em;
+    }
+
+    .scroll-logo-hint-kicker {
+      letter-spacing: 0.22em;
+    }
+
+    .scroll-logo-hint-text {
+      font-size: clamp(1.36rem, 7vw, 1.72rem);
+      letter-spacing: 0.08em;
+    }
+  }
+}

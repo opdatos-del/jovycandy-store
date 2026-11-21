@@ -1,1 +1,95 @@
 @import "tailwindcss";
+@import "../styles/legacy/typography.css";
+@import "../styles/legacy/responsive/index.css";
+@import "../styles/legacy/responsive/AppFooter.css";
+
+@theme {
+  --font-sans: "Arial Narrow", Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --color-stone-300: #b9afa7;
+  --color-stone-400: #8f847b;
+  --color-stone-500: #6f655d;
+  --color-stone-600: #564d46;
+  --color-stone-700: #433b35;
+}
+
+@layer base {
+  :root {
+    --page-ivory: #fff5d4;
+    --page-cream: #fff1bf;
+    --page-aqua: #e8fbf7;
+    --page-blush: #fff0ec;
+    --page-blue: #edf5ff;
+    --page-line: #ffd88f;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    overflow-x: clip;
+    background: var(--page-ivory);
+  }
+
+  html.scroll-behavior-auto {
+    scroll-behavior: auto;
+  }
+
+  body {
+    @apply antialiased text-stone-900;
+    background: var(--page-ivory);
+  }
+
+  #root {
+    isolation: isolate;
+  }
+
+  #inicio,
+  #eventos,
+  #certificaciones,
+  #tienda,
+  #nuestra-esencia {
+    scroll-margin-top: calc(var(--site-nav-height) + clamp(0.75rem, 2vw, 1.5rem));
+  }
+
+  ::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.jovy-easter-animate {
+  animation: jovy-ease 850ms cubic-bezier(0.2, 1, 0.3, 1);
+  transform-origin: center;
+}
+
+@keyframes jovy-ease {
+  0% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.18) rotate(-6deg); }
+  60% { transform: scale(0.98) rotate(4deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  .mobile-scroll {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+.mix-blend-difference {
+  mix-blend-mode: difference;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

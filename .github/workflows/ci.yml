@@ -47,6 +47,12 @@ jobs:
           path: apps/backend/.medusa/types
           include-hidden-files: true
           if-no-files-found: error
+      - name: Build storefront
+        run: pnpm --filter storefront build
+        env:
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://127.0.0.1:9000
+          NEXT_PUBLIC_MEDUSA_PUBLISHABLE_API_KEY: pk_ci_placeholder
 
   static:
     name: Tipos, lint y unitarias
