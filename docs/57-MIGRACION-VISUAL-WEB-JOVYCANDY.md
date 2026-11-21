@@ -44,7 +44,7 @@ No se copió la aplicación Vite como dependencia ni se levantó un segundo fron
 | `features/hero/Hero.tsx` + hooks | `components/home/hero-promo.tsx` | Conserva marquesina, destello giratorio, rotación de productos y CTA |
 | `features/events-gallery/UpcomingEvents.tsx` | `components/home/events-section.tsx` | Carrusel con tarjetas tipo póster y ola hacia Certificaciones; sin modal de video |
 | `features/certifications/Certifications.tsx` | `components/home/certifications.tsx` | Migrado |
-| `features/catalog/CategoryGrid.tsx` | `components/home/category-explorer.tsx` | Migrado con panel de productos y estados |
+| `features/catalog/CategoryGrid.tsx` | `components/home/category-explorer.tsx` | Grid 3×2 con isotype grande, tinte por categoría, crossfade al hover y panel de acento con filtros por gramaje y carrusel |
 | `features/tagline/TaglineSection.tsx` | `components/home/casa-jovy.tsx` | Migrado; galería y redes |
 | `features/about/About.tsx` | `components/home/about-section.tsx` | Layout de dos columnas: video con título superpuesto y capas Misión/Visión/Valores con iconos, acordeón móvil y rejilla de valores en escritorio |
 | `app/layout/AppFooter.tsx` | `components/layout/site-footer.tsx` | Migrado; feed social |
@@ -53,7 +53,7 @@ No se copió la aplicación Vite como dependencia ni se levantó un segundo fron
 | `features/lang-selector` | enlaces `/es` y `/en` | Sustituido por rutas localizadas |
 | `features/promo-banner/PromoBanner.tsx` | `components/dialogs/upcoming-events-dialog.tsx` | **IMPLEMENTADO**: modal con banners `promo` del CMS + eventos como anuncios, carrusel, auto-open por frecuencia y disparo desde el header |
 | `features/intro/Intro.tsx` | no usado | El histórico tampoco lo monta en `AppSections` |
-| `features/catalog` carrusel/technical sheet | panel simplificado | **PENDIENTE** de paridad completa |
+| `features/catalog` carrusel/technical sheet | Carrusel y panel implementados; la ficha técnica sigue enlazando a la página de producto | **PARIDAD VISUAL** |
 
 ## 4. Sistema visual
 
