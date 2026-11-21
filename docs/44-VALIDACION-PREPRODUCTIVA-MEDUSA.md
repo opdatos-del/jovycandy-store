@@ -23,7 +23,7 @@
 | Bootstrap/recovery | Módulo + comando + auditoría | VERIFICADO en local |
 | Errores de autorización | Denegación por defecto | VERIFICADO por código y pruebas de ruta |
 | Migraciones | `jovy_authz_*` aplicadas; sin `rbac_*` | VERIFICADO |
-| CI | Workflow creado; no ejecutado en GitHub | IMPLEMENTADO, NO EJECUTADO |
+| CI | Workflow ejecutado en GitHub: run `44906197461` | VERIFICADO |
 
 ## 2. Qué no se pudo validar
 
@@ -126,7 +126,7 @@ esenciales para producción**:
 - [ ] Cookies `Secure`/`HttpOnly`/`SameSite` comprobadas en navegador.
 - [ ] Backup y restauración ensayados y documentados.
 - [ ] Invalidación distribuida o decisión formal de operar una sola instancia con ventana aceptada.
-- [ ] CI ejecutado y verde en GitHub.
+- [x] CI ejecutado y verde en GitHub.
 - [ ] Sidebar nativo resuelto (licencia o panel operativo restringido) o aceptación formal del requisito de UX.
 - [ ] Prueba de concurrencia y de caída de PostgreSQL.
 - [ ] Filtrado por campo evaluado y, si aplica, implementado.

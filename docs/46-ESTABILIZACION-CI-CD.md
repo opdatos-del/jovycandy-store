@@ -158,7 +158,17 @@ Worktree en `HEAD`, sin `.medusa` ni `.next`:
 
 ### GitHub Actions
 
-Tras publicar este cambio se debe comprobar la nueva ejecución. El criterio de cierre exige todos los jobs obligatorios en verde; mientras la ejecución remota esté pendiente, la entrega se considera **EN VALIDACIÓN**, no completada.
+Ejecución verificada: **[CI run 44906197461](https://github.com/opdatos-del/jovycandy-store/actions/runs/44906197461)** sobre `e15d6f0`.
+
+| Job | Resultado |
+|---|---|
+| Tipos Medusa y build | PASS |
+| Tipos, lint y unitarias | PASS |
+| Integración de módulos | PASS |
+| Integración HTTP | PASS |
+| Secretos y dependencias | PASS |
+
+**Todos los jobs obligatorios verdes.** Queda una anotación no bloqueante de GitHub sobre acciones que aún declaran Node 20; se resolverá al actualizar las versiones de las acciones, no afecta al resultado.
 
 ## 8. Archivos modificados
 
@@ -171,11 +181,11 @@ Tras publicar este cambio se debe comprobar la nueva ejecución. El criterio de 
 
 - Los avisos moderados siguen presentes en dependencias transitivas.
 - No hay job E2E en CI.
-- La instalación limpia se validó en Windows con el mismo lockfile; la ejecución Linux definitiva es la de GitHub Actions.
+- La instalación limpia se validó en Windows con el mismo lockfile; Linux queda cubierto por la ejecución verde de GitHub Actions.
 - `medusa build` en CI usa variables ficticias; no conecta a base de datos, pero cualquier cambio futuro que introduzca conexión en build rompería el job.
+- GitHub muestra una anotación de deprecación de Node 20 en las acciones; no es un fallo del pipeline.
 
 ## 10. Siguiente entrega
 
-1. Confirmar la ejecución de GitHub Actions completamente verde.
-2. Si el artefacto `.medusa/types` falla en Actions, sustituir por ejecución de `medusa build` dentro del job `static` (sin cambiar el código).
-3. Continuar con staging (`docs/47`) y el inventario de APIs públicas del storefront.
+1. Mantener el pipeline verde y actualizar las acciones a versiones con Node 24 cuando sea compatible.
+2. Continuar con staging (`docs/47`) y el inventario de APIs públicas del storefront.
