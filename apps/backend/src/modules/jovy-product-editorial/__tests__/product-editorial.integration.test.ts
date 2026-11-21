@@ -83,18 +83,38 @@ moduleIntegrationTestRunner<JovyProductEditorialModuleService>({
     })
 
     it("ordena por sort_order con desempate determinista", async () => {
-      const created = await service.createProductEditorials([
+      await service.createProductEditorials([
         { product_id: "prod_order_b", sort_order: 1 },
         { product_id: "prod_order_a", sort_order: 0 },
         { product_id: "prod_order_c", sort_order: 1 },
       ])
 
-      const ordered = [...created].sort(compareProductEditorialOrder)
-      expect(ordered.map((editorial) => editorial.product_id)).toEqual([
-        "prod_order_a",
-        "prod_order_b",
-        "prod_order_c",
-      ])
+      const rows = (await service.listProductEditorials({})).filter((editorial) =>
+        editorial.product_id.startsWith("prod_order_"),
+      )
+      expect(rows).toHaveLength(3)
+
+      const ordered = [...rows].sort(compareProductEditorialOrder)
+      expect(ordered.map((editorial) => editorial.sort_order)).toEqual([0, 1, 1])
+      expect(ordered[0].product_id).toBe("prod_order_a")
+
+      // `created_at` e `id` son la fuente del desempate; no se fija un orden
+      // artificial entre fichas creadas en el mismo lote con ids aleatorios.
+      const tied = ordered.filter((editorial) => editorial.sort_order === 1)
+      const expectedTied = [...tied].sort((a, b) => {
+        const timeA = new Date(a.created_at as Date | string).getTime()
+        const timeB = new Date(b.created_at as Date | string).getTime()
+        if (timeA !== timeB) return timeA - timeB
+        return String(a.id).localeCompare(String(b.id))
+      })
+      expect(tied.map((editorial) => editorial.id)).toEqual(
+        expectedTied.map((editorial) => editorial.id),
+      )
+
+      const secondPass = [...ordered].sort(compareProductEditorialOrder)
+      expect(secondPass.map((editorial) => editorial.id)).toEqual(
+        ordered.map((editorial) => editorial.id),
+      )
     })
   },
 })

@@ -14,9 +14,12 @@ env:
   PNPM_VERSION: "11.17.0"
 
 jobs:
-  static:
-    name: Tipos, lint y unitarias
+  # Medusa genera `.medusa/types` durante el build. Sin esos artefactos el
+  # typecheck no conoce los servicios de los módulos y falla con TS18046.
+  build:
+    name: Tipos Medusa y build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,15 +30,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Typecheck backend
-        run: pnpm --filter @dtc/backend typecheck
-      - name: Typecheck storefront
-        run: pnpm --filter storefront typecheck
-      - name: Lint
-        run: pnpm lint
-      - name: Unitarias backend
-        run: pnpm --dir apps/backend test:unit
-      - name: Build backend
+      - name: Generar tipos y compilar
         run: pnpm --filter @dtc/backend build
         env:
           NODE_ENV: production
@@ -45,17 +40,54 @@ jobs:
           STORE_CORS: http://localhost:3000
           ADMIN_CORS: http://localhost:9000
           AUTH_CORS: http://localhost:3000,http://localhost:9000
+      - name: Publicar tipos generados
+        uses: actions/upload-artifact@v4
+        with:
+          name: medusa-types
+          path: apps/backend/.medusa/types
+          include-hidden-files: true
+          if-no-files-found: error
 
-  integration:
-    name: Integración de módulos y HTTP
+  static:
+    name: Tipos, lint y unitarias
+    needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Descargar tipos Medusa
+        uses: actions/download-artifact@v4
+        with:
+          name: medusa-types
+          path: apps/backend/.medusa/types
+      - name: Typecheck backend
+        run: pnpm --filter @dtc/backend typecheck
+      - name: Typecheck storefront
+        run: pnpm --filter storefront typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Unitarias backend
+        run: pnpm --dir apps/backend test:unit
+
+  integration-modules:
+    name: Integración de módulos
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: medusa_ci
+          POSTGRES_DB: medusa_ci_modules
         ports: ["5432:5432"]
         options: >-
           --health-cmd pg_isready
@@ -67,7 +99,7 @@ jobs:
       DB_PORT: "5432"
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci_modules
       JWT_SECRET: ci-integration-jwt-secret
       COOKIE_SECRET: ci-integration-cookie-secret
       STORE_CORS: http://localhost:3000
@@ -85,12 +117,52 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Integración de módulos
         run: pnpm --dir apps/backend test:integration:modules
+
+  integration-http:
+    name: Integración HTTP
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medusa_ci_http
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci_http
+      JWT_SECRET: ci-integration-jwt-secret
+      COOKIE_SECRET: ci-integration-cookie-secret
+      STORE_CORS: http://localhost:3000
+      ADMIN_CORS: http://localhost:9000
+      AUTH_CORS: http://localhost:3000,http://localhost:9000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Integración HTTP (matriz de seguridad)
         run: pnpm --dir apps/backend test:integration:http
 
   security:
     name: Secretos y dependencias
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -107,6 +179,5 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Auditoría de dependencias (informativa)
+      - name: Auditoría de dependencias
         run: pnpm audit --prod --audit-level high
-        continue-on-error: true
