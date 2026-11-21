@@ -15,7 +15,16 @@ export function Certifications({ dictionary }: CertificationsProps) {
   const sectionTitle = dictionary.certifications.title
 
   return (
-    <section id="certificaciones" className="certifications-section relative z-20 overflow-hidden bg-[linear-gradient(180deg,#d61f4d_0%,#c2412d_100%)] pb-28 pt-14 sm:pb-32 sm:pt-20">
+    <section
+      id="certificaciones"
+      className="certifications-section relative z-20 overflow-hidden bg-[linear-gradient(180deg,#d61f4d_0%,#c2412d_100%)] pb-28 pt-28 sm:pb-32 sm:pt-32"
+      style={{
+        paddingTop: "clamp(6rem, 9vw, 10rem)",
+        paddingBottom: "clamp(4.5rem, 7vw, 7rem)",
+      }}
+    >
+      <SectionWave fill="#fff5d4" position="top" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-[#fff5d4]" />
       <div className="flex justify-center px-4">
         <h2 className="font-mono text-xs uppercase tracking-[0.35em] text-white/80 opacity-90 lg:text-sm">{dictionary.certifications.eyebrow}</h2>
       </div>

@@ -13,7 +13,7 @@ type SiteHeaderProps = {
   dictionary: Dictionary
 }
 
-function openDialog(name: "contact" | "location") {
+function openDialog(name: "contact" | "location" | "events") {
   window.dispatchEvent(new CustomEvent(`jovy:${name}:open`))
 }
 
@@ -23,8 +23,7 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
   const menuRef = useRef<HTMLDialogElement>(null)
 
   const nav = [
-    { key: "home", href: `/${locale}` },
-    { key: "upcomingEvents", href: `/${locale}#eventos` },
+    { key: "upcomingEvents", action: "events" },
     { key: "store", href: `/${locale}/catalogo` },
     { key: "contact", action: "contact" },
     { key: "location", action: "location" },
@@ -48,15 +47,13 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
   const otherPath = pathname.replace(/^\/(es|en)/, `/${otherLocale}`) || `/${otherLocale}`
 
   const navLabel = (key: (typeof nav)[number]["key"]) =>
-    key === "home"
-      ? dictionary.nav.home
-      : key === "upcomingEvents"
-        ? dictionary.nav.upcomingEvents
-        : key === "store"
-          ? dictionary.nav.store
-          : key === "contact"
-            ? dictionary.nav.contact
-            : dictionary.nav.location
+    key === "upcomingEvents"
+      ? dictionary.nav.upcomingEvents
+      : key === "store"
+        ? dictionary.nav.store
+        : key === "contact"
+          ? dictionary.nav.contact
+          : dictionary.nav.location
 
   return (
     <header className={`fixed inset-x-0 top-0 z-40 transition-colors ${open ? "bg-[#edf5ff]" : "bg-transparent"}`}>
@@ -78,19 +75,14 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
           </Link>
 
           <div className="hidden items-center gap-3 lg:flex">
-            <nav className="flex items-center gap-2" aria-label={dictionary.nav.home}>
+            <nav className="flex items-center gap-2" aria-label={dictionary.nav.navigation}>
               {nav.map((item) =>
                 "href" in item ? (
                   <a
                     key={item.key}
                     href={item.href}
-                    className={`inline-flex min-h-[44px] items-center gap-2 rounded-full px-4 py-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] shadow-sm transition xl:text-[0.66rem] ${
-                      item.key === "upcomingEvents"
-                        ? "border border-[#ff5f6d] bg-white/70 text-[#e8465b] hover:bg-white"
-                        : "border border-[#0d3b6e]/15 bg-white/70 text-[#0d3b6e] hover:bg-white"
-                    }`}
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#0d3b6e]/15 bg-white/70 px-4 py-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-[#0d3b6e] shadow-sm transition hover:bg-white xl:text-[0.66rem]"
                   >
-                    {item.key === "upcomingEvents" ? <span className="h-1.5 w-1.5 rounded-full bg-[#ff5f6d]" /> : null}
                     {navLabel(item.key)}
                   </a>
                 ) : (
@@ -98,8 +90,13 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
                     key={item.key}
                     type="button"
                     onClick={() => openDialog(item.action)}
-                    className="inline-flex min-h-[44px] items-center rounded-full border border-[#0d3b6e]/15 bg-white/70 px-4 py-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-[#0d3b6e] shadow-sm transition hover:bg-white xl:text-[0.66rem]"
+                    className={`inline-flex min-h-[44px] items-center gap-2 rounded-full px-4 py-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] shadow-sm transition xl:text-[0.66rem] ${
+                      item.key === "upcomingEvents"
+                        ? "border border-[#ff5f6d] bg-white/70 text-[#e8465b] hover:bg-white"
+                        : "border border-[#0d3b6e]/15 bg-white/70 text-[#0d3b6e] hover:bg-white"
+                    }`}
                   >
+                    {item.key === "upcomingEvents" ? <span className="h-1.5 w-1.5 rounded-full bg-[#ff5f6d]" /> : null}
                     {navLabel(item.key)}
                   </button>
                 ),
@@ -162,7 +159,7 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
           </button>
         </div>
         <div className="px-6 pt-8">
-          <nav className="flex flex-col gap-5" aria-label={dictionary.nav.home}>
+          <nav className="flex flex-col gap-5" aria-label={dictionary.nav.navigation}>
             {nav.map((item) =>
               "href" in item ? (
                 <a
@@ -179,7 +176,7 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
                   type="button"
                   onClick={() => {
                     setOpen(false)
-                    openDialog(item.action)
+                    window.setTimeout(() => openDialog(item.action), 0)
                   }}
                   className="border-b border-[#0d3b6e]/10 pb-4 text-left text-xl font-semibold uppercase tracking-[0.12em] text-[#0d3b6e]"
                 >

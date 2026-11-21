@@ -3,8 +3,10 @@ import { notFound } from "next/navigation"
 
 import { ContactDialog } from "@/components/dialogs/contact-dialog"
 import { LocationDialog } from "@/components/dialogs/location-dialog"
+import { UpcomingEventsDialog } from "@/components/dialogs/upcoming-events-dialog"
 import { SiteFooter } from "@/components/layout/site-footer"
 import { SiteHeader } from "@/components/layout/site-header"
+import { getHomeContent } from "@/lib/cms/client"
 import { getDictionary, isLocale, locales, type Locale } from "@/lib/i18n"
 
 import "../globals.css"
@@ -42,6 +44,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
   if (!isLocale(locale)) notFound()
 
   const dictionary = getDictionary(locale as Locale)
+  const content = await getHomeContent(locale as Locale)
 
   return (
     <html lang={locale}>
@@ -54,6 +57,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
           {locale === "es" ? "Saltar al contenido" : "Skip to content"}
         </a>
         <SiteHeader locale={locale as Locale} dictionary={dictionary} />
+        <UpcomingEventsDialog banners={content.promo} events={content.events} dictionary={dictionary} />
         {children}
         <SiteFooter locale={locale as Locale} dictionary={dictionary} />
         <ContactDialog locale={locale as Locale} dictionary={dictionary} />

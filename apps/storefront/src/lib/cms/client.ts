@@ -57,6 +57,9 @@ export type CmsBanner = {
   ctaLabel: string | null
   ctaUrl: string | null
   image: string | null
+  autoOpen: boolean
+  frequency: "every" | "session" | "daily" | "once"
+  rotationSeconds: number
 }
 
 export type CmsAnnouncement = {
@@ -113,6 +116,9 @@ type RawBanner = {
   translations?: Record<string, { title?: string; alt?: string; description?: string; cta_label?: string }>
   media_url?: string | null
   cta_url?: string | null
+  auto_open?: boolean | null
+  frequency?: string | null
+  rotation_seconds?: number | null
 }
 
 type RawEvent = {
@@ -408,6 +414,10 @@ function normalizeProduct(raw: RawProduct): CmsProduct | null {
 
 function normalizeBanner(raw: RawBanner, locale: Locale): CmsBanner {
   const translation = raw.translations?.[locale] ?? raw.translations?.es ?? {}
+  const frequency =
+    raw.frequency === "every" || raw.frequency === "session" || raw.frequency === "daily" || raw.frequency === "once"
+      ? raw.frequency
+      : "every"
   return {
     id: raw.id,
     title: translation.title ?? "",
@@ -416,6 +426,9 @@ function normalizeBanner(raw: RawBanner, locale: Locale): CmsBanner {
     ctaLabel: translation.cta_label ?? null,
     ctaUrl: raw.cta_url ?? null,
     image: raw.media_url ?? null,
+    autoOpen: Boolean(raw.auto_open),
+    frequency,
+    rotationSeconds: typeof raw.rotation_seconds === "number" ? raw.rotation_seconds : 8,
   }
 }
 
@@ -500,7 +513,9 @@ export async function getHomeContent(locale: Locale): Promise<HomeContent> {
 
   return {
     hero,
-    promo: (promoPayload?.banners ?? []).map((banner) => normalizeBanner(banner, locale)),
+    promo: (promoPayload?.banners ?? [])
+      .map((banner) => normalizeBanner(banner, locale))
+      .filter((banner) => banner.image && !/demo/i.test(`${banner.title} ${banner.alt}`)),
     categories,
     products: products.length ? products : FALLBACK_PRODUCTS,
     events: cmsEvents.length ? cmsEvents : FALLBACK_EVENTS,

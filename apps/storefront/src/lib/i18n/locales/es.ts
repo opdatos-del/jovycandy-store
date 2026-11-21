@@ -23,6 +23,7 @@ const es = {
     openMenu: "Abrir menú",
     closeMenu: "Cerrar menú",
     home: "Inicio",
+    navigation: "Navegación principal",
     aboutUs: "Quiénes Somos",
     store: "Tienda",
     certifications: "Certificaciones",
@@ -32,6 +33,12 @@ const es = {
   events: {
     title: "Novedades",
     swipeHint: "Desliza para ver más",
+    modalSubtitle: "Anuncios y próximos eventos de Jovy",
+    viewFull: "Ver en tamaño completo",
+    previous: "Novedades anteriores",
+    next: "Siguientes novedades",
+    goToPage: "Ir a la página",
+    close: "Cerrar",
     months: [
       "Enero",
       "Febrero",

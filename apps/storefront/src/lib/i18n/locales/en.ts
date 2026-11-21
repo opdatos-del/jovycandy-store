@@ -23,6 +23,7 @@ const en = {
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
     home: 'Home',
+    navigation: 'Main navigation',
     aboutUs: 'About Us',
     store: 'Store',
     certifications: 'Certifications',
@@ -32,6 +33,12 @@ const en = {
   events: {
     title: 'News',
     swipeHint: 'Swipe to see more',
+    modalSubtitle: 'Jovy announcements and upcoming events',
+    viewFull: 'View full size',
+    previous: 'Previous news',
+    next: 'Next news',
+    goToPage: 'Go to page',
+    close: 'Close',
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
   },
   certifications: {

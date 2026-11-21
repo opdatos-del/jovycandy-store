@@ -38,7 +38,7 @@ No se copió la aplicación Vite como dependencia ni se levantó un segundo fron
 | Histórico | Nuevo | Estado |
 |---|---|---|
 | `app/App.tsx` | `src/app/[locale]/layout.tsx` + `page.tsx` | Migrado con estructura distinta |
-| `app/navigation/AppNavbar*` | `components/layout/site-header.tsx` | Migrado; menú móvil y pills ES/EN |
+| `app/navigation/AppNavbar*` | `components/layout/site-header.tsx` | Migrado; menú móvil, pills ES/EN y “Próximos Eventos” abre el modal de anuncios en lugar de navegar |
 | `app/layout/AppSections.tsx` | `app/[locale]/page.tsx` | Migrado |
 | `features/scroll-logo/ScrollLogo.tsx` | `components/home/scroll-logo.tsx` | Animación de scroll con 60 frames, reducida a 150svh |
 | `features/hero/Hero.tsx` + hooks | `components/home/hero-promo.tsx` | Conserva marquesina, destello giratorio, rotación de productos y CTA |
@@ -46,12 +46,12 @@ No se copió la aplicación Vite como dependencia ni se levantó un segundo fron
 | `features/certifications/Certifications.tsx` | `components/home/certifications.tsx` | Migrado |
 | `features/catalog/CategoryGrid.tsx` | `components/home/category-explorer.tsx` | Migrado con panel de productos y estados |
 | `features/tagline/TaglineSection.tsx` | `components/home/casa-jovy.tsx` | Migrado; galería y redes |
-| `features/about/About.tsx` | `components/home/about-section.tsx` | Migrado; video y capas |
+| `features/about/About.tsx` | `components/home/about-section.tsx` | Layout de dos columnas: video con título superpuesto y capas Misión/Visión/Valores con iconos, acordeón móvil y rejilla de valores en escritorio |
 | `app/layout/AppFooter.tsx` | `components/layout/site-footer.tsx` | Migrado; feed social |
 | `features/contact/ContactModal.tsx` | `components/dialogs/contact-dialog.tsx` | Migrado; 4 bandejas y POST real |
 | `features/location/LocationModal.tsx` | `components/dialogs/location-dialog.tsx` | Migrado |
 | `features/lang-selector` | enlaces `/es` y `/en` | Sustituido por rutas localizadas |
-| `features/promo-banner/PromoBanner.tsx` | pendiente | **PENDIENTE** |
+| `features/promo-banner/PromoBanner.tsx` | `components/dialogs/upcoming-events-dialog.tsx` | **IMPLEMENTADO**: modal con banners `promo` del CMS + eventos como anuncios, carrusel, auto-open por frecuencia y disparo desde el header |
 | `features/intro/Intro.tsx` | no usado | El histórico tampoco lo monta en `AppSections` |
 | `features/catalog` carrusel/technical sheet | panel simplificado | **PENDIENTE** de paridad completa |
 
@@ -85,8 +85,8 @@ No se introdujo una paleta nueva. Las clases y variables históricas se conserva
 | Destello de luz giratorio del hero | Rayos con `repeating-conic-gradient` y máscara radial sobre `hero-rays-spin` | **IMPLEMENTADO** |
 | Rotación automática de productos del hero | Rotación cada 4 s con fundido entre productos del CMS, con respaldo del catálogo local | **IMPLEMENTADO** |
 | Aparición de secciones | Transiciones CSS y animaciones históricas | **PARCIAL** (no todas las variantes `motion`) |
-| Carrusel de Novedades con drag | Scroll horizontal nativo | **PARCIAL** |
-| Modal de evento con video | No implementado | **PENDIENTE** |
+| Carrusel de Novedades con drag | Scroll horizontal con arrastre de puntero, flechas, indicadores y `snap` | **IMPLEMENTADO** |
+| Modal de evento con video | `<dialog>` nativo con imagen completa o vídeo y cierre por fondo/Escape | **IMPLEMENTADO** |
 | Selector de categoría con panel | Estado React y panel inline | **IMPLEMENTADO** |
 | Lightbox de galería Casa Jovy | No implementado | **PENDIENTE** |
 | Menú móvil | Overlay con bloqueo de scroll | **IMPLEMENTADO** |
@@ -144,6 +144,7 @@ Diferencias conocidas:
 - El carrusel de Novedades no abre el modal de video histórico.
 - La galería Casa Jovy no tiene lightbox.
 - El hero rota productos como el sitio publicado: usa los productos del CMS con imagen válida y, mientras el contenido local sea demo, cae al catálogo oficial de respaldo.
+- Novedades y Certificaciones se separan con una franja crema y una onda superior en la sección roja, para que ambas secciones no se mezclen.
 - El contenido local del CMS es demo; por eso el fallback editorial usa assets oficiales.
 
 ## 9. Pruebas ejecutadas
@@ -166,7 +167,7 @@ Diferencias conocidas:
 - **No hay commit ni push** de esta entrega; el árbol está modificado.
 - Los enlaces de producto del fallback sin `handle` llevan al catálogo, no a una ficha individual.
 - El carrito, checkout y cuentas **no están implementados** en esta entrega.
-- El modal de evento, lightbox de galería y promo banner están pendientes.
+- El lightbox de galería de Casa Jovy sigue pendiente; los modales de evento, anuncios y promo ya están implementados.
 - El contenido CMS local es demo; la paridad editorial final depende de cargar contenido real.
 - Las imágenes usan `<img>` en varios puntos; queda pendiente migrar a `next/image` con `remotePatterns` y medir LCP.
 - La página de producto solo resuelve productos CMS con `handle`; los fallbacks no tienen ficha propia.
