@@ -7,7 +7,7 @@
  * - crea/verifica la región México;
  * - crea la región fiscal de México;
  * - reutiliza el stock location y el shipping profile existentes;
- * - crea una zona de fulfillment y opciones de envío DEMO para México;
+ * - crea una zona de fulfillment y opciones de envío de laboratorio para México;
  * - deja disponible `pp_system_default` (pago manual de Medusa).
  *
  * No crea pagos reales, no modifica pedidos y es idempotente.
@@ -33,6 +33,7 @@ type FulfillmentService = {
   listFulfillmentSets: (filters?: unknown, config?: unknown) => Promise<Array<{ id: string; name?: string }>>
   createFulfillmentSets: (data: Record<string, unknown>) => Promise<{ id: string; service_zones?: Array<{ id: string }> }>
   listShippingOptions: (filters?: unknown, config?: unknown) => Promise<Array<{ id: string; name: string }>>
+  updateShippingOptions: (id: string, data: Record<string, unknown>) => Promise<unknown>
 }
 
 type TaxService = {
@@ -190,15 +191,28 @@ export default async function seedCommerceLab({ container }: ExecArgs) {
   }
 
   const existingOptions = await fulfillment.listShippingOptions({ service_zone_id: serviceZoneId })
+  const legacyNames: Record<string, string> = {
+    "Envío estándar DEMO": "Envío estándar",
+    "Envío express DEMO": "Envío express",
+  }
+
+  for (const existing of existingOptions) {
+    const nextName = legacyNames[existing.name]
+    if (!nextName) continue
+    await fulfillment.updateShippingOptions(existing.id, { name: nextName })
+    existing.name = nextName
+    logger.info(`[jovy-commerce] opción de envío renombrada: ${nextName}`)
+  }
+
   const options = [
     {
-      name: "Envío estándar DEMO",
+      name: "Envío estándar",
       code: "jovy-standard-demo",
       description: "Entrega de laboratorio. No representa una tarifa productiva.",
       amount: 99,
     },
     {
-      name: "Envío express DEMO",
+      name: "Envío express",
       code: "jovy-express-demo",
       description: "Entrega de laboratorio. No representa una tarifa productiva.",
       amount: 149,

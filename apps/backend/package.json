@@ -23,7 +23,8 @@
     "test:unit": "cross-env TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
     "test:e2e": "playwright test",
     "seed:catalog": "medusa exec ./src/scripts/seed-jovy-catalog.ts",
-    "seed:commerce": "medusa exec ./src/scripts/seed-commerce-lab.ts"
+    "seed:commerce": "medusa exec ./src/scripts/seed-commerce-lab.ts",
+    "seed:card-hover": "medusa exec ./src/scripts/seed-card-hover-rings.ts"
   },
   "dependencies": {
     "@medusajs/admin-sdk": "2.22.6",

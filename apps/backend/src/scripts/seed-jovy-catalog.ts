@@ -16,15 +16,24 @@
  * certificaciones son datos de desarrollo y deben revisarse en el Admin antes
  * de usarse comercialmente.
  */
-import { createProductCategoriesWorkflow, createProductsWorkflow } from "@medusajs/medusa/core-flows"
+import {
+  createProductCategoriesWorkflow,
+  createProductsWorkflow,
+  upsertVariantPricesWorkflow,
+} from "@medusajs/medusa/core-flows"
 import type { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules, ProductStatus } from "@medusajs/framework/utils"
+import { randomUUID } from "node:crypto"
 
 import {
   JOVY_SEED_CATEGORIES,
   JOVY_SEED_PRODUCTS,
   jovySeedImage,
 } from "@jovy/lib/jovy/catalog-seed"
+import {
+  buildPresentations,
+  parseWeightGrams,
+} from "@jovy/lib/jovy/catalog-presentations"
 import { JOVY_CATALOGUE_MODULE } from "@jovy/modules/jovy-catalogue"
 import { JOVY_PRODUCT_EDITORIAL_MODULE } from "@jovy/modules/jovy-product-editorial"
 import { saveProductFamilyWorkflow } from "@jovy/workflows/jovy-catalogue/family"
@@ -291,6 +300,212 @@ export default async function seedJovyCatalog({ container }: ExecArgs) {
       )
     }
   }
+
+  // ---- Presentaciones comerciales ----------------------------------------
+
+  type SeedProductRow = {
+    id: string
+    handle?: string | null
+    options?: Array<{ id: string; title: string; values?: Array<{ id: string; value: string }> | null }> | null
+    variants?: Array<{
+      id: string
+      title?: string | null
+      sku?: string | null
+      price_set_id?: string | null
+      metadata?: Record<string, unknown> | null
+    }> | null
+  }
+
+  type SeedProductService = {
+    listProducts: (filters: unknown, config: unknown) => Promise<SeedProductRow[]>
+    updateProductOptionValuesOnProduct: (data: Record<string, unknown>) => Promise<void>
+    createProductVariants: (
+      data: Record<string, unknown>[],
+    ) => Promise<Array<{ id: string }>>
+    updateProductVariants: (id: string, data: Record<string, unknown>) => Promise<unknown>
+  }
+
+  const productService = container.resolve(Modules.PRODUCT) as unknown as SeedProductService
+  const pgConnection = container.resolve(ContainerRegistrationKeys.PG_CONNECTION) as {
+    raw: (sql: string, bindings?: unknown[]) => Promise<unknown>
+  }
+
+  const seedProductIds = JOVY_SEED_PRODUCTS.map((product) => productIdByHandle.get(product.handle) as string)
+  const seedProducts = await productService.listProducts(
+    { id: seedProductIds },
+    { relations: ["options", "options.values", "variants"], take: seedProductIds.length },
+  )
+
+  let variantsCreated = 0
+  let variantsRenamed = 0
+
+  for (const seed of JOVY_SEED_PRODUCTS) {
+    const productId = productIdByHandle.get(seed.handle) as string
+    const product = seedProducts.find((item) => item.id === productId)
+    if (!product) continue
+
+    const presentations = buildPresentations(seed.gramaje, seed.priceMxn)
+    if (presentations.length < 2) continue
+
+    const option = product.options?.find((item) => item.title === "Presentación") ?? product.options?.[0]
+    if (!option) {
+      logger.warn(`[jovy-seed] ${seed.handle} no tiene opción de presentación; se omite`)
+      continue
+    }
+
+    // Medusa crea los valores globales en la primera llamada y los vincula al
+    // producto en una segunda pasada con sus ids ya materializados. Se repite en
+    // cada ejecución para reparar vínculos faltantes y mantener idempotencia.
+    const labels = presentations.map((item) => item.label)
+
+    await productService.updateProductOptionValuesOnProduct({
+      product_option_id: option.id,
+      product_id: product.id,
+      add: labels.map((value) => ({ value })),
+    })
+
+    const { data: refreshedRows } = await query.graph({
+      entity: "product",
+      fields: ["id", "options.id", "options.values.id", "options.values.value"],
+      filters: { id: product.id },
+    })
+    const refreshedOptions =
+      (refreshedRows[0] as {
+        options?: Array<{ id: string; values?: Array<{ id: string; value: string }> | null }>
+      } | undefined)?.options ?? []
+    const refreshedOption = refreshedOptions.find((item) => item.id === option.id)
+    const idByValue = new Map(
+      (refreshedOption?.values ?? []).map((value) => [value.value, value.id]),
+    )
+    const valueIds = labels
+      .map((label) => idByValue.get(label))
+      .filter((id): id is string => Boolean(id))
+
+    if (valueIds.length !== labels.length) {
+      logger.warn(`[jovy-seed] ${seed.handle}: no se materializaron todos los valores de presentación`)
+    } else {
+      // Medusa 2.22 crea los valores pero no siempre materializa el vínculo
+      // producto� valor. Se asegura el link interno de forma idempotente para que
+      // `createProductVariants` acepte las presentaciones nuevas.
+      const linkResult = (await pgConnection.raw(
+        `select id from product_product_option
+          where product_id = ? and product_option_id = ? and deleted_at is null
+          limit 1`,
+        [product.id, option.id],
+      )) as { rows?: Array<{ id?: string }> }
+      const productOptionLinkId = linkResult.rows?.[0]?.id
+      if (productOptionLinkId) {
+        for (const valueId of valueIds) {
+          await pgConnection.raw(
+            `insert into product_product_option_value
+               (id, product_product_option_id, product_option_value_id, created_at, updated_at)
+             select ?, ?, ?, now(), now()
+              where not exists (
+                select 1 from product_product_option_value
+                 where product_product_option_id = ? and product_option_value_id = ?
+              )`,
+            [
+              `ppov_${randomUUID().replace(/-/g, "").slice(0, 24)}`,
+              productOptionLinkId,
+              valueId,
+              productOptionLinkId,
+              valueId,
+            ],
+          )
+        }
+      } else {
+        logger.warn(`[jovy-seed] ${seed.handle}: no se encontró el vínculo producto-opción`)
+      }
+    }
+
+    const variantsByTitle = new Map(
+      (product.variants ?? []).map((variant) => [variant.title ?? "", variant]),
+    )
+    const baseLabel = presentations[0].label
+
+    const baseVariant =
+      variantsByTitle.get(baseLabel) ??
+      (product.variants ?? []).find(
+        (variant) =>
+          parseWeightGrams(variant.title) === presentations[0].grams ||
+          Number(variant.metadata?.jovy_grams) === presentations[0].grams,
+      )
+
+    if (baseVariant && baseVariant.title !== baseLabel) {
+      await productService.updateProductVariants(baseVariant.id, {
+        title: baseLabel,
+        sku: `JOVY-${seed.handle.toUpperCase()}-${presentations[0].grams}G`,
+        options: { [option.title]: baseLabel },
+        metadata: { ...(baseVariant.metadata ?? {}), jovy_grams: presentations[0].grams },
+      })
+      variantsByTitle.delete(baseVariant.title ?? "")
+      baseVariant.title = baseLabel
+      variantsByTitle.set(baseLabel, baseVariant)
+      variantsRenamed += 1
+    }
+
+    const pricedVariants: Array<{ id: string; amount: number }> = []
+
+    for (const presentation of presentations) {
+      const existing = variantsByTitle.get(presentation.label)
+      const metadata = { ...(existing?.metadata ?? {}), jovy_grams: presentation.grams }
+
+      if (!existing) {
+        const [created] = await productService.createProductVariants([
+          {
+            product_id: product.id,
+            title: presentation.label,
+            sku: `JOVY-${seed.handle.toUpperCase()}-${presentation.grams}G`,
+            options: { [option.title]: presentation.label },
+            manage_inventory: false,
+            allow_backorder: true,
+            metadata: { jovy_grams: presentation.grams, jovy_seed: "true" },
+          },
+        ])
+        if (created?.id) {
+          pricedVariants.push({ id: created.id, amount: presentation.priceMxn })
+        }
+        variantsCreated += 1
+        continue
+      }
+
+      if (Number(existing.metadata?.jovy_grams) !== presentation.grams) {
+        await productService.updateProductVariants(existing.id, { metadata })
+      }
+      pricedVariants.push({ id: existing.id, amount: presentation.priceMxn })
+    }
+
+    // `upsertVariantPricesWorkflow` crea el price set y el vínculo cuando la
+    // variante nació desde el módulo. Solo se invoca para variantes sin vínculo
+    // de precio para no duplicar links ya existentes.
+    if (pricedVariants.length) {
+      const placeholders = pricedVariants.map(() => "?").join(", ")
+      const linkResult = (await pgConnection.raw(
+        `select variant_id from product_variant_price_set
+          where deleted_at is null and variant_id in (${placeholders})`,
+        pricedVariants.map((variant) => variant.id),
+      )) as { rows?: Array<{ variant_id?: string }> }
+      const linked = new Set((linkResult.rows ?? []).map((row) => row.variant_id))
+      const unpriced = pricedVariants.filter((variant) => !linked.has(variant.id))
+
+      if (unpriced.length) {
+        await upsertVariantPricesWorkflow(container).run({
+          input: {
+            variantPrices: unpriced.map((variant) => ({
+              variant_id: variant.id,
+              product_id: product.id,
+              prices: [{ amount: variant.amount, currency_code: currencyCode }],
+            })),
+            previousVariantIds: [],
+          },
+        })
+      }
+    }
+  }
+
+  logger.info(
+    `[jovy-seed] presentaciones: ${variantsCreated} variantes creadas, ${variantsRenamed} renombradas a gramos`,
+  )
 
   // ---- Vínculos producto-familia -----------------------------------------
 

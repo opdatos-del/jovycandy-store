@@ -7,9 +7,12 @@ import { formatMoney } from "@/lib/commerce/format"
 import type { Dictionary, Locale } from "@/lib/i18n"
 
 import { useCommerce } from "./cart-provider"
+import { useToast } from "./toast-provider"
 
 export function CartDrawer({ locale, dictionary }: { locale: Locale; dictionary: Dictionary }) {
-  const { cart, open, setOpen, loading, mutating, error, updateItem, removeItem } = useCommerce()
+  const { cart, open, setOpen, loading, mutating, pendingItemId, error, updateItem, removeItem } =
+    useCommerce()
+  const { notify } = useToast()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const copy = dictionary.commerce
 
@@ -28,7 +31,7 @@ export function CartDrawer({ locale, dictionary }: { locale: Locale; dictionary:
       onClick={(event) => {
         if (event.target === event.currentTarget) setOpen(false)
       }}
-      className="m-0 ml-auto h-dvh max-h-none w-full max-w-md bg-[#fffdf7] p-0 text-[#202a35] shadow-2xl backdrop:bg-[#082f59]/55 backdrop:backdrop-blur-sm"
+      className="cart-drawer m-0 ml-auto h-dvh max-h-none w-full max-w-md bg-[#fffdf7] p-0 text-[#202a35] shadow-2xl backdrop:bg-[#082f59]/55 backdrop:backdrop-blur-sm"
     >
       <div className="flex h-full flex-col">
         <header className="flex items-start justify-between gap-4 border-b border-[#0d3b6e]/15 px-5 py-4">
@@ -114,10 +117,26 @@ export function CartDrawer({ locale, dictionary }: { locale: Locale; dictionary:
                     <button
                       type="button"
                       disabled={mutating}
-                      onClick={() => void removeItem(item.id).catch(() => undefined)}
+                      onClick={() =>
+                        void removeItem(item.id)
+                          .then(() =>
+                            notify({
+                              title: copy.removedFromCart,
+                              description: copy.removedFromCartLead,
+                              tone: "info",
+                            }),
+                          )
+                          .catch((reason) =>
+                            notify({
+                              title: copy.cartError,
+                              description: reason instanceof Error ? reason.message : copy.cartErrorLead,
+                              tone: "error",
+                            }),
+                          )
+                      }
                       className="mt-2 text-[0.62rem] font-bold uppercase tracking-[0.08em] text-[#b4234a] underline underline-offset-2 disabled:opacity-40"
                     >
-                      {copy.remove}
+                      {pendingItemId === item.id ? <span className="jovy-spinner" aria-hidden="true" /> : copy.remove}
                     </button>
                   </div>
                 </li>

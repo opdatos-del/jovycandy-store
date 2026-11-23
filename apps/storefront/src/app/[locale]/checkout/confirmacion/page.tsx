@@ -42,7 +42,12 @@ export default async function ConfirmationRoute({ params }: ConfirmRouteProps) {
   return (
     <main className="bg-[#fffaf0] pb-20 pt-28 sm:pt-32">
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <div className="rounded-2xl border border-[#00afaa]/40 bg-white p-6 sm:p-8">
+        <div className="jovy-animate-in rounded-2xl border border-[#00afaa]/40 bg-white p-6 sm:p-8">
+          <span className="confirmation-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" width="34" height="34">
+              <path d="m5 12.5 4.2 4.2L19 6.5" />
+            </svg>
+          </span>
           <p className="text-[0.65rem] font-black uppercase tracking-[0.24em] text-[#007f7b]">
             {copy.paymentDemoNote}
           </p>

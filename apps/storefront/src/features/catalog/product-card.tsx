@@ -1,9 +1,13 @@
 import Link from "next/link"
 
 import { formatMoney } from "@/lib/commerce/format"
+import { weightLabel } from "@/lib/commerce/weight"
 import type { CmsProduct } from "@/lib/cms/client"
 import { responsiveSrcSet } from "@/lib/images"
 import type { Dictionary, Locale } from "@/lib/i18n"
+import type { CardHoverConfig } from "@/lib/medusa/store"
+
+import { ProductCardMedia } from "./product-card-media"
 
 export type ViewableProduct = CmsProduct & { handle: string }
 
@@ -13,12 +17,16 @@ export function CatalogCard({
   dictionary,
   fallbackFamily,
   price,
+  hover,
+  priority = false,
 }: {
   product: ViewableProduct
   locale: Locale
   dictionary: Dictionary
   fallbackFamily?: string | null
   price?: { amount: number; currencyCode: string } | null
+  hover?: CardHoverConfig | null
+  priority?: boolean
 }) {
   const endpoint = `/${locale}/productos/${product.handle}`
   const image =
@@ -37,14 +45,29 @@ export function CatalogCard({
         href={endpoint}
         aria-label={`${dictionary.catalog.viewProduct}: ${product.title}`}
       >
-        <CardMedia product={product} image={image} srcSet={srcSet} dictionary={dictionary} />
+        <div className="catalog-badges" role="group" aria-label={dictionary.catalog.productBadges}>
+          {product.isNew ? (
+            <span className="catalog-badge catalog-badge--new">{dictionary.catalog.newBadge}</span>
+          ) : null}
+          {product.commercialMode === "CATALOG_ONLY" ? (
+            <span className="catalog-badge catalog-badge--catalog">{dictionary.catalog.modeCatalogOnly}</span>
+          ) : null}
+        </div>
+        <ProductCardMedia
+          title={product.title}
+          image={image}
+          imageSrcSet={srcSet}
+          hover={hover}
+          priority={priority}
+          noImageLabel={dictionary.catalog.noImage}
+        />
       </Link>
       <div className="catalog-card__body">
         <p className="catalog-card__family">{product.family?.name ?? fallbackFamily ?? ""}</p>
         <h2>
           <Link href={endpoint}>{product.title}</Link>
         </h2>
-        {product.gramaje ? <p className="catalog-card__size">{product.gramaje}</p> : null}
+        {product.gramaje ? <p className="catalog-card__size">{weightLabel(product.gramaje)}</p> : null}
         {price ? (
           <p className="catalog-card__price">
             {formatMoney(price.amount, price.currencyCode, locale)}
@@ -62,43 +85,5 @@ export function CatalogCard({
         </Link>
       </div>
     </article>
-  )
-}
-
-function CardMedia({
-  product,
-  image,
-  srcSet,
-  dictionary,
-}: {
-  product: CmsProduct
-  image: string | null
-  srcSet?: string
-  dictionary: Dictionary
-}) {
-  return (
-    <>
-      <div className="catalog-badges" role="group" aria-label={dictionary.catalog.productBadges}>
-        {product.isNew ? (
-          <span className="catalog-badge catalog-badge--new">{dictionary.catalog.newBadge}</span>
-        ) : null}
-        {product.commercialMode === "CATALOG_ONLY" ? (
-          <span className="catalog-badge catalog-badge--catalog">{dictionary.catalog.modeCatalogOnly}</span>
-        ) : null}
-      </div>
-      {image ? (
-        <img
-          src={image}
-          srcSet={srcSet}
-          sizes="(max-width: 480px) 45vw, (max-width: 900px) 30vw, 240px"
-          alt={product.title}
-          width={640}
-          height={640}
-          loading="lazy"
-        />
-      ) : (
-        <span className="catalog-card__placeholder">{dictionary.catalog.noImage}</span>
-      )}
-    </>
   )
 }

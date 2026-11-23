@@ -15,7 +15,7 @@ pnpm --filter storefront build
 
 | Suite | Resultado |
 |---|---|
-| Storefront E2E | 9/9 |
+| Storefront E2E | 10/10 |
 | Modalidad comercial unitaria | 23/23 |
 | Seed de catálogo | 3/3 |
 | Backend typecheck | PASS |
@@ -30,12 +30,13 @@ pnpm --filter storefront build
 1. Catálogo, búsqueda, limpieza, 6 columnas y sidebar sticky.
 2. Versión EN.
 3. Ficha con identidad, precio y vuelta al catálogo.
-4. Compra invitado completa: producto → variante → carrito → dirección → envío DEMO → pago manual → pedido → confirmación.
-5. Carrito persistente: recarga, cambio de cantidad y eliminación contra Medusa.
-6. `CATALOG_ONLY` sin compra y con contacto.
-7. Cuenta B2C: registro, perfil y logout.
-8. Compra móvil: drawer, checkout y sin overflow.
-9. 404 de producto con estado 404.
+4. Compra invitado completa: producto → presentación 250 g → carrito → dirección → envío de laboratorio → pago manual → pedido → confirmación.
+5. Galería con cuatro imágenes, cambio de vista, ampliación y tres presentaciones en gramos.
+6. Carrito persistente: recarga, cambio de cantidad y eliminación contra Medusa.
+7. `CATALOG_ONLY` sin compra y con contacto.
+8. Cuenta B2C: registro, perfil y logout.
+9. Compra móvil: drawer, checkout y sin overflow.
+10. 404 de producto con estado 404.
 
 ## Evidencia Medusa
 
@@ -43,7 +44,7 @@ Se verificaron órdenes reales con:
 
 - estado `pending`;
 - moneda `mxn`;
-- total calculado (producto + envío DEMO);
+- total calculado (producto + envío de laboratorio);
 - `customer_id` cuando el comprador estaba autenticado;
 - pedidos visibles en Admin.
 

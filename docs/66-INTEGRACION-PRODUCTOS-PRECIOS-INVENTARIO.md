@@ -31,7 +31,9 @@ El catálogo muestra el precio de la primera variante con precio; la ficha usa e
 
 ## Seed
 
-`seed:catalog` crea 25 productos, una variante y un precio MXN por producto. Los importes son de desarrollo.
+`seed:catalog` crea 25 productos y, para cada uno, una escalera corta de presentaciones reales en Medusa: paquete base más hasta dos tamaños estándar mayores (250 g, 500 g o 1 kg). Los precios son proporcionales al gramo con descuento suave por volumen y todos los importes son de desarrollo.
+
+La primera ejecución renombra las variantes `oz` a gramos, crea las que falten y asegura precio y vínculo de opción. Las siguientes ejecuciones son idempotentes.
 
 ## Pendiente productivo
 

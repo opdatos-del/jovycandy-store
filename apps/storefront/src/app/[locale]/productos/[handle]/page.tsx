@@ -19,12 +19,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const dictionary = getDictionary(locale)
   const content = await getHomeContent(locale)
   const product = content.products.find((item) => item.handle === handle)
-  if (!product) {
-    return {
-      title: dictionary.catalog.productNotFoundTitle,
-      robots: { index: false, follow: false },
-    }
-  }
+  if (!product) notFound()
   const details = [product.family?.name, product.gramaje].filter(Boolean).join(" · ")
   return {
     title: `${product.title} | Jovy Candy`,

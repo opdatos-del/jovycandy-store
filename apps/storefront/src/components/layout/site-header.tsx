@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -139,7 +139,7 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
               >
                 <CartIcon className="h-5 w-5" />
                 {itemCount ? (
-                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#e8465b] px-1 text-[0.6rem] font-black text-white">
+                  <span key={itemCount} className="cart-badge-pulse absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#e8465b] px-1 text-[0.6rem] font-black text-white">
                     {itemCount > 99 ? "99+" : itemCount}
                   </span>
                 ) : null}
@@ -171,7 +171,7 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
             >
               <CartIcon className="h-5 w-5" />
               {itemCount ? (
-                <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#e8465b] px-1 text-[0.6rem] font-black text-white">
+                <span key={itemCount} className="cart-badge-pulse absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#e8465b] px-1 text-[0.6rem] font-black text-white">
                   {itemCount > 99 ? "99+" : itemCount}
                 </span>
               ) : null}

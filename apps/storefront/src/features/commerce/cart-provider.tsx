@@ -17,6 +17,7 @@ type CommerceContextValue = {
   cart: StoreCart | null
   loading: boolean
   mutating: boolean
+  pendingItemId: string | null
   error: string | null
   open: boolean
   itemCount: number
@@ -53,6 +54,7 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<StoreCart | null>(null)
   const [loading, setLoading] = useState(true)
   const [mutating, setMutating] = useState(false)
+  const [pendingItemId, setPendingItemId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const requestId = useRef(0)
@@ -118,17 +120,23 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
   )
 
   const updateItem = useCallback(
-    (itemId: string, quantity: number) =>
-      mutate(`/api/cart/items/${encodeURIComponent(itemId)}`, {
+    (itemId: string, quantity: number) => {
+      setPendingItemId(itemId)
+      return mutate(`/api/cart/items/${encodeURIComponent(itemId)}`, {
         method: "PATCH",
         body: JSON.stringify({ quantity }),
-      }),
+      }).finally(() => setPendingItemId(null))
+    },
     [mutate],
   )
 
   const removeItem = useCallback(
-    (itemId: string) =>
-      mutate(`/api/cart/items/${encodeURIComponent(itemId)}`, { method: "DELETE" }),
+    (itemId: string) => {
+      setPendingItemId(itemId)
+      return mutate(`/api/cart/items/${encodeURIComponent(itemId)}`, {
+        method: "DELETE",
+      }).finally(() => setPendingItemId(null))
+    },
     [mutate],
   )
 
@@ -137,6 +145,7 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
       cart,
       loading,
       mutating,
+      pendingItemId,
       error,
       open,
       itemCount: cart?.itemCount ?? 0,
@@ -147,7 +156,7 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
       removeItem,
       clearError: () => setError(null),
     }),
-    [cart, loading, mutating, error, open, refresh, addItem, updateItem, removeItem],
+    [cart, loading, mutating, pendingItemId, error, open, refresh, addItem, updateItem, removeItem],
   )
 
   return <CommerceContext.Provider value={value}>{children}</CommerceContext.Provider>

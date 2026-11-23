@@ -1,0 +1,318 @@
+/* Feedback y microinteracciones del comercio. Movimiento corto y funcional. */
+
+@keyframes jovy-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes jovy-pop {
+  0% {
+    transform: scale(0.94);
+  }
+  60% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes jovy-badge-pop {
+  0% {
+    transform: scale(0.6);
+  }
+  70% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes jovy-toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes jovy-shimmer {
+  from {
+    background-position: -180% 0;
+  }
+  to {
+    background-position: 180% 0;
+  }
+}
+
+@keyframes jovy-check-draw {
+  from {
+    stroke-dashoffset: 48;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes jovy-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.jovy-animate-in {
+  animation: jovy-fade-up 320ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.jovy-pop {
+  animation: jovy-pop 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Toasts ------------------------------------------------------------------ */
+
+.jovy-toast-region {
+  position: fixed;
+  z-index: 90;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  display: grid;
+  gap: 0.6rem;
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+@media (min-width: 900px) {
+  .jovy-toast-region {
+    bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+}
+
+.jovy-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.65rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(13, 59, 110, 0.14);
+  background: #fffdf7;
+  padding: 0.75rem 0.85rem;
+  box-shadow: 0 18px 38px -22px rgba(8, 47, 89, 0.45);
+  animation: jovy-toast-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.jovy-toast__icon {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: #fff;
+  background: #007f7b;
+}
+
+.jovy-toast--error {
+  border-color: rgba(180, 35, 74, 0.28);
+}
+
+.jovy-toast--error .jovy-toast__icon {
+  background: #b4234a;
+}
+
+.jovy-toast--info .jovy-toast__icon {
+  background: #0d3b6e;
+}
+
+.jovy-toast__title {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #202a35;
+}
+
+.jovy-toast__text {
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #5b6f82;
+}
+
+.jovy-toast__close {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  color: #5b6f82;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.jovy-toast__close:hover {
+  background: #eef4f8;
+  color: #202a35;
+}
+
+/* Skeletons --------------------------------------------------------------- */
+
+.jovy-skeleton {
+  border-radius: 0.75rem;
+  background: linear-gradient(100deg, #eef1f4 30%, #f8fafb 50%, #eef1f4 70%);
+  background-size: 220% 100%;
+  animation: jovy-shimmer 1.4s ease-in-out infinite;
+}
+
+.jovy-skeleton--text {
+  height: 0.8rem;
+  border-radius: 999px;
+}
+
+/* Controles --------------------------------------------------------------- */
+
+.jovy-btn-busy {
+  position: relative;
+  pointer-events: none;
+}
+
+.jovy-spinner {
+  display: inline-block;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: jovy-spin 650ms linear infinite;
+  vertical-align: -0.15em;
+}
+
+.cart-badge-pulse {
+  animation: jovy-badge-pop 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Barra de compra móvil --------------------------------------------------- */
+
+.product-sticky-buy {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 60;
+  display: none;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(13, 59, 110, 0.16);
+  background: rgba(255, 253, 247, 0.96);
+  padding: 0.65rem 1rem calc(0.65rem + env(safe-area-inset-bottom));
+  box-shadow: 0 -12px 30px -24px rgba(8, 47, 89, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+.product-sticky-buy.is-visible {
+  display: flex;
+  animation: jovy-fade-up 240ms ease both;
+}
+
+.product-sticky-buy__price {
+  display: grid;
+  gap: 0.1rem;
+  font-size: 0.72rem;
+  color: var(--catalog-muted, #5b6f82);
+}
+
+.product-sticky-buy__price strong {
+  font-size: 1rem;
+  color: #202a35;
+}
+
+.product-sticky-buy__action {
+  min-height: 44px;
+  padding-inline: 1.1rem;
+  border-radius: 999px;
+  background: var(--catalog-blue, #0d3b6e);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.product-sticky-buy__action:disabled {
+  opacity: 0.55;
+}
+
+@media (max-width: 899px) {
+  .product-sticky-buy.is-visible {
+    display: flex;
+  }
+}
+
+/* Confirmación ------------------------------------------------------------ */
+
+.confirmation-check {
+  width: 74px;
+  height: 74px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #eafaf6;
+  color: #007f7b;
+  animation: jovy-pop 420ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.confirmation-check svg path {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: jovy-check-draw 520ms 160ms ease forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jovy-animate-in,
+  .jovy-pop,
+  .cart-badge-pulse,
+  .jovy-toast,
+  .confirmation-check,
+  .product-sticky-buy.is-visible {
+    animation: none;
+  }
+
+  .confirmation-check svg path {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+
+  .jovy-skeleton {
+    animation: none;
+  }
+}
+
+@keyframes jovy-slide-in {
+  from {
+    transform: translate3d(16px, 0, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+.cart-drawer[open] {
+  animation: jovy-slide-in 240ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cart-drawer[open] {
+    animation: none;
+  }
+}

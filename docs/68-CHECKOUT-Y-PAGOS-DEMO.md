@@ -1,4 +1,4 @@
-# Checkout y pagos DEMO
+# Checkout y pagos de laboratorio
 
 **Estado:** IMPLEMENTADO Y VALIDADO EN LABORATORIO. No realiza cobros reales.
 
@@ -7,7 +7,7 @@
 ```text
 Carrito
   → datos de contacto y dirección MX
-  → opciones de envío DEMO
+  → opciones de envío de laboratorio
   → pago manual pp_system_default
   → revisión
   → completeCartWorkflow
@@ -22,7 +22,7 @@ Carrito
 - región México con moneda MXN;
 - región fiscal `mx`;
 - fulfillment set de México;
-- envío estándar DEMO (99 MXN) y express DEMO (149 MXN);
+- envío estándar (99 MXN) y express (149 MXN);
 - proveedor de pago `pp_system_default`.
 
 ## Dirección
@@ -43,7 +43,7 @@ Al completar el carrito:
 
 - El precio, envío y total provienen de Medusa.
 - No se aceptan IDs de variante, precios o totales confiados del cliente.
-- El pago manual se identifica explícitamente como DEMO.
+- El pago manual se identifica explícitamente como.
 - La finalización exige envío seleccionado y carrito no vacío.
 - El hook de finalización valida la modalidad de todas las líneas.
 

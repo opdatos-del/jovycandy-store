@@ -1,5 +1,7 @@
 import "server-only"
 
+import { sortByWeight } from "@/lib/commerce/weight"
+
 /**
  * Cliente de lectura/escritura contra la Store API de Medusa.
  * Vive solo en servidor: la publishable key no es un secreto administrativo,
@@ -90,12 +92,25 @@ export type CommerceVariant = {
   currencyCode: string | null
 }
 
+export type CardHoverConfig = {
+  mode: "layered" | "swap"
+  /** Capa decorativa de gomitas (modo layered). */
+  overlayUrl: string | null
+  /** Composición bolsa + explosión (modo swap). */
+  fullUrl: string | null
+  /** Recurso opcional de una gomita para usos editoriales. */
+  gummyUrl: string | null
+  background: string | null
+}
+
 export type CommerceProduct = {
   id: string
   handle: string
   title: string
   thumbnail: string | null
+  images: string[]
   variants: CommerceVariant[]
+  cardHover: CardHoverConfig | null
 }
 
 type RawVariant = {
@@ -116,34 +131,94 @@ type RawProduct = {
   handle?: string | null
   title?: string | null
   thumbnail?: string | null
+  images?: Array<{ url?: string | null }> | null
+  metadata?: Record<string, unknown> | null
   variants?: RawVariant[] | null
+}
+
+/**
+ * Proyección pública de `product.metadata` para el hover de tarjetas.
+ * Solo se aceptan las claves card_hover_* con URLs http(s) o rutas locales; el
+ * resto del metadata no se expone al cliente.
+ */
+const PLACEHOLDER_PATTERN = /URL_REAL|REPLACE_ME|TODO|<|>/i
+const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
+
+function publicMediaUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const candidate = value.trim()
+  if (!candidate || PLACEHOLDER_PATTERN.test(candidate)) return null
+  if (candidate.startsWith("/")) return candidate
+  try {
+    const url = new URL(candidate)
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+export function parseCardHover(metadata: unknown): CardHoverConfig | null {
+  if (!metadata || typeof metadata !== "object") return null
+  const data = metadata as Record<string, unknown>
+  const enabled = data.card_hover_enabled === true || data.card_hover_enabled === "true"
+  if (!enabled) return null
+
+  const overlayUrl = publicMediaUrl(data.card_hover_overlay_url)
+  const fullUrl = publicMediaUrl(data.card_hover_full_url)
+  const gummyUrl = publicMediaUrl(data.card_gummy_url)
+  const background =
+    typeof data.card_hover_background === "string" && HEX_COLOR.test(data.card_hover_background.trim())
+      ? data.card_hover_background.trim()
+      : null
+
+  if (overlayUrl) {
+    return { mode: "layered", overlayUrl, fullUrl, gummyUrl, background }
+  }
+  if (fullUrl) {
+    return { mode: "swap", overlayUrl: null, fullUrl, gummyUrl, background }
+  }
+  return null
 }
 
 function normalizeProduct(raw: RawProduct): CommerceProduct | null {
   if (!raw.id || !raw.handle || !raw.title) return null
-  const variants = (raw.variants ?? [])
-    .filter((variant): variant is RawVariant & { id: string } => Boolean(variant.id))
-    .map((variant) => ({
-      id: variant.id,
-      title: variant.title ?? "",
-      sku: variant.sku ?? null,
-      manageInventory: Boolean(variant.manage_inventory),
-      allowBackorder: Boolean(variant.allow_backorder),
-      inventoryQuantity:
-        typeof variant.inventory_quantity === "number" ? variant.inventory_quantity : null,
-      price:
-        typeof variant.calculated_price?.calculated_amount === "number"
-          ? variant.calculated_price.calculated_amount
-          : null,
-      currencyCode: variant.calculated_price?.currency_code ?? null,
-    }))
+
+  const variants = sortByWeight(
+    (raw.variants ?? [])
+      .filter((variant): variant is RawVariant & { id: string } => Boolean(variant.id))
+      .map((variant) => ({
+        id: variant.id,
+        title: variant.title ?? "",
+        sku: variant.sku ?? null,
+        manageInventory: Boolean(variant.manage_inventory),
+        allowBackorder: Boolean(variant.allow_backorder),
+        inventoryQuantity:
+          typeof variant.inventory_quantity === "number" ? variant.inventory_quantity : null,
+        price:
+          typeof variant.calculated_price?.calculated_amount === "number"
+            ? variant.calculated_price.calculated_amount
+            : null,
+        currencyCode: variant.calculated_price?.currency_code ?? null,
+      })),
+  )
+
+  const images = [
+    ...new Set(
+      [
+        ...(raw.images ?? []).map((image) => image.url).filter((url): url is string => Boolean(url)),
+        raw.thumbnail ?? null,
+      ].filter((url): url is string => Boolean(url)),
+    ),
+  ]
 
   return {
     id: raw.id,
     handle: raw.handle,
     title: raw.title,
     thumbnail: raw.thumbnail ?? null,
+    images,
     variants,
+    cardHover: parseCardHover(raw.metadata),
   }
 }
 
@@ -159,7 +234,7 @@ export async function getMexicoRegion(): Promise<StoreRegion | null> {
 
 export async function listCommerceProducts(regionId: string): Promise<CommerceProduct[]> {
   const payload = await storeFetch<{ products?: RawProduct[] }>(
-    `/products?region_id=${encodeURIComponent(regionId)}&limit=100&fields=id,title,handle,thumbnail,variants.id,variants.title,variants.sku,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price`,
+    `/products?region_id=${encodeURIComponent(regionId)}&limit=100&fields=id,title,handle,thumbnail,images.url,metadata,variants.id,variants.title,variants.sku,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price`,
   )
   return (payload.products ?? [])
     .map(normalizeProduct)
@@ -171,7 +246,7 @@ export async function getCommerceProduct(
   regionId: string,
 ): Promise<CommerceProduct | null> {
   const payload = await storeFetch<{ products?: RawProduct[] }>(
-    `/products?handle=${encodeURIComponent(handle)}&region_id=${encodeURIComponent(regionId)}&fields=id,title,handle,thumbnail,variants.id,variants.title,variants.sku,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price`,
+    `/products?handle=${encodeURIComponent(handle)}&region_id=${encodeURIComponent(regionId)}&fields=id,title,handle,thumbnail,images.url,metadata,variants.id,variants.title,variants.sku,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price`,
   )
   const product = payload.products?.[0]
   return product ? normalizeProduct(product) : null

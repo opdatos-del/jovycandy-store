@@ -7,6 +7,7 @@ import type { Customer, CustomerOrder } from "@/lib/medusa/customer"
 import type { Dictionary, Locale } from "@/lib/i18n"
 
 import { useCommerce } from "./cart-provider"
+import { useToast } from "./toast-provider"
 
 type AuthMode = "login" | "register"
 
@@ -52,6 +53,7 @@ export function AccountPage({ locale, dictionary }: { locale: Locale; dictionary
   const copy = dictionary.account
   const commerce = dictionary.commerce
   const { refresh: refreshCart } = useCommerce()
+  const { notify } = useToast()
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [orders, setOrders] = useState<CustomerOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,9 +97,12 @@ export function AccountPage({ locale, dictionary }: { locale: Locale; dictionary
       })
       setCustomer(result.customer)
       setAuth(EMPTY_AUTH)
+      notify({ title: commerce.sessionStarted })
       await Promise.all([refreshCart(), loadOrders()])
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : commerce.error)
+      const message = reason instanceof Error ? reason.message : commerce.error
+      setError(message)
+      notify({ title: commerce.cartError, description: message, tone: "error" })
     } finally {
       setBusy(false)
     }
@@ -110,6 +115,7 @@ export function AccountPage({ locale, dictionary }: { locale: Locale; dictionary
       setCustomer(null)
       setOrders([])
       setMode("login")
+      notify({ title: commerce.sessionClosed, tone: "info" })
     } finally {
       setBusy(false)
     }
@@ -130,8 +136,11 @@ export function AccountPage({ locale, dictionary }: { locale: Locale; dictionary
       setAddress(EMPTY_ADDRESS)
       setShowAddress(false)
       setMessage(copy.addressSaved)
+      notify({ title: copy.addressSaved })
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : commerce.error)
+      const message = reason instanceof Error ? reason.message : commerce.error
+      setError(message)
+      notify({ title: commerce.cartError, description: message, tone: "error" })
     } finally {
       setBusy(false)
     }

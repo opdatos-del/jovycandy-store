@@ -19,7 +19,7 @@ Se conserva el sistema del catálogo oficial:
 - Drawer de carrito con foco, Escape, backdrop y estado vacío.
 - Página de carrito con edición y totales.
 - Checkout en cuatro pasos con resumen persistente.
-- Confirmación con número de pedido y mensaje DEMO.
+- Confirmación con número de pedido y mensaje.
 - Cuenta con login, registro, direcciones e historial.
 
 ## Estados
@@ -50,6 +50,16 @@ Cada flujo contempla:
 - mensajes `role="status"`/`role="alert"`;
 - objetivos táctiles de 44 px;
 - `prefers-reduced-motion`.
+
+## Feedback y movimiento
+
+- notificaciones discretas para agregar, eliminar, iniciar/cerrar sesión y confirmar pedido;
+- skeletons por ruta para que la navegación se sienta inmediata;
+- animación corta en galería, badge del carrito, drawer y confirmación de pedido;
+- hover de tarjeta por capas configurado en Medusa: gomitas detrás de la bolsa sin cambiar su tamaño;
+- spinners por línea del carrito sin bloquear el resto de la interfaz;
+- barra de compra fija en móvil;
+- todo el movimiento se desactiva con `prefers-reduced-motion`.
 
 ## Pendiente
 

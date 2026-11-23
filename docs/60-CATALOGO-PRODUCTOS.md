@@ -1,6 +1,6 @@
 # Catálogo y compra JovyCandy
 
-**Estado:** IMPLEMENTADO · catálogo, precios, carrito, checkout DEMO y cuentas B2C en laboratorio.  
+**Estado:** IMPLEMENTADO · catálogo, precios, carrito, checkout de laboratorio y cuentas B2C en laboratorio.  
 **Rutas:** `/{locale}/catalogo`, `/{locale}/productos/[handle]`, `/{locale}/carrito`, `/{locale}/checkout`, `/{locale}/checkout/confirmacion`, `/{locale}/cuenta`.  
 **Alcance:** laboratorio local; sin cobros reales, envíos productivos ni despliegue.
 
@@ -78,7 +78,7 @@ El storefront combina editorial + Medusa en servidor y nunca confía en precios 
 
 ```powershell
 pnpm --dir apps/backend seed:catalog   # 25 productos Jovy
-pnpm --dir apps/backend seed:commerce  # región MX, MXN, envío DEMO y pago manual
+pnpm --dir apps/backend seed:commerce  # región MX, MXN, envío de laboratorio y pago manual
 ```
 
 Ambos son idempotentes. El catálogo oculta los productos demo `t-shirt` y `sweatpants`; no los borra. Los precios, textos y certificaciones son datos de desarrollo.
@@ -87,9 +87,14 @@ Ambos son idempotentes. El catálogo oculta los productos demo `t-shirt` y `swea
 
 - búsqueda, filtros, conteos y ordenamiento;
 - precios MXN calculados por Medusa;
-- selector de variante y cantidad;
+- presentaciones en gramos (paquete base y hasta dos tamaños mayores) con precio por presentación;
+- galería con miniaturas, ampliación y recuperación de packshots locales;
+- hover configurable desde `product.metadata` de Medusa: capa de gomitas detrás de la bolsa o crossfade (ver `docs/hover-producto-jovy-rings.md`);
+- selector de variante y cantidad con precio;
+- barra de compra fija en móvil;
 - carrito persistente con drawer y página;
-- checkout con dirección MX, envío DEMO y pago manual;
+- notificaciones de confirmación y error, skeletons de navegación y movimiento reducido;
+- checkout con dirección MX, envío de laboratorio y pago manual;
 - pedido real en Medusa y confirmación firmada;
 - cuentas B2C: registro, login, logout, direcciones e historial;
 - transferencia del carrito invitado al iniciar sesión;

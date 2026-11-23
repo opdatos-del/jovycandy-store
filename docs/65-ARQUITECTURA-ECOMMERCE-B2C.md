@@ -51,7 +51,7 @@ No existe una tabla paralela de carritos ni pedidos. El BFF no guarda precios ni
 - No se implementó otro backend ni checkout por SQL.
 - El carrito invitado se transfiere al cliente con `POST /store/carts/:id/customer`.
 - El pago usa `pp_system_default` de Medusa.
-- La región México/MXN y el envío DEMO se preparan con `seed:commerce`.
+- La región México/MXN y el envío de laboratorio se preparan con `seed:commerce`.
 
 ## Límites
 

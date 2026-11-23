@@ -9,6 +9,7 @@ import type { Dictionary, Locale } from "@/lib/i18n"
 import type { ShippingOption } from "@/lib/medusa/store"
 
 import { useCommerce } from "./cart-provider"
+import { useToast } from "./toast-provider"
 
 type Step = "address" | "shipping" | "payment" | "review"
 
@@ -51,6 +52,7 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
   const copy = dictionary.commerce
   const router = useRouter()
   const { cart, loading, refresh } = useCommerce()
+  const { notify } = useToast()
   const [step, setStep] = useState<Step>("address")
   const [address, setAddress] = useState<AddressFields>(EMPTY_ADDRESS)
   const [options, setOptions] = useState<ShippingOption[]>([])
@@ -82,8 +84,28 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
 
   const submitAddress = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setBusy(true)
     setError("")
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email)) {
+      setError(copy.invalidEmail)
+      return
+    }
+    if (!/^\d{5}$/.test(address.postal_code)) {
+      setError(copy.invalidPostal)
+      return
+    }
+    const required = [
+      address.first_name,
+      address.last_name,
+      address.address_1,
+      address.city,
+      address.province,
+    ]
+    if (required.some((value) => !value.trim())) {
+      setError(copy.required)
+      return
+    }
+
+    setBusy(true)
     try {
       await postJson("/api/checkout/address", { ...address, country_code: "mx" })
       const response = await fetch("/api/checkout/shipping-options", { cache: "no-store" })
@@ -135,6 +157,7 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
     try {
       const result = (await postJson("/api/checkout/complete", {})) as { order?: { id: string } }
       if (!result.order?.id) throw new Error(copy.error)
+      notify({ title: copy.orderPlaced, description: copy.orderPlacedLead });
       router.push(`/${locale}/checkout/confirmacion`)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : copy.error)
@@ -178,7 +201,7 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
           </ol>
 
           {step === "address" ? (
-            <form onSubmit={submitAddress} className="grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
+            <form onSubmit={submitAddress} className="jovy-animate-in grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
               <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
                 {copy.contactData}
               </h2>
@@ -218,7 +241,7 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
           ) : null}
 
           {step === "shipping" ? (
-            <form onSubmit={submitShipping} className="grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
+            <form onSubmit={submitShipping} className="jovy-animate-in grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
               <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
                 {copy.shippingMethod}
               </h2>
@@ -269,7 +292,7 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
           ) : null}
 
           {step === "payment" ? (
-            <section className="grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
+            <section className="jovy-animate-in grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
               <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
                 {copy.paymentMethod}
               </h2>
@@ -290,7 +313,7 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
           ) : null}
 
           {step === "review" ? (
-            <section className="grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
+            <section className="jovy-animate-in grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
               <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
                 {copy.reviewOrder}
               </h2>

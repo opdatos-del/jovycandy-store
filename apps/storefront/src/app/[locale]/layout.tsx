@@ -8,10 +8,12 @@ import { SiteFooter } from "@/components/layout/site-footer"
 import { SiteHeader } from "@/components/layout/site-header"
 import { CartDrawer } from "@/features/commerce/cart-drawer"
 import { CommerceProvider } from "@/features/commerce/cart-provider"
+import { ToastProvider } from "@/features/commerce/toast-provider"
 import { getHomeContent } from "@/lib/cms/client"
 import { getDictionary, isLocale, locales, type Locale } from "@/lib/i18n"
 
 import "../globals.css"
+import "@/styles/commerce/commerce.css"
 
 type LocaleLayoutProps = {
   children: React.ReactNode
@@ -58,15 +60,17 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
         >
           {locale === "es" ? "Saltar al contenido" : "Skip to content"}
         </a>
-        <CommerceProvider>
-          <SiteHeader locale={locale as Locale} dictionary={dictionary} />
-          <UpcomingEventsDialog banners={content.promo} events={content.events} dictionary={dictionary} />
-          {children}
-          <SiteFooter locale={locale as Locale} dictionary={dictionary} />
-          <ContactDialog locale={locale as Locale} dictionary={dictionary} />
-          <LocationDialog locale={locale as Locale} dictionary={dictionary} />
-          <CartDrawer locale={locale as Locale} dictionary={dictionary} />
-        </CommerceProvider>
+        <ToastProvider>
+          <CommerceProvider>
+            <SiteHeader locale={locale as Locale} dictionary={dictionary} />
+            <UpcomingEventsDialog banners={content.promo} events={content.events} dictionary={dictionary} />
+            {children}
+            <SiteFooter locale={locale as Locale} dictionary={dictionary} />
+            <ContactDialog locale={locale as Locale} dictionary={dictionary} />
+            <LocationDialog locale={locale as Locale} dictionary={dictionary} />
+            <CartDrawer locale={locale as Locale} dictionary={dictionary} />
+          </CommerceProvider>
+        </ToastProvider>
       </body>
     </html>
   )

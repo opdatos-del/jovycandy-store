@@ -3,7 +3,7 @@
 import { CatalogPage } from "@/features/catalog/catalog-page"
 import { getHomeContent, type CmsProduct } from "@/lib/cms/client"
 import { getDictionary, isLocale } from "@/lib/i18n"
-import { getMexicoRegion, listCommerceProducts } from "@/lib/medusa/store"
+import { getMexicoRegion, listCommerceProducts, type CardHoverConfig } from "@/lib/medusa/store"
 
 import "@/styles/catalog/catalog.css"
 
@@ -48,6 +48,12 @@ export default async function CataloguePage({ params, searchParams }: CatalogueP
     }),
   )
 
+  const hoverConfigs = Object.fromEntries(
+    commerceProducts
+      .filter((product) => product.cardHover)
+      .map((product) => [product.handle, product.cardHover as CardHoverConfig]),
+  )
+
   return (
     <CatalogPage
       locale={locale}
@@ -57,6 +63,7 @@ export default async function CataloguePage({ params, searchParams }: CatalogueP
       categoryCounts={categoryCounts}
       totalProducts={viewableProducts.length}
       prices={prices}
+      hoverConfigs={hoverConfigs}
       selectedCategoryKey={selected?.key}
       selectedCategoryName={selected?.name}
       selectedCategoryDescription={selected?.description}

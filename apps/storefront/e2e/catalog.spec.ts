@@ -15,6 +15,7 @@ test.describe("catálogo oficial", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await expect(page.getByRole("complementary", { name: "Filtrar por" })).toBeVisible()
     await expect(page.getByLabel("Buscar productos")).toBeVisible()
+    await expect(page.locator(".catalog-card__layer--gomitas")).toHaveCount(1)
 
     const cards = page.locator(".catalog-card")
     const initialCount = await cards.count()
@@ -53,6 +54,57 @@ test.describe("catálogo oficial", () => {
     await page.getByRole("button", { name: "Cerrar filtros" }).click()
   })
 
+  test("hover de tarjeta lee capas y tema desde Medusa", async ({ page }) => {
+    await page.goto("/es/catalogo")
+    const ringCard = page.locator(".catalog-card").filter({ hasText: "Aros Sabor Manzana Verde" })
+    await expect(ringCard).toHaveCount(1)
+
+    const layer = ringCard.locator(".catalog-card__layer--gomitas")
+    await expect(layer).toHaveCount(1)
+    await expect(layer).toHaveAttribute("src", /\/static\/.*gomitas-explosion\.webp$/)
+    await expect(layer).toHaveAttribute("aria-hidden", "true")
+    const opacityBefore = await layer.evaluate((node) => getComputedStyle(node).opacity)
+    expect(opacityBefore).toBe("0")
+
+    const base = ringCard.locator(".catalog-card__layer--base")
+    await expect(base).toHaveAttribute("src", /\/static\/.*bolsa-original\.webp$/)
+    const boxBefore = await base.boundingBox()
+
+    await ringCard.hover()
+    await expect
+      .poll(async () => layer.evaluate((node) => getComputedStyle(node).opacity))
+      .toBe("1")
+    const boxHover = await base.boundingBox()
+    expect(boxHover?.width).toBeCloseTo(boxBefore?.width ?? 0, 1)
+    expect(boxHover?.height).toBeCloseTo(boxBefore?.height ?? 0, 1)
+
+    await page.mouse.move(5, 5)
+    await expect
+      .poll(async () => layer.evaluate((node) => getComputedStyle(node).opacity))
+      .toBe("0")
+
+    await ringCard.locator(".catalog-card__image").focus()
+    await expect
+      .poll(async () => layer.evaluate((node) => getComputedStyle(node).opacity))
+      .toBe("1")
+    await ringCard.locator(".catalog-card__image").blur()
+
+    const plainCard = page.locator(".catalog-card").filter({ hasText: "Ositos Surtidos 12 Sabores" })
+    await expect(plainCard.locator(".catalog-card__layer--gomitas")).toHaveCount(0)
+
+    await layer.evaluate((node) => node.dispatchEvent(new Event("error")))
+    await expect(layer).toHaveCount(0)
+  })
+
+  test("hover respeta movimiento reducido", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await page.goto("/es/catalogo")
+    const layer = page.locator(".catalog-card__layer--gomitas").first()
+    await expect(layer).toHaveCount(1)
+    const duration = await layer.evaluate((node) => getComputedStyle(node).transitionDuration)
+    expect(parseFloat(duration)).toBeLessThan(0.05)
+  })
+
   test("mantiene la versión en inglés", async ({ page }) => {
     await page.goto("/en/catalogo")
     await expect(page.getByRole("heading", { level: 1, name: "Gummies for every craving" })).toBeVisible()
@@ -79,12 +131,17 @@ test.describe("catálogo oficial", () => {
     await expectNoHorizontalOverflow(page)
   })
 
-  test("compra invitado completa un pedido DEMO en Medusa", async ({ page }) => {
+  test("compra invitado completa un pedido de laboratorio en Medusa", async ({ page }) => {
     await page.goto("/es/productos/jovy-ositos-surtidos")
     await expect(page.getByRole("heading", { level: 1, name: "Ositos Surtidos 12 Sabores" })).toBeVisible()
     await expect(page.locator(".product-buy__price")).toContainText("$45.00")
 
+    await page.locator(".product-variants__options label", { hasText: "250 g" }).click()
+    await expect(page.locator(".product-buy__amount")).toHaveText("$65.00")
+
     await page.getByRole("button", { name: "Añadir al carrito" }).click()
+    await expect(page.getByRole("status").filter({ hasText: "Agregado al carrito" })).toBeVisible()
+    await page.locator('button[aria-label^="Abrir carrito"]:visible').first().click()
     await expect(page.getByRole("dialog", { name: /Carrito/ })).toBeVisible()
     await page.getByRole("link", { name: "Finalizar compra" }).click()
 
@@ -104,9 +161,9 @@ test.describe("catálogo oficial", () => {
     await checkout.getByRole("radio").first().check()
     await checkout.getByRole("button", { name: "Continuar al pago" }).click()
 
-    await expect(checkout.getByText("Pago manual DEMO")).toBeVisible()
+    await expect(checkout.getByText("Pago manual", { exact: true }).first()).toBeVisible()
     await checkout.getByRole("button", { name: "Revisar pedido" }).click()
-    await checkout.getByRole("button", { name: "Confirmar pedido DEMO" }).click()
+    await checkout.getByRole("button", { name: "Confirmar pedido" }).click()
 
     await page.waitForURL(/\/es\/checkout\/confirmacion$/)
     await expect(page.getByRole("heading", { level: 1, name: "Pedido confirmado" })).toBeVisible()
@@ -116,9 +173,30 @@ test.describe("catálogo oficial", () => {
     ).toBeVisible()
   })
 
+  test("ficha muestra galería, zoom y presentaciones en gramos", async ({ page }) => {
+    await page.goto("/es/productos/jovy-aros-manzana-verde")
+    const gallery = page.locator(".product-gallery")
+    const thumbs = gallery.locator(".product-gallery__thumbs button")
+    expect(await thumbs.count()).toBeGreaterThanOrEqual(5)
+
+    const mainImage = gallery.locator(".product-gallery__image")
+    const firstSrc = await mainImage.getAttribute("src")
+    await gallery.locator(".product-gallery__thumbs button").nth(1).click()
+    await expect(mainImage).not.toHaveAttribute("src", firstSrc ?? "")
+
+    await gallery.locator(".product-gallery__zoom").click()
+    await expect(page.locator(".product-lightbox[open]")).toBeVisible()
+    await page.locator(".product-lightbox__close").click()
+
+    await expect(page.getByRole("radio")).toHaveCount(3)
+    await expect(page.getByRole("radio", { name: /170 g/ })).toBeChecked()
+  })
+
   test("carrito persiste tras recargar, permite editar y eliminar", async ({ page }) => {
     await page.goto("/es/productos/jovy-ositos-surtidos")
     await page.getByRole("button", { name: "Añadir al carrito" }).click()
+    await expect(page.getByRole("status").filter({ hasText: "Agregado al carrito" })).toBeVisible()
+    await page.locator('button[aria-label^="Abrir carrito"]:visible').first().click()
     await expect(page.getByRole("dialog", { name: "Carrito" })).toBeVisible()
     await page.getByRole("link", { name: "Ver carrito" }).click()
     await expect(page.getByRole("heading", { level: 1, name: "Carrito" })).toBeVisible()
@@ -164,6 +242,8 @@ test.describe("catálogo oficial", () => {
     await page.setViewportSize({ width: 375, height: 812 })
     await page.goto("/es/productos/jovy-ositos-surtidos")
     await page.getByRole("button", { name: "Añadir al carrito" }).click()
+    await expect(page.getByRole("status").filter({ hasText: "Agregado al carrito" })).toBeVisible()
+    await page.locator('button[aria-label^="Abrir carrito"]:visible').first().click()
     await expect(page.getByRole("dialog", { name: "Carrito" })).toBeVisible()
     await page.getByRole("link", { name: "Finalizar compra" }).click()
     await expect(page.getByRole("heading", { level: 1, name: "Checkout" })).toBeVisible()

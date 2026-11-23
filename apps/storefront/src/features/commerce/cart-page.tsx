@@ -7,10 +7,13 @@ import { formatMoney } from "@/lib/commerce/format"
 import type { Dictionary, Locale } from "@/lib/i18n"
 
 import { useCommerce } from "./cart-provider"
+import { useToast } from "./toast-provider"
 
 export function CartPage({ locale, dictionary }: { locale: Locale; dictionary: Dictionary }) {
   const copy = dictionary.commerce
-  const { cart, loading, mutating, error, refresh, updateItem, removeItem } = useCommerce()
+  const { cart, loading, mutating, pendingItemId, error, refresh, updateItem, removeItem } =
+    useCommerce()
+  const { notify } = useToast()
 
   useEffect(() => {
     void refresh()
@@ -91,10 +94,26 @@ export function CartPage({ locale, dictionary }: { locale: Locale; dictionary: D
                     <button
                       type="button"
                       disabled={mutating}
-                      onClick={() => void removeItem(item.id).catch(() => undefined)}
+                      onClick={() =>
+                        void removeItem(item.id)
+                          .then(() =>
+                            notify({
+                              title: copy.removedFromCart,
+                              description: copy.removedFromCartLead,
+                              tone: "info",
+                            }),
+                          )
+                          .catch((reason) =>
+                            notify({
+                              title: copy.cartError,
+                              description: reason instanceof Error ? reason.message : copy.cartErrorLead,
+                              tone: "error",
+                            }),
+                          )
+                      }
                       className="text-[0.65rem] font-bold uppercase tracking-[0.08em] text-[#b4234a] underline underline-offset-2 disabled:opacity-40"
                     >
-                      {copy.remove}
+                      {pendingItemId === item.id ? <span className="jovy-spinner" aria-hidden="true" /> : copy.remove}
                     </button>
                   </div>
                 </div>

@@ -1,7 +1,8 @@
 import Link from "next/link"
 
+import { ProductGallery } from "@/features/commerce/product-gallery"
 import { ProductPurchase } from "@/features/commerce/product-purchase"
-import { responsiveSrcSet } from "@/lib/images"
+import { weightLabel } from "@/lib/commerce/weight"
 import type { CommerceProduct } from "@/lib/medusa/store"
 import type { Dictionary, Locale } from "@/lib/i18n"
 import { CatalogCard, type ViewableProduct } from "./product-card"
@@ -23,16 +24,10 @@ export function ProductDetail({
   related,
   categoryName,
 }: ProductDetailProps) {
-  const image =
-    product.thumbnail && product.thumbnail.startsWith("/assets/catalog/products/")
-      ? product.thumbnail.replace(/\.webp$/, "-640.webp")
-      : product.thumbnail
-  const srcSet =
-    product.thumbnail && product.thumbnail.startsWith("/assets/catalog/products/")
-      ? responsiveSrcSet(product.thumbnail, [400, 640])
-      : undefined
+  const galleryImages = commerce?.images?.length ? commerce.images : product.thumbnail ? [product.thumbnail] : []
   const isSellable = product.commercialMode === "SELLABLE"
   const lead = isSellable ? dictionary.catalog.sellableLead : dictionary.catalog.catalogOnlyLead
+  const weight = weightLabel(product.gramaje)
 
   return (
     <main className="catalog jovy-catalog jovy-product pt-28 pb-16 sm:pt-32">
@@ -45,38 +40,35 @@ export function ProductDetail({
       </nav>
 
       <section className="product-hero">
-        <div className="product-gallery">
-          <div className="product-gallery__frame">
+        <ProductGallery
+          images={galleryImages}
+          alt={product.title}
+          labels={{
+            gallery: dictionary.commerce.gallery,
+            viewImage: dictionary.commerce.viewImage,
+            closeImage: dictionary.commerce.closeImage,
+            noImage: dictionary.catalog.noImage,
+          }}
+          badges={
             <div className="catalog-badges" role="group" aria-label={dictionary.catalog.productBadges}>
               {product.isNew ? (
                 <span className="catalog-badge catalog-badge--new">{dictionary.catalog.newBadge}</span>
               ) : null}
-              <span className={`catalog-badge ${isSellable ? "catalog-badge--sellable" : "catalog-badge--catalog"}`}>
+              <span
+                className={`catalog-badge ${isSellable ? "catalog-badge--sellable" : "catalog-badge--catalog"}`}
+              >
                 {isSellable ? dictionary.catalog.modeSellable : dictionary.catalog.modeCatalogOnly}
               </span>
             </div>
-            {image ? (
-              <img
-                src={image}
-                srcSet={srcSet}
-                sizes="(max-width: 900px) 92vw, 55vw"
-                alt={product.title}
-                width={640}
-                height={640}
-                fetchPriority="high"
-              />
-            ) : (
-              <span className="catalog-card__placeholder">{dictionary.catalog.noImage}</span>
-            )}
-          </div>
-        </div>
+          }
+        />
 
         <div className="product-info">
           <p className="catalog-eyebrow">{product.family?.name ?? categoryName ?? dictionary.catalog.catalogEyebrow}</p>
           <h1>{product.title}</h1>
 
           <div className="product-badges">
-            {product.gramaje ? <span className="product-chip">{product.gramaje}</span> : null}
+            {weight ? <span className="product-chip">{weight}</span> : null}
             {product.certifications.map((certification) => (
               <span key={certification} className="product-chip product-chip--soft">
                 {certification}
@@ -93,7 +85,7 @@ export function ProductDetail({
             </div>
             <div>
               <dt>{dictionary.catalog.weight}</dt>
-              <dd>{product.gramaje ?? "—"}</dd>
+              <dd>{weight ?? "—"}</dd>
             </div>
             <div>
               <dt>{dictionary.catalog.certification}</dt>
@@ -110,6 +102,8 @@ export function ProductDetail({
             dictionary={dictionary}
             commerce={commerce}
             catalogOnly={!isSellable}
+            productTitle={product.title}
+            fallbackWeight={weight}
           />
 
           <Link className="product-back" href={`/${locale}/catalogo`}>

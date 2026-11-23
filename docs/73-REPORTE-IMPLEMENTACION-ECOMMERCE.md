@@ -9,7 +9,7 @@ Se completó el primer recorrido comercial B2C de laboratorio:
 
 **Home → Catálogo → Producto → Variante → Carrito → Checkout → Pedido Medusa → Confirmación**
 
-Además se implementaron cuentas de cliente, precios MXN, envío manual DEMO, pago manual y validación fail-closed de modalidad.
+Además se implementaron cuentas de cliente, precios MXN, envío manual, pago manual y validación fail-closed de modalidad.
 
 ## Estado por frente
 
@@ -21,8 +21,8 @@ Además se implementaron cuentas de cliente, precios MXN, envío manual DEMO, pa
 | Inventario | PARCIAL: `manage_inventory` y backorder; sin stock real |
 | Carrito | IMPLEMENTADO / VALIDADO |
 | Checkout | IMPLEMENTADO / VALIDADO |
-| Envío DEMO | IMPLEMENTADO / VALIDADO |
-| Pago manual DEMO | IMPLEMENTADO / VALIDADO |
+| Envío | IMPLEMENTADO / VALIDADO |
+| Pago manual | IMPLEMENTADO / VALIDADO |
 | Pedido Medusa | IMPLEMENTADO / VALIDADO |
 | Confirmación | IMPLEMENTADO / VALIDADO |
 | Cuenta B2C | IMPLEMENTADO / PROBADO |
@@ -35,7 +35,7 @@ Además se implementaron cuentas de cliente, precios MXN, envío manual DEMO, pa
 ## Backend
 
 - Hook fail-closed de modalidad.
-- Región México/MXN, envío DEMO y pago manual.
+- Región México/MXN, envío de laboratorio y pago manual.
 - Seed de catálogo y seed comercial idempotentes.
 - Sin migraciones nuevas para carrito, pedido o cliente: se usan módulos Medusa.
 
@@ -63,6 +63,16 @@ Además se implementaron cuentas de cliente, precios MXN, envío manual DEMO, pa
 - `apps/storefront/.env.example` queda versionable y documenta `JOVY_COMMERCE_SECRET`.
 - Servidor de desarrollo reiniciado tras el build para evitar caché `.next` corrupta.
 - Suite final: 9/9 E2E, 23/23 unitarias de modalidad, typecheck y build correctos.
+
+## Refinamiento de experiencia (segunda pasada)
+
+- Presentaciones reales en Medusa: de una variante `oz` por producto a una escalera de hasta tres tamaños en gramos con precio propio.
+- Selector de presentación con barra de compra fija en móvil.
+- Galería con miniaturas, vista ampliada y packshots locales de Jovy.
+- Notificaciones de éxito/error, skeletons por ruta, spinners por línea y animaciones cortas con `prefers-reduced-motion`.
+- Validación cliente de dirección antes de llamar al BFF y confirmación animada del pedido.
+- Seed idempotente repara valores de opción, vínculos producto-opción y precios ausentes.
+- Evidencia: 10/10 E2E, 234/234 unitarias backend, typecheck y lint sin errores.
 
 ## Próximos pasos productivos
 
