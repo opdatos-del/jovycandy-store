@@ -1,34 +1,35 @@
-# Catálogo de productos JovyCandy
+# Catálogo y compra JovyCandy
 
-**Estado:** IMPLEMENTADO · catálogo oficial con datos CMS. Carrito y checkout pendientes.  
-**Rutas:** `/{locale}/catalogo` y `/{locale}/productos/[handle]`.  
-**Alcance:** presentación y navegación del catálogo; sin cambios en Medusa, inventario, precios ni pedidos.
+**Estado:** IMPLEMENTADO · catálogo, precios, carrito, checkout DEMO y cuentas B2C en laboratorio.  
+**Rutas:** `/{locale}/catalogo`, `/{locale}/productos/[handle]`, `/{locale}/carrito`, `/{locale}/checkout`, `/{locale}/checkout/confirmacion`, `/{locale}/cuenta`.  
+**Alcance:** laboratorio local; sin cobros reales, envíos productivos ni despliegue.
 
 ## 1. Experiencia
 
-El catálogo oficial usa una composición de alta densidad inspirada en tiendas especializadas de dulces:
+El catálogo oficial usa una composición de alta densidad:
 
 - cabecera compacta con breadcrumb, título y descripción;
 - catálogo a ancho completo con filtros laterales persistentes;
 - sidebar sticky con scroll propio cuando excede el viewport;
-- tarjetas con packshot, familia, nombre, gramaje, certificaciones y CTA a ficha;
+- tarjetas con packshot, familia, gramaje, precio, certificaciones y CTA;
 - grid de máximo 6 columnas en escritorio amplio;
-- ficha de producto con galería, badges, especificaciones, acciones y relacionados;
+- ficha con galería, variantes, cantidad, precio, disponibilidad y relacionados;
+- carrito lateral, página de carrito y checkout de cuatro pasos;
 - 404 de producto alineado a la misma identidad.
-
-La identidad se apoya en la paleta corporativa, tipografía sans condensada, superficies blancas, bordes finos, badges tipo píldora y acentos aqua/coral.
 
 ## 2. Rutas
 
 | Pantalla | Ruta |
 |---|---|
-| Catálogo ES | `/es/catalogo` |
-| Catálogo EN | `/en/catalogo` |
-| Ficha de producto | `/es/productos/[handle]` |
+| Catálogo ES/EN | `/es/catalogo` · `/en/catalogo` |
+| Ficha | `/es/productos/[handle]` |
+| Carrito | `/es/carrito` |
+| Checkout | `/es/checkout` |
+| Confirmación | `/es/checkout/confirmacion` |
+| Cuenta | `/es/cuenta` |
 | Categoría | `/es/catalogo?categoria=chamoy` |
-| Producto inexistente | 404 propia dentro de `/productos/[handle]` |
 
-El catálogo solo muestra productos publicados con `handle`. Las fichas de respaldo sin página propia no se muestran; una categoría sin productos publicados muestra el estado vacío.
+Carrito, checkout, confirmación y cuenta no se indexan. La confirmación usa una cookie HttpOnly firmada, no un identificador adivinable en la URL.
 
 ## 3. Ejecución
 
@@ -49,63 +50,67 @@ Los E2E levantan backend y storefront si no están activos.
 ## 4. Implementación
 
 ```text
-src/app/[locale]/catalogo/            catálogo oficial
-src/app/[locale]/productos/[handle]/  ficha y 404 de producto
-src/features/catalog/
-├── catalog-page.tsx                  filtros, búsqueda, orden y grilla
-├── product-card.tsx                  tarjeta compartida
-└── product-detail.tsx                ficha, acciones y relacionados
-src/styles/catalog/catalog.css         sistema visual del catálogo
-e2e/catalog.spec.ts                   catálogo, ficha, responsive y 404
+src/app/[locale]/catalogo/             catálogo
+src/app/[locale]/productos/[handle]/   ficha y 404
+src/app/[locale]/carrito/              carrito
+src/app/[locale]/checkout/             checkout y confirmación
+src/app/[locale]/cuenta/               cuenta B2C
+src/app/api/                           BFF de carrito, checkout y cuenta
+src/features/catalog/                  catálogo, tarjeta y ficha
+src/features/commerce/                 provider, drawer, carrito, checkout y cuenta
+src/lib/medusa/                        Store API, sesión, validación y cliente
+src/lib/commerce/                      formato monetario
+src/styles/catalog/catalog.css         sistema visual
+e2e/catalog.spec.ts                    catálogo, compra, cuenta, móvil y 404
 ```
 
-## 5. Datos
+## 5. Datos comerciales
 
-Fuente: `getHomeContent(locale)` → Store API editorial `/store/jovy/products` y categorías.
+- Producto y variantes: Medusa Product Module.
+- Precio: Medusa Pricing, región México/MXN.
+- Disponibilidad: `manage_inventory`, `allow_backorder` e inventario.
+- Modalidad: Jovy Product Editorial (`SELLABLE` / `CATALOG_ONLY`).
+- Familia, gramaje, certificaciones y novedad: CMS Jovy.
 
-Campos usados:
+El storefront combina editorial + Medusa en servidor y nunca confía en precios enviados por el cliente. Las mutaciones comerciales pasan por el BFF.
 
-- título, `handle`, thumbnail;
-- familia y claves de categoría;
-- gramaje y certificaciones;
-- novedad y modalidad `SELLABLE` / `CATALOG_ONLY`.
-
-No se muestran precios porque el endpoint editorial no los expone ni los inventa. Las categorías se resuelven por `?categoria=` y el resto de facetas en cliente.
-
-## 6. Seed del catálogo
-
-El catálogo local se puede poblar con 25 productos Jovy reales, sus categorías, familias y fichas editoriales:
+## 6. Seeds
 
 ```powershell
-pnpm --dir apps/backend seed:catalog
-# Equivalente directo:
-pnpm --dir apps/backend exec medusa exec ./src/scripts/seed-jovy-catalog.ts
+pnpm --dir apps/backend seed:catalog   # 25 productos Jovy
+pnpm --dir apps/backend seed:commerce  # región MX, MXN, envío DEMO y pago manual
 ```
 
-El seed es idempotente: reconoce handles existentes y completa lo que falte. Crea una variante y precio de desarrollo por producto, publica las fichas y oculta los productos demo de Medusa (`t-shirt`, `sweatpants`) del catálogo editorial. Las imágenes apuntan al CDN público de Jovy USA; precios, textos y certificaciones son datos de desarrollo editables desde el Admin.
+Ambos son idempotentes. El catálogo oculta los productos demo `t-shirt` y `sweatpants`; no los borra. Los precios, textos y certificaciones son datos de desarrollo.
 
 ## 7. Funcionalidad
 
-- búsqueda por nombre, familia, gramaje, certificaciones y categoría;
-- filtros de familia, gramaje, certificación, modalidad y novedades;
-- conteos por faceta y opciones sin resultados deshabilitadas;
-- orden por destacados, nombre y novedades;
-- sidebar sticky y drawer móvil con `<dialog>`;
-- tarjetas y fichas solo para productos con página pública;
-- relacionados por familia/categoría, con respaldo a otros productos publicados;
-- CTA de ficha; `SELLABLE` mantiene “Añadir al carrito” deshabilitado mientras no exista carrito y `CATALOG_ONLY` ofrece contacto;
-- 404 propio con accesos a catálogo e inicio;
-- textos ES/EN y metadata por producto.
+- búsqueda, filtros, conteos y ordenamiento;
+- precios MXN calculados por Medusa;
+- selector de variante y cantidad;
+- carrito persistente con drawer y página;
+- checkout con dirección MX, envío DEMO y pago manual;
+- pedido real en Medusa y confirmación firmada;
+- cuentas B2C: registro, login, logout, direcciones e historial;
+- transferencia del carrito invitado al iniciar sesión;
+- `CATALOG_ONLY` bloqueado en UI y en hooks de servidor;
+- ES/EN, responsive, estados vacío/error/carga y 404.
 
 ## 8. Límites
 
-- Carrito, checkout, precios, inventario y pedidos no están implementados en el storefront.
-- La calidad del catálogo depende de los productos publicados en el CMS.
+- El pago es `pp_system_default`; no hay cobro real.
+- El envío es manual y de laboratorio; no hay paquetería.
+- No hay recuperación de contraseña con correo real.
+- El historial solo incluye pedidos asociados al cliente autenticado.
+- Los precios, imágenes remotas y certificaciones del seed requieren revisión antes de producción.
 - Los filtros se resuelven en cliente; un catálogo grande requerirá búsqueda/paginación en servidor.
 - No hubo prueba con usuarios ni medición de Core Web Vitals.
 
 ## 9. Documentos relacionados
 
 - Sistema visual: `docs/62-DESIGN-SYSTEM-CATALOGO.md`.
-- Integración comercial: `docs/64-PLAN-INTEGRACION-MEDUSA-TIENDA.md`.
-- Inventario de assets: `docs/58-INVENTARIO-ASSETS-HISTORICOS.md`.
+- Arquitectura comercial: `docs/65-ARQUITECTURA-ECOMMERCE-B2C.md`.
+- Carrito: `docs/67-CARRITO-MEDUSA.md`.
+- Checkout: `docs/68-CHECKOUT-Y-PAGOS-DEMO.md`.
+- Cuentas: `docs/69-CUENTAS-CLIENTE-B2C.md`.
+- Validación: `docs/72-VALIDACION-END-TO-END.md`.

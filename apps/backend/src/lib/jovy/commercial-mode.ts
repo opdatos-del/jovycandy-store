@@ -19,6 +19,8 @@ export type CommercialModeDeps = {
   editorialService: CommercialModeEditorialService
   /** Aviso acotado cuando la tabla editorial aún no existe (arranque/db:migrate). */
   onMissingTable?: (error: unknown) => void
+  /** Diagnóstico saneado para fallos de validación no esperados. */
+  onValidationError?: (error: unknown) => void
 }
 
 function addVariantId(value: unknown, ids: Set<string>): void {
@@ -80,17 +82,29 @@ export async function resolveVariantProductIds(
   })
 
   const productIds = new Set<string>()
-  for (const variant of data as Array<{ product_id?: string | null }>) {
+  const resolvedVariantIds = new Set<string>()
+  for (const variant of data as Array<{ id?: string | null; product_id?: string | null }>) {
+    if (typeof variant?.id === "string") resolvedVariantIds.add(variant.id)
     if (typeof variant?.product_id === "string" && variant.product_id) productIds.add(variant.product_id)
   }
+
+  // Un conjunto parcialmente resuelto no autoriza la compra: no se puede
+  // garantizar la modalidad de todas las variantes del carrito.
+  if (resolvedVariantIds.size !== variantIds.length || productIds.size === 0) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "No se pudo validar la disponibilidad del carrito.",
+    )
+  }
+
   return [...productIds]
 }
 
 /**
  * Rechaza el carrito si alguna variante resuelve a un producto sin ficha o cuya
- * modalidad efectiva es CATALOG_ONLY. Devuelve `false` cuando la tabla editorial
- * todavía no existe: en ese caso se omite la validación para no romper el
- * arranque ni `db:migrate`. Nunca muta el carrito.
+ * modalidad efectiva es CATALOG_ONLY. Es fail-closed: si el subsistema editorial
+ * no está disponible, la compra se rechaza; las migraciones y la lectura del
+ * catálogo no dependen de esta función. Nunca muta el carrito.
  */
 export async function assertVariantsSellable(data: unknown, deps: CommercialModeDeps): Promise<boolean> {
   const variantIds = extractVariantIds(data)
@@ -98,13 +112,6 @@ export async function assertVariantsSellable(data: unknown, deps: CommercialMode
 
   try {
     const productIds = await resolveVariantProductIds(deps.query, variantIds)
-    if (!productIds.length) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        "No se pudo resolver el producto de las variantes del carrito; se trata como catálogo informativo",
-      )
-    }
-
     const records = await deps.editorialService.listProductEditorials({ product_id: productIds })
     const modes = new Map(
       records.map((record) => [record.product_id, resolveCommercialMode(record.commercial_mode)]),
@@ -115,16 +122,24 @@ export async function assertVariantsSellable(data: unknown, deps: CommercialMode
       if (modes.get(productId) !== "SELLABLE") {
         throw new MedusaError(
           MedusaError.Types.NOT_ALLOWED,
-          `El producto ${productId} es de catálogo informativo y no se puede comprar`,
+          "Uno de los productos del carrito no está disponible para compra.",
         )
       }
     }
     return true
   } catch (error) {
+    if (error instanceof MedusaError) throw error
     if (isEditorialTableMissing(error)) {
       deps.onMissingTable?.(error)
-      return false
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "La compra no está disponible temporalmente.",
+      )
     }
-    throw error
+    deps.onValidationError?.(error)
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "No se pudo validar la compra. Intenta de nuevo más tarde.",
+    )
   }
 }

@@ -1,6 +1,20 @@
 # Plan de integración comercial Medusa para el catálogo
 
-**Estado:** PROPUESTO. El catálogo oficial ya usa el diseño C con datos CMS; precios, variantes, inventario, carrito y checkout siguen pendientes.
+**Estado:** IMPLEMENTADO EN LABORATORIO. El catálogo usa Medusa para precios, variantes, carrito, envío DEMO, pago manual y pedidos. Los proveedores productivos, correo transaccional y CFDI siguen pendientes.
+
+## 0. Implementación actual
+
+- Cliente Store API en `apps/storefront/src/lib/medusa`.
+- Región México/MXN y envío DEMO con `pnpm --dir apps/backend seed:commerce`.
+- Carrito persistente con cookie HttpOnly y BFF `/api/cart`.
+- Checkout con dirección MX, envío DEMO, `pp_system_default` y `/api/checkout`.
+- Confirmación firmada con cookie HttpOnly de 10 minutos.
+- Cuentas B2C con `/api/account`, transferencia de carrito y pedidos propios.
+- Validación fail-closed de modalidad en `addToCart`, `updateLineItem` y `completeCart`.
+- 9/9 E2E del storefront y 23/23 unitarias de modalidad al cierre de la campaña.
+
+Detalle: `docs/65` a `docs/73`.
+
 
 ## 1. Mapeo UI → fuente futura
 

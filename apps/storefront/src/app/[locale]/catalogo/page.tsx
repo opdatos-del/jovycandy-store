@@ -3,6 +3,7 @@
 import { CatalogPage } from "@/features/catalog/catalog-page"
 import { getHomeContent, type CmsProduct } from "@/lib/cms/client"
 import { getDictionary, isLocale } from "@/lib/i18n"
+import { getMexicoRegion, listCommerceProducts } from "@/lib/medusa/store"
 
 import "@/styles/catalog/catalog.css"
 
@@ -33,6 +34,20 @@ export default async function CataloguePage({ params, searchParams }: CatalogueP
     ]),
   )
 
+  const region = await getMexicoRegion().catch(() => null)
+  const commerceProducts = region ? await listCommerceProducts(region.id).catch(() => []) : []
+  const prices = Object.fromEntries(
+    commerceProducts.map((product) => {
+      const variant = product.variants.find((item) => item.price !== null) ?? product.variants[0]
+      return [
+        product.handle,
+        variant?.price !== null && variant?.price !== undefined
+          ? { amount: variant.price, currencyCode: variant.currencyCode ?? region?.currency_code ?? "mxn" }
+          : null,
+      ]
+    }),
+  )
+
   return (
     <CatalogPage
       locale={locale}
@@ -41,6 +56,7 @@ export default async function CataloguePage({ params, searchParams }: CatalogueP
       categories={categories}
       categoryCounts={categoryCounts}
       totalProducts={viewableProducts.length}
+      prices={prices}
       selectedCategoryKey={selected?.key}
       selectedCategoryName={selected?.name}
       selectedCategoryDescription={selected?.description}

@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+import { formatMoney } from "@/lib/commerce/format"
 import type { CmsProduct } from "@/lib/cms/client"
 import { responsiveSrcSet } from "@/lib/images"
 import type { Dictionary, Locale } from "@/lib/i18n"
@@ -11,11 +12,13 @@ export function CatalogCard({
   locale,
   dictionary,
   fallbackFamily,
+  price,
 }: {
   product: ViewableProduct
   locale: Locale
   dictionary: Dictionary
   fallbackFamily?: string | null
+  price?: { amount: number; currencyCode: string } | null
 }) {
   const endpoint = `/${locale}/productos/${product.handle}`
   const image =
@@ -42,6 +45,11 @@ export function CatalogCard({
           <Link href={endpoint}>{product.title}</Link>
         </h2>
         {product.gramaje ? <p className="catalog-card__size">{product.gramaje}</p> : null}
+        {price ? (
+          <p className="catalog-card__price">
+            {formatMoney(price.amount, price.currencyCode, locale)}
+          </p>
+        ) : null}
         <p className="catalog-card__meta">
           {product.certifications.length
             ? product.certifications.map((certification) => (

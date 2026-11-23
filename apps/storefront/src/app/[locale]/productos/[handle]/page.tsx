@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import { ProductDetail } from "@/features/catalog/product-detail"
 import type { ViewableProduct } from "@/features/catalog/product-card"
 import { getHomeContent } from "@/lib/cms/client"
+import { getCommerceProduct, getMexicoRegion } from "@/lib/medusa/store"
 import { getDictionary, isLocale } from "@/lib/i18n"
 
 import "@/styles/catalog/catalog.css"
@@ -58,11 +59,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : viewableProducts.filter((item) => item.id !== product.id)
   ).slice(0, 4)
 
+  const region = await getMexicoRegion().catch(() => null)
+  const commerce = region
+    ? await getCommerceProduct(product.handle, region.id).catch(() => null)
+    : null
+
   return (
     <ProductDetail
       locale={locale}
       dictionary={dictionary}
       product={product}
+      commerce={commerce}
       related={related}
       categoryName={categoryName}
     />

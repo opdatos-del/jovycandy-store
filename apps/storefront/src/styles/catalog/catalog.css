@@ -345,6 +345,14 @@
   line-height: 1.1;
 }
 
+.catalog-card__price {
+  margin-top: 0.1rem;
+  color: #202a35;
+  font-size: 1rem;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
 .catalog-card__body .catalog-price {
   min-height: 1.4rem;
   justify-content: center;
@@ -1037,9 +1045,124 @@
   padding-top: 0.25rem;
 }
 
+.product-variants {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.product-variants legend {
+  margin-bottom: 0.35rem;
+  color: var(--catalog-muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.product-variants__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 0.45rem;
+}
+
+.product-variants__options label {
+  min-height: 56px;
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid #d6dce3;
+  border-radius: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.product-variants__options label.is-selected {
+  border-color: var(--catalog-blue);
+  box-shadow: 0 0 0 1px var(--catalog-blue);
+}
+
+.product-variants__options label[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.product-variants__options input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.product-variants__options span {
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.product-variants__options small {
+  color: var(--catalog-muted);
+  font-size: 0.68rem;
+}
+
+.product-buy__price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-block: 1px solid #e4e8ed;
+  padding-block: 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.product-buy__availability {
+  color: #075a49;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.product-buy__availability.is-unavailable {
+  color: #a33a54;
+}
+
+.product-buy__row {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 0.55rem;
+}
+
+.product-quantity {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  min-height: 46px;
+  overflow: hidden;
+  border: 1px solid #d6dce3;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.product-quantity > * {
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
 .product-buy__primary,
 .product-buy__secondary {
   width: 100%;
+}
+
+.product-buy__message {
+  min-height: 1.2em;
+  color: #075a49;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.4;
 }
 
 .product-buy__note {

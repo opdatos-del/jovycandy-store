@@ -161,18 +161,26 @@ function fakeDeps(overrides: Partial<CommercialModeDeps> = {}): CommercialModeDe
   graph: jest.Mock
   list: jest.Mock
   onMissingTable: jest.Mock
+  onValidationError: jest.Mock
 } {
   const graph = jest.fn().mockResolvedValue({ data: [] })
   const list = jest.fn().mockResolvedValue([])
   const onMissingTable = jest.fn()
+  const onValidationError = jest.fn()
   return {
     query: { graph } as unknown as CommercialModeDeps["query"],
     editorialService: { listProductEditorials: list },
     onMissingTable,
+    onValidationError,
     graph,
     list,
     ...overrides,
-  } as CommercialModeDeps & { graph: jest.Mock; list: jest.Mock; onMissingTable: jest.Mock }
+  } as CommercialModeDeps & {
+    graph: jest.Mock
+    list: jest.Mock
+    onMissingTable: jest.Mock
+    onValidationError: jest.Mock
+  }
 }
 
 function variantData(...variantIds: string[]) {
@@ -283,20 +291,35 @@ describe("validación de modalidad en el carrito", () => {
     })
   })
 
-  it("omite la validación con aviso acotado si la tabla editorial no existe", async () => {
+  it("rechaza si una variante del conjunto no se resuelve", async () => {
+    const deps = fakeDeps()
+    deps.graph.mockResolvedValue({ data: mapVariants([["var_1", "prod_01"]]) })
+
+    await expect(resolveVariantProductIds(deps.query, ["var_1", "var_2"])).rejects.toMatchObject({
+      type: MedusaError.Types.NOT_ALLOWED,
+    })
+  })
+
+  it("rechaza fail-closed si la tabla editorial no existe", async () => {
     const deps = fakeDeps()
     deps.graph.mockRejectedValue(new Error('relation "jovy_product_editorial" does not exist'))
 
-    await expect(assertVariantsSellable(variantData("var_1"), deps)).resolves.toBe(false)
+    await expect(assertVariantsSellable(variantData("var_1"), deps)).rejects.toMatchObject({
+      type: MedusaError.Types.NOT_ALLOWED,
+    })
     expect(deps.onMissingTable).toHaveBeenCalledTimes(1)
   })
 
-  it("repropaga errores que no son de tabla ausente", async () => {
+  it("rechaza errores no esperados sin propagar el detalle interno", async () => {
     const deps = fakeDeps()
     deps.graph.mockResolvedValue({ data: mapVariants([["var_1", "prod_01"]]) })
     deps.list.mockRejectedValue(new Error("timeout de base de datos"))
 
-    await expect(assertVariantsSellable(variantData("var_1"), deps)).rejects.toThrow("timeout de base de datos")
+    await expect(assertVariantsSellable(variantData("var_1"), deps)).rejects.toMatchObject({
+      type: MedusaError.Types.NOT_ALLOWED,
+      message: "No se pudo validar la compra. Intenta de nuevo más tarde.",
+    })
+    expect(deps.onValidationError).toHaveBeenCalledTimes(1)
     expect(deps.onMissingTable).not.toHaveBeenCalled()
   })
 })

@@ -1,0 +1,482 @@
+import "server-only"
+
+/**
+ * Cliente de lectura/escritura contra la Store API de Medusa.
+ * Vive solo en servidor: la publishable key no es un secreto administrativo,
+ * pero el carrito y las mutaciones siempre pasan por el BFF con cookie HttpOnly.
+ */
+
+const BACKEND = (process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000").replace(
+  /\/$/,
+  "",
+)
+const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_API_KEY ?? ""
+const TIMEOUT_MS = 8_000
+
+export class StoreApiError extends Error {
+  status: number
+
+  constructor(message: string, status = 500) {
+    super(message)
+    this.name = "StoreApiError"
+    this.status = status
+  }
+}
+
+type RequestOptions = {
+  method?: "GET" | "POST" | "DELETE"
+  body?: unknown
+  cache?: RequestCache
+}
+
+async function storeFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  const method = options.method ?? "GET"
+
+  try {
+    const response = await fetch(`${BACKEND}/store${path}`, {
+      method,
+      headers: {
+        "x-publishable-api-key": PUBLISHABLE_KEY,
+        accept: "application/json",
+        ...(options.body ? { "content-type": "application/json" } : {}),
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
+      cache: options.cache ?? "no-store",
+    })
+
+    const payload = (await response.json().catch(() => null)) as
+      | { message?: string; error?: string; type?: string }
+      | null
+
+    if (!response.ok) {
+      const message =
+        payload?.message ??
+        payload?.error ??
+        (response.status === 404
+          ? "El recurso no está disponible."
+          : "No se pudo completar la operación comercial.")
+      throw new StoreApiError(message, response.status)
+    }
+
+    return payload as T
+  } catch (error) {
+    if (error instanceof StoreApiError) throw error
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new StoreApiError("La tienda tardó demasiado en responder.", 504)
+    }
+    throw new StoreApiError("No se pudo conectar con la tienda.", 503)
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+export type StoreRegion = {
+  id: string
+  name: string
+  currency_code: string
+}
+
+export type CommerceVariant = {
+  id: string
+  title: string
+  sku: string | null
+  manageInventory: boolean
+  allowBackorder: boolean
+  inventoryQuantity: number | null
+  price: number | null
+  currencyCode: string | null
+}
+
+export type CommerceProduct = {
+  id: string
+  handle: string
+  title: string
+  thumbnail: string | null
+  variants: CommerceVariant[]
+}
+
+type RawVariant = {
+  id?: string
+  title?: string | null
+  sku?: string | null
+  manage_inventory?: boolean | null
+  allow_backorder?: boolean | null
+  inventory_quantity?: number | null
+  calculated_price?: {
+    calculated_amount?: number | null
+    currency_code?: string | null
+  } | null
+}
+
+type RawProduct = {
+  id?: string
+  handle?: string | null
+  title?: string | null
+  thumbnail?: string | null
+  variants?: RawVariant[] | null
+}
+
+function normalizeProduct(raw: RawProduct): CommerceProduct | null {
+  if (!raw.id || !raw.handle || !raw.title) return null
+  const variants = (raw.variants ?? [])
+    .filter((variant): variant is RawVariant & { id: string } => Boolean(variant.id))
+    .map((variant) => ({
+      id: variant.id,
+      title: variant.title ?? "",
+      sku: variant.sku ?? null,
+      manageInventory: Boolean(variant.manage_inventory),
+      allowBackorder: Boolean(variant.allow_backorder),
+      inventoryQuantity:
+        typeof variant.inventory_quantity === "number" ? variant.inventory_quantity : null,
+      price:
+        typeof variant.calculated_price?.calculated_amount === "number"
+          ? variant.calculated_price.calculated_amount
+          : null,
+      currencyCode: variant.calculated_price?.currency_code ?? null,
+    }))
+
+  return {
+    id: raw.id,
+    handle: raw.handle,
+    title: raw.title,
+    thumbnail: raw.thumbnail ?? null,
+    variants,
+  }
+}
+
+export async function getMexicoRegion(): Promise<StoreRegion | null> {
+  const payload = await storeFetch<{ regions?: StoreRegion[] }>("/regions", {
+    cache: "force-cache",
+  })
+  return (
+    payload.regions?.find((region) => region.currency_code === "mxn" || region.name === "Mexico") ??
+    null
+  )
+}
+
+export async function listCommerceProducts(regionId: string): Promise<CommerceProduct[]> {
+  const payload = await storeFetch<{ products?: RawProduct[] }>(
+    `/products?region_id=${encodeURIComponent(regionId)}&limit=100&fields=id,title,handle,thumbnail,variants.id,variants.title,variants.sku,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price`,
+  )
+  return (payload.products ?? [])
+    .map(normalizeProduct)
+    .filter((product): product is CommerceProduct => Boolean(product))
+}
+
+export async function getCommerceProduct(
+  handle: string,
+  regionId: string,
+): Promise<CommerceProduct | null> {
+  const payload = await storeFetch<{ products?: RawProduct[] }>(
+    `/products?handle=${encodeURIComponent(handle)}&region_id=${encodeURIComponent(regionId)}&fields=id,title,handle,thumbnail,variants.id,variants.title,variants.sku,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price`,
+  )
+  const product = payload.products?.[0]
+  return product ? normalizeProduct(product) : null
+}
+
+export type StoreCartItem = {
+  id: string
+  variantId: string | null
+  productHandle: string | null
+  productTitle: string
+  variantTitle: string
+  thumbnail: string | null
+  quantity: number
+  unitPrice: number
+  total: number
+}
+
+export type StoreCart = {
+  id: string
+  currencyCode: string
+  email: string | null
+  items: StoreCartItem[]
+  itemCount: number
+  subtotal: number
+  shippingTotal: number
+  taxTotal: number
+  discountTotal: number
+  total: number
+  shippingMethodId: string | null
+  completedAt: string | null
+}
+
+type RawLineItem = {
+  id?: string
+  variant_id?: string | null
+  product_handle?: string | null
+  product_title?: string | null
+  variant_title?: string | null
+  thumbnail?: string | null
+  quantity?: number | null
+  unit_price?: number | null
+}
+
+type RawCart = {
+  id?: string
+  currency_code?: string | null
+  email?: string | null
+  items?: RawLineItem[] | null
+  subtotal?: number | null
+  shipping_total?: number | null
+  tax_total?: number | null
+  discount_total?: number | null
+  total?: number | null
+  shipping_methods?: Array<{ id?: string | null }> | null
+  completed_at?: string | null
+}
+
+export function normalizeCart(raw: RawCart): StoreCart | null {
+  if (!raw.id) return null
+  const items = (raw.items ?? [])
+    .filter((item): item is RawLineItem & { id: string } => Boolean(item.id))
+    .map((item) => {
+      const quantity = typeof item.quantity === "number" ? item.quantity : 0
+      const unitPrice = typeof item.unit_price === "number" ? item.unit_price : 0
+      return {
+        id: item.id,
+        variantId: item.variant_id ?? null,
+        productHandle: item.product_handle ?? null,
+        productTitle: item.product_title ?? "Producto",
+        variantTitle: item.variant_title ?? "",
+        thumbnail: item.thumbnail ?? null,
+        quantity,
+        unitPrice,
+        total: unitPrice * quantity,
+      }
+    })
+
+  return {
+    id: raw.id,
+    currencyCode: raw.currency_code ?? "mxn",
+    email: raw.email ?? null,
+    items,
+    itemCount: items.reduce((count, item) => count + item.quantity, 0),
+    subtotal: raw.subtotal ?? 0,
+    shippingTotal: raw.shipping_total ?? 0,
+    taxTotal: raw.tax_total ?? 0,
+    discountTotal: raw.discount_total ?? 0,
+    total: raw.total ?? 0,
+    shippingMethodId: raw.shipping_methods?.[0]?.id ?? null,
+    completedAt: raw.completed_at ?? null,
+  }
+}
+
+export async function createStoreCart(regionId: string): Promise<StoreCart> {
+  const payload = await storeFetch<{ cart?: RawCart }>("/carts", {
+    method: "POST",
+    body: { region_id: regionId },
+  })
+  const cart = normalizeCart(payload.cart ?? {})
+  if (!cart) throw new StoreApiError("No se pudo crear el carrito.")
+  return cart
+}
+
+export async function getStoreCart(cartId: string): Promise<StoreCart | null> {
+  try {
+    const payload = await storeFetch<{ cart?: RawCart }>(`/carts/${encodeURIComponent(cartId)}`)
+    return normalizeCart(payload.cart ?? {})
+  } catch (error) {
+    if (error instanceof StoreApiError && error.status === 404) return null
+    throw error
+  }
+}
+
+export async function addStoreCartItem(
+  cartId: string,
+  variantId: string,
+  quantity: number,
+): Promise<StoreCart> {
+  const payload = await storeFetch<{ cart?: RawCart }>(
+    `/carts/${encodeURIComponent(cartId)}/line-items`,
+    {
+      method: "POST",
+      body: { variant_id: variantId, quantity },
+    },
+  )
+  const cart = normalizeCart(payload.cart ?? {})
+  if (!cart) throw new StoreApiError("No se pudo actualizar el carrito.")
+  return cart
+}
+
+export async function updateStoreCartItem(
+  cartId: string,
+  itemId: string,
+  quantity: number,
+): Promise<StoreCart> {
+  const payload = await storeFetch<{ cart?: RawCart }>(
+    `/carts/${encodeURIComponent(cartId)}/line-items/${encodeURIComponent(itemId)}`,
+    {
+      method: "POST",
+      body: { quantity },
+    },
+  )
+  const cart = normalizeCart(payload.cart ?? {})
+  if (!cart) throw new StoreApiError("No se pudo actualizar el carrito.")
+  return cart
+}
+
+export async function removeStoreCartItem(cartId: string, itemId: string): Promise<StoreCart> {
+  // El Store API de Medusa responde con un resultado de borrado, no con el
+  // carrito actualizado: el estado se relee para reconstruir totales reales.
+  await storeFetch<{ id?: string; deleted?: boolean }>(
+    `/carts/${encodeURIComponent(cartId)}/line-items/${encodeURIComponent(itemId)}`,
+    { method: "DELETE" },
+  )
+  const cart = await getStoreCart(cartId)
+  if (!cart) throw new StoreApiError("No se pudo actualizar el carrito.")
+  return cart
+}
+
+export type ShippingOption = {
+  id: string
+  name: string
+  amount: number
+  currencyCode: string
+}
+
+export async function listStoreShippingOptions(cartId: string): Promise<ShippingOption[]> {
+  type RawShippingOption = {
+    id?: string
+    name?: string
+    amount?: number | null
+    calculated_price?: { calculated_amount?: number | null; currency_code?: string | null } | null
+  }
+  const payload = await storeFetch<{ shipping_options?: RawShippingOption[] }>(
+    `/shipping-options?cart_id=${encodeURIComponent(cartId)}`,
+  )
+
+  return (payload.shipping_options ?? [])
+    .filter((option): option is RawShippingOption & { id: string } => Boolean(option.id))
+    .map((option) => ({
+      id: option.id,
+      name: option.name ?? "Envío",
+      amount: option.calculated_price?.calculated_amount ?? option.amount ?? 0,
+      currencyCode: option.calculated_price?.currency_code ?? "mxn",
+    }))
+}
+
+export async function setStoreCartShippingMethod(
+  cartId: string,
+  optionId: string,
+): Promise<StoreCart> {
+  const payload = await storeFetch<{ cart?: RawCart }>(
+    `/carts/${encodeURIComponent(cartId)}/shipping-methods`,
+    { method: "POST", body: { option_id: optionId } },
+  )
+  const cart = normalizeCart(payload.cart ?? {})
+  if (!cart) throw new StoreApiError("No se pudo seleccionar el envío.")
+  return cart
+}
+
+export async function updateStoreCartCustomer(
+  cartId: string,
+  input: { email: string; shippingAddress: Record<string, string> },
+): Promise<StoreCart> {
+  const payload = await storeFetch<{ cart?: RawCart }>(`/carts/${encodeURIComponent(cartId)}`, {
+    method: "POST",
+    body: {
+      email: input.email,
+      shipping_address: input.shippingAddress,
+      billing_address: input.shippingAddress,
+    },
+  })
+  const cart = normalizeCart(payload.cart ?? {})
+  if (!cart) throw new StoreApiError("No se pudieron guardar los datos de envío.")
+  return cart
+}
+
+export async function createStorePaymentSession(cartId: string): Promise<StoreCart> {
+  const paymentCollection = await storeFetch<{ payment_collection?: { id?: string } }>(
+    "/payment-collections",
+    { method: "POST", body: { cart_id: cartId } },
+  )
+  const collectionId = paymentCollection.payment_collection?.id
+  if (!collectionId) throw new StoreApiError("No se pudo preparar el pago de laboratorio.")
+
+  await storeFetch(`/payment-collections/${encodeURIComponent(collectionId)}/payment-sessions`, {
+    method: "POST",
+    body: { provider_id: "pp_system_default" },
+  })
+
+  const cart = await getStoreCart(cartId)
+  if (!cart) throw new StoreApiError("No se pudo recuperar el carrito.")
+  return cart
+}
+
+export type CompletedOrder = {
+  id: string
+  displayId: number | null
+  email: string | null
+  currencyCode: string
+  total: number
+  status: string
+  createdAt: string | null
+  items: Array<{
+    title: string
+    variantTitle: string
+    quantity: number
+    total: number
+    thumbnail: string | null
+  }>
+}
+
+type RawOrder = {
+  id?: string
+  display_id?: number | null
+  email?: string | null
+  currency_code?: string | null
+  total?: number | null
+  status?: string | null
+  created_at?: string | null
+  items?: Array<{
+    title?: string | null
+    variant_title?: string | null
+    quantity?: number | null
+    total?: number | null
+    thumbnail?: string | null
+    unit_price?: number | null
+  }> | null
+}
+
+export function normalizeOrder(raw: RawOrder): CompletedOrder | null {
+  if (!raw.id) return null
+  return {
+    id: raw.id,
+    displayId: raw.display_id ?? null,
+    email: raw.email ?? null,
+    currencyCode: raw.currency_code ?? "mxn",
+    total: raw.total ?? 0,
+    status: raw.status ?? "pending",
+    createdAt: raw.created_at ?? null,
+    items: (raw.items ?? []).map((item) => ({
+      title: item.title ?? "Producto",
+      variantTitle: item.variant_title ?? "",
+      quantity: item.quantity ?? 0,
+      total: item.total ?? (item.unit_price ?? 0) * (item.quantity ?? 0),
+      thumbnail: item.thumbnail ?? null,
+    })),
+  }
+}
+
+export async function completeStoreCart(cartId: string): Promise<CompletedOrder> {
+  const payload = await storeFetch<{
+    type?: string
+    order?: RawOrder
+    error?: { message?: string } | null
+  }>(`/carts/${encodeURIComponent(cartId)}/complete`, { method: "POST", body: {} })
+
+  if (payload.type !== "order" || !payload.order) {
+    throw new StoreApiError(
+      payload.error?.message ?? "No se pudo completar el pedido. Revisa el carrito e intenta de nuevo.",
+      409,
+    )
+  }
+
+  const order = normalizeOrder(payload.order)
+  if (!order) throw new StoreApiError("La orden no devolvió datos válidos.")
+  return order
+}

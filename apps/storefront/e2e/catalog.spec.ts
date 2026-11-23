@@ -79,6 +79,97 @@ test.describe("catálogo oficial", () => {
     await expectNoHorizontalOverflow(page)
   })
 
+  test("compra invitado completa un pedido DEMO en Medusa", async ({ page }) => {
+    await page.goto("/es/productos/jovy-ositos-surtidos")
+    await expect(page.getByRole("heading", { level: 1, name: "Ositos Surtidos 12 Sabores" })).toBeVisible()
+    await expect(page.locator(".product-buy__price")).toContainText("$45.00")
+
+    await page.getByRole("button", { name: "Añadir al carrito" }).click()
+    await expect(page.getByRole("dialog", { name: /Carrito/ })).toBeVisible()
+    await page.getByRole("link", { name: "Finalizar compra" }).click()
+
+    await expect(page.getByRole("heading", { level: 1, name: "Checkout" })).toBeVisible()
+    const checkout = page.locator("main")
+    await checkout.getByLabel("Correo electrónico").fill("lab@jovy.test")
+    await checkout.getByLabel("Teléfono").fill("3312345678")
+    await checkout.getByLabel("Nombre", { exact: true }).fill("Laboratorio")
+    await checkout.getByLabel("Apellidos").fill("Jovy")
+    await checkout.getByLabel("Calle y número").fill("Av. Prueba 123")
+    await checkout.getByLabel("Ciudad").fill("Guadalajara")
+    await checkout.getByLabel("Estado").fill("Jalisco")
+    await checkout.getByLabel("Código postal").fill("44100")
+    await checkout.getByRole("button", { name: "Continuar al envío" }).click()
+
+    await expect(checkout.getByRole("heading", { name: "Método de envío" })).toBeVisible()
+    await checkout.getByRole("radio").first().check()
+    await checkout.getByRole("button", { name: "Continuar al pago" }).click()
+
+    await expect(checkout.getByText("Pago manual DEMO")).toBeVisible()
+    await checkout.getByRole("button", { name: "Revisar pedido" }).click()
+    await checkout.getByRole("button", { name: "Confirmar pedido DEMO" }).click()
+
+    await page.waitForURL(/\/es\/checkout\/confirmacion$/)
+    await expect(page.getByRole("heading", { level: 1, name: "Pedido confirmado" })).toBeVisible()
+    await expect(page.getByText("Pedido de prueba").first()).toBeVisible()
+    await expect(
+      page.getByRole("main").getByText("1 × Ositos Surtidos 12 Sabores").first(),
+    ).toBeVisible()
+  })
+
+  test("carrito persiste tras recargar, permite editar y eliminar", async ({ page }) => {
+    await page.goto("/es/productos/jovy-ositos-surtidos")
+    await page.getByRole("button", { name: "Añadir al carrito" }).click()
+    await expect(page.getByRole("dialog", { name: "Carrito" })).toBeVisible()
+    await page.getByRole("link", { name: "Ver carrito" }).click()
+    await expect(page.getByRole("heading", { level: 1, name: "Carrito" })).toBeVisible()
+
+    await page.reload()
+    const cart = page.getByRole("main")
+    await expect(cart.getByText("Ositos Surtidos 12 Sabores").first()).toBeVisible()
+    await expect(cart.getByText("$45.00").first()).toBeVisible()
+
+    await cart.getByRole("button", { name: "Aumentar cantidad" }).click()
+    await expect(cart.getByText("$90.00").first()).toBeVisible()
+
+    await cart.getByRole("button", { name: "Eliminar" }).click()
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Tu carrito está vacío" }),
+    ).toBeVisible()
+  })
+
+  test("CATALOG_ONLY no ofrece compra y muestra contacto", async ({ page }) => {
+    await page.goto("/es/productos/jovy-mini-gummy-mix")
+    await expect(page.getByRole("heading", { level: 1, name: "Mini Gummy Mix" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Añadir al carrito" })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "Contactar para comprar" })).toBeVisible()
+  })
+
+  test("cuenta B2C permite registro, perfil y logout", async ({ page }) => {
+    const email = `e2e+${Date.now()}@jovy.test`
+    await page.goto("/es/cuenta")
+    await page.getByRole("button", { name: /Crear cuenta/ }).click()
+    const account = page.locator("main")
+    await account.getByLabel("Nombre", { exact: true }).fill("Cliente")
+    await account.getByLabel("Apellidos").fill("E2E")
+    await account.getByLabel("Correo electrónico").fill(email)
+    await account.getByLabel("Contraseña").fill("JovyLab123!")
+    await account.getByRole("button", { name: "Crear cuenta", exact: true }).click()
+    await expect(account.getByRole("heading", { level: 1, name: "Mi cuenta" })).toBeVisible()
+    await expect(account.getByText(email)).toBeVisible()
+    await account.getByRole("button", { name: "Cerrar sesión" }).click()
+    await expect(account.getByRole("heading", { name: "Bienvenido de nuevo" })).toBeVisible()
+  })
+
+  test("compra móvil abre drawer y checkout sin overflow", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto("/es/productos/jovy-ositos-surtidos")
+    await page.getByRole("button", { name: "Añadir al carrito" }).click()
+    await expect(page.getByRole("dialog", { name: "Carrito" })).toBeVisible()
+    await page.getByRole("link", { name: "Finalizar compra" }).click()
+    await expect(page.getByRole("heading", { level: 1, name: "Checkout" })).toBeVisible()
+    await expectNoHorizontalOverflow(page)
+  })
+
   test("producto no encontrado responde 404 y se mantiene alineado", async ({ page }) => {
     const response = await page.goto("/es/productos/producto-inexistente")
     expect(response?.status()).toBe(404)

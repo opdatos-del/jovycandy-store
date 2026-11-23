@@ -1,7 +1,8 @@
 import Link from "next/link"
 
-import { ContactTrigger } from "@/components/contact-trigger"
+import { ProductPurchase } from "@/features/commerce/product-purchase"
 import { responsiveSrcSet } from "@/lib/images"
+import type { CommerceProduct } from "@/lib/medusa/store"
 import type { Dictionary, Locale } from "@/lib/i18n"
 import { CatalogCard, type ViewableProduct } from "./product-card"
 
@@ -9,6 +10,7 @@ type ProductDetailProps = {
   locale: Locale
   dictionary: Dictionary
   product: ViewableProduct
+  commerce: CommerceProduct | null
   related: ViewableProduct[]
   categoryName?: string | null
 }
@@ -17,6 +19,7 @@ export function ProductDetail({
   locale,
   dictionary,
   product,
+  commerce,
   related,
   categoryName,
 }: ProductDetailProps) {
@@ -102,28 +105,12 @@ export function ProductDetail({
             </div>
           </dl>
 
-          <div className="product-buy">
-            {isSellable ? (
-              <button
-                type="button"
-                className="catalog-primary-button product-buy__primary"
-                disabled
-                aria-describedby="product-buy-note"
-              >
-                {dictionary.catalog.addToCart}
-              </button>
-            ) : (
-              <ContactTrigger className="catalog-primary-button product-buy__primary">
-                {dictionary.catalog.contactToBuy}
-              </ContactTrigger>
-            )}
-            <ContactTrigger className="catalog-secondary-button product-buy__secondary">
-              {dictionary.catalog.askQuestion}
-            </ContactTrigger>
-            <p id="product-buy-note" className="product-buy__note">
-              {isSellable ? dictionary.catalog.cartPending : dictionary.catalog.catalogOnlyNote}
-            </p>
-          </div>
+          <ProductPurchase
+            locale={locale}
+            dictionary={dictionary}
+            commerce={commerce}
+            catalogOnly={!isSellable}
+          />
 
           <Link className="product-back" href={`/${locale}/catalogo`}>
             {dictionary.catalog.backToCatalog}

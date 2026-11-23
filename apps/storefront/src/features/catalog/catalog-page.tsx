@@ -14,6 +14,7 @@ type CatalogPageProps = {
   categories: CmsCategory[]
   categoryCounts: Record<string, number>
   totalProducts: number
+  prices: Record<string, { amount: number; currencyCode: string } | null>
   selectedCategoryKey?: string
   selectedCategoryName?: string | null
   selectedCategoryDescription?: string | null
@@ -107,6 +108,7 @@ export function CatalogPage({
   categories,
   categoryCounts,
   totalProducts,
+  prices,
   selectedCategoryKey,
   selectedCategoryName,
   selectedCategoryDescription,
@@ -459,6 +461,7 @@ export function CatalogPage({
                     locale={locale}
                     dictionary={dictionary}
                     fallbackFamily={categoryName}
+                    price={prices[product.handle] ?? null}
                   />
                 ))}
               </div>

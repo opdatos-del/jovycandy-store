@@ -4,7 +4,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
-import { CloseIcon, FacebookIcon, InstagramIcon, MenuIcon } from "@/components/icons"
+import { CloseIcon, CartIcon, FacebookIcon, InstagramIcon, MenuIcon, UserIcon } from "@/components/icons"
+import { useCommerce } from "@/features/commerce/cart-provider"
 import { responsiveSrcSet } from "@/lib/images"
 import type { Dictionary, Locale } from "@/lib/i18n"
 
@@ -21,6 +22,7 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDialogElement>(null)
+  const { itemCount, setOpen: setCartOpen } = useCommerce()
 
   const nav = [
     { key: "upcomingEvents", action: "events" },
@@ -123,6 +125,26 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
                 <InstagramIcon className="h-4 w-4" />
               </a>
               <Link
+                href={`/${locale}/cuenta`}
+                aria-label={dictionary.account.title}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/75 text-[#0d3b6e] shadow-sm transition hover:bg-white"
+              >
+                <UserIcon className="h-4 w-4" />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setCartOpen(true)}
+                aria-label={`${dictionary.commerce.openCart}${itemCount ? ` (${itemCount})` : ""}`}
+                className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white/75 text-[#0d3b6e] shadow-sm transition hover:bg-white"
+              >
+                <CartIcon className="h-5 w-5" />
+                {itemCount ? (
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#e8465b] px-1 text-[0.6rem] font-black text-white">
+                    {itemCount > 99 ? "99+" : itemCount}
+                  </span>
+                ) : null}
+              </button>
+              <Link
                 href={otherPath}
                 hrefLang={otherLocale}
                 className="ml-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-[#0d3b6e] shadow-sm"
@@ -133,15 +155,37 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
             </div>
           </div>
 
-          <button
-            type="button"
-            aria-label={open ? dictionary.nav.closeMenu : dictionary.nav.openMenu}
-            aria-expanded={open}
-            onClick={() => setOpen((value) => !value)}
-            className="touch-target flex items-center justify-center rounded-full bg-white/55 p-2 text-[#0d3b6e] lg:hidden"
-          >
-            {open ? <CloseIcon className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
-          </button>
+          <div className="flex items-center gap-2 lg:hidden">
+            <Link
+              href={`/${locale}/cuenta`}
+              aria-label={dictionary.account.title}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-white/55 text-[#0d3b6e]"
+            >
+              <UserIcon className="h-5 w-5" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              aria-label={`${dictionary.commerce.openCart}${itemCount ? ` (${itemCount})` : ""}`}
+              className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white/55 text-[#0d3b6e]"
+            >
+              <CartIcon className="h-5 w-5" />
+              {itemCount ? (
+                <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#e8465b] px-1 text-[0.6rem] font-black text-white">
+                  {itemCount > 99 ? "99+" : itemCount}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              aria-label={open ? dictionary.nav.closeMenu : dictionary.nav.openMenu}
+              aria-expanded={open}
+              onClick={() => setOpen((value) => !value)}
+              className="touch-target flex items-center justify-center rounded-full bg-white/55 p-2 text-[#0d3b6e]"
+            >
+              {open ? <CloseIcon className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
+            </button>
+          </div>
         </div>
       </div>
 
