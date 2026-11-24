@@ -1,10 +1,16 @@
 # Validación preproductiva y dictamen
 
-**Corte:** 2026-11-20
+**Corte inicial:** 2026-11-20
+**Actualización de evidencia:** 2026-11-24
 **Alcance:** validar lo reproducible en local y separar lo que exige staging.
 **Regla:** no se declara probado lo que no se ejecutó.
 
 ## 1. Qué se validó realmente
+
+La estabilización publicada en `1ba0b8188d1f04df0b6aaa5d2f29221eb6eac0e3`
+pasó los cinco jobs de CI en [GitHub Actions run 45437735774](https://github.com/opdatos-del/jovycandy-store/actions/runs/45437735774).
+La configuración posterior de perfiles runtime permanece sin commit, sin
+despliegue y no cambia el dictamen de este documento.
 
 | Control | Evidencia | Estado |
 |---|---|---|

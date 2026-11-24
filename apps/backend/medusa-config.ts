@@ -1,18 +1,15 @@
 import path from 'path'
 import { loadEnv, defineConfig } from '@medusajs/framework/utils'
+import { resolveRuntimeConfiguration } from './src/lib/jovy/runtime-configuration'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
-// La cookie de sesión debe ser Secure en producción real. El build local se
-// sirve por HTTP en localhost, así que ese entorno declara ADMIN_ALLOW_HTTP=true.
-// Nunca se desactiva Secure de forma implícita en producción.
-const isProductionRuntime = process.env.NODE_ENV === 'production'
-const allowHttpCookies = process.env.ADMIN_ALLOW_HTTP === 'true'
-const secureSessionCookie = isProductionRuntime && !allowHttpCookies
+const runtime = resolveRuntimeConfiguration()
 
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    workerMode: runtime.workerMode,
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
@@ -20,7 +17,7 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
     },
-    cookieOptions: { secure: secureSessionCookie },
+    cookieOptions: { secure: runtime.secureSessionCookie },
   },
   admin: {
     /**
@@ -78,36 +75,99 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/jovy-authz",
     },
-    {
-      resolve: "@medusajs/medusa/locking",
-      options: {
-        providers: [
+    ...(runtime.redis.enabled
+      ? [
           {
-            resolve: "@medusajs/medusa/locking-postgres",
-            id: "locking-postgres",
-            is_default: true,
-          },
-        ],
-      },
-    },
-    {
-      resolve: "@medusajs/medusa/file",
-      options: {
-        providers: [
-          {
-            resolve: "@medusajs/medusa/file-local",
-            id: "local",
+            resolve: "@medusajs/medusa/caching",
             options: {
-              upload_dir: "static",
-              // El puerto del servidor cambia en E2E (PORT=9001). Sin esta
-              // variable las URLs subidas apuntarían siempre a 9000.
-              backend_url:
-                process.env.FILE_BACKEND_URL ??
-                `http://localhost:${process.env.PORT ?? 9000}/static`,
+              providers: [
+                {
+                  resolve: "@medusajs/medusa/caching-redis",
+                  id: "caching-redis",
+                  is_default: true,
+                  options: { redisUrl: runtime.redis.cacheUrl },
+                },
+              ],
             },
           },
-        ],
-      },
-    },
+          {
+            resolve: "@medusajs/medusa/event-bus-redis",
+            options: { redisUrl: runtime.redis.eventsUrl },
+          },
+          {
+            resolve: "@medusajs/medusa/workflow-engine-redis",
+            options: { redis: { redisUrl: runtime.redis.workflowUrl } },
+          },
+          {
+            resolve: "@medusajs/medusa/locking",
+            options: {
+              providers: [
+                {
+                  resolve: "@medusajs/medusa/locking-redis",
+                  id: "locking-redis",
+                  is_default: true,
+                  options: { redisUrl: runtime.redis.lockingUrl },
+                },
+              ],
+            },
+          },
+        ]
+      : [
+          {
+            resolve: "@medusajs/medusa/locking",
+            options: {
+              providers: [
+                {
+                  resolve: "@medusajs/medusa/locking-postgres",
+                  id: "locking-postgres",
+                  is_default: true,
+                },
+              ],
+            },
+          },
+        ]),
+    ...(runtime.file.provider === "s3"
+      ? [
+          {
+            resolve: "@medusajs/medusa/file",
+            options: {
+              providers: [
+                {
+                  resolve: "@medusajs/medusa/file-s3",
+                  id: "s3",
+                  options: {
+                    file_url: runtime.file.fileUrl,
+                    access_key_id: runtime.file.accessKeyId,
+                    secret_access_key: runtime.file.secretAccessKey,
+                    region: runtime.file.region,
+                    bucket: runtime.file.bucket,
+                    endpoint: runtime.file.endpoint,
+                  },
+                },
+              ],
+            },
+          },
+        ]
+      : [
+          {
+            resolve: "@medusajs/medusa/file",
+            options: {
+              providers: [
+                {
+                  resolve: "@medusajs/medusa/file-local",
+                  id: "local",
+                  options: {
+                    upload_dir: "static",
+                    // El puerto del servidor cambia en E2E (PORT=9001). Sin esta
+                    // variable las URLs subidas apuntarían siempre a 9000.
+                    backend_url:
+                      process.env.FILE_BACKEND_URL ??
+                      `http://localhost:${process.env.PORT ?? 9000}/static`,
+                  },
+                },
+              ],
+            },
+          },
+        ]),
   ],
 })
