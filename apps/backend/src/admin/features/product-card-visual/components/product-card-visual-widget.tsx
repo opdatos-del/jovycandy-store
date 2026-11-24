@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 
-import { Badge, Button, Container, Heading, Input, Label, Select, Text } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, Input, Label, Select, Text, usePrompt } from "@medusajs/ui"
 
 import {
   CARD_MODES,
@@ -19,7 +19,7 @@ import {
   registerWorkspaceBlock,
   setWorkspaceMeta,
   unregisterWorkspaceBlock,
-} from "@admin/features/product-workspace/store"
+} from "@admin/shared/state/product-workspace"
 
 type Draft = {
   mode: string
@@ -76,6 +76,7 @@ function buildPatch(draft: Draft): Record<string, unknown> {
 }
 
 export function ProductCardVisualWidget({ productId }: { productId: string }) {
+  const prompt = usePrompt()
   const [product, setProduct] = useState<ProductVisualMetadata | null>(null)
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [loading, setLoading] = useState(true)
@@ -145,8 +146,10 @@ export function ProductCardVisualWidget({ productId }: { productId: string }) {
       setProduct(saved)
       setDirty(false)
       setNotice("Configuración visual guardada.")
+      return true
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo guardar la configuración.")
+      return false
     } finally {
       setSaving(false)
     }
@@ -158,9 +161,7 @@ export function ProductCardVisualWidget({ productId }: { productId: string }) {
       label: "Presentación visual",
       dirty,
       saving,
-      save: async () => {
-        await save()
-      },
+      save,
     })
     return () => unregisterWorkspaceBlock("visual")
   }, [dirty, saving, save])
@@ -173,6 +174,13 @@ export function ProductCardVisualWidget({ productId }: { productId: string }) {
 
   const saveFamily = async () => {
     if (!family) return
+    const confirmed = await prompt({
+      title: "Guardar preset de familia",
+      description: `El preset se aplicará a productos que hereden de “${family.name}”. Las configuraciones propias no se modificarán. La familia tiene ${family.product_ids.length} producto${family.product_ids.length === 1 ? "" : "s"} vinculado${family.product_ids.length === 1 ? "" : "s"}.`,
+      confirmText: "Guardar preset",
+      cancelText: "Cancelar",
+    })
+    if (!confirmed) return
     setSavingFamily(true)
     setError("")
     setNotice("")

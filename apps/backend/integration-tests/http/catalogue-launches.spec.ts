@@ -354,6 +354,7 @@ medusaIntegrationTestRunner({
           description: null,
           sort_order: 1,
           medusa_category_id: gomitas.id,
+          card_preset: null,
         },
       ])
 

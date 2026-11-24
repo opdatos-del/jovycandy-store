@@ -27,10 +27,11 @@ export function useProductEditorial(productId: string) {
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isCurrent: () => boolean = () => true) => {
     setLoading(true)
     try {
       const [record] = await listEditorial(productId)
+      if (!isCurrent()) return
 
       if (!record) {
         setEditorial(null)
@@ -45,14 +46,19 @@ export function useProductEditorial(productId: string) {
       setLoadError(null)
       setDirty(false)
     } catch (error) {
+      if (!isCurrent()) return
       setLoadError(errorMessage(error, "No se pudo cargar la ficha editorial."))
     } finally {
-      setLoading(false)
+      if (isCurrent()) setLoading(false)
     }
   }, [productId])
 
   useEffect(() => {
-    void load()
+    let active = true
+    void load(() => active)
+    return () => {
+      active = false
+    }
   }, [load])
 
   const update = (patch: Partial<EditorialDraft>) => {
@@ -128,7 +134,7 @@ export function useProductEditorial(productId: string) {
   const save = async () => {
     if (parseSortOrder(draft.sort_order) === null) {
       setFormError(SORT_ORDER_ERROR)
-      return
+      return false
     }
 
     const confirmed = await prompt({
@@ -139,8 +145,8 @@ export function useProductEditorial(productId: string) {
       confirmText: editorial ? "Guardar cambios" : "Guardar ficha",
       cancelText: "Cancelar",
     })
-    if (!confirmed) return
-    await persist()
+    if (!confirmed) return false
+    return persist()
   }
 
   const transition = async (status: EditorialStatus) => {

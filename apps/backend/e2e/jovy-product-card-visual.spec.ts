@@ -105,6 +105,8 @@ test.describe("Product Card Visual Manager (Admin)", () => {
       await familyBox.getByRole("combobox").click()
       await page.getByRole("option", { name: "Jovy Gummies · explosión", exact: true }).click()
       await familyBox.getByRole("button", { name: "Guardar familia" }).click()
+      await expect(page.getByText(/Las configuraciones propias no se modificarán/)).toBeVisible()
+      await page.getByRole("button", { name: "Guardar preset", exact: true }).last().click()
       await expect(
         widget.getByText("Preset de familia guardado. Aplica a los productos que lo heredan."),
       ).toBeVisible({ timeout: 15_000 })

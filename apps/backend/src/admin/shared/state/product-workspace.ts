@@ -2,17 +2,32 @@
 
 import { useSyncExternalStore } from "react"
 
-/**
- * Estado compartido por widgets que viven en árboles React distintos dentro del
- * detalle de producto. Permite una barra única con "sin guardar" y guardar todo
- * sin reescribir el Admin nativo.
- */
 export type WorkspaceBlock = {
   id: string
   label: string
   dirty: boolean
   saving: boolean
-  save: () => void | Promise<void>
+  save: () => boolean | Promise<boolean>
+}
+
+export type WorkspaceSaveSummary = {
+  saved: string[]
+  failed: string[]
+}
+
+/** Ejecuta bloques independientes y conserva el resultado de cada persistencia. */
+export async function saveWorkspaceBlocks(blocks: WorkspaceBlock[]): Promise<WorkspaceSaveSummary> {
+  const summary: WorkspaceSaveSummary = { saved: [], failed: [] }
+  for (const block of blocks) {
+    if (!block.dirty) continue
+    try {
+      if (await block.save()) summary.saved.push(block.label)
+      else summary.failed.push(block.label)
+    } catch {
+      summary.failed.push(block.label)
+    }
+  }
+  return summary
 }
 
 type Snapshot = Record<string, WorkspaceBlock>
@@ -35,13 +50,6 @@ export function registerWorkspaceBlock(block: WorkspaceBlock) {
   emit()
 }
 
-export function updateWorkspaceBlock(id: string, patch: Partial<Omit<WorkspaceBlock, "id">>) {
-  const current = blocks[id]
-  if (!current) return
-  blocks = { ...blocks, [id]: { ...current, ...patch } }
-  emit()
-}
-
 export function unregisterWorkspaceBlock(id: string) {
   if (!blocks[id]) return
   const next = { ...blocks }
@@ -50,36 +58,23 @@ export function unregisterWorkspaceBlock(id: string) {
   emit()
 }
 
-export function getWorkspaceSnapshot(): Snapshot {
-  return blocks
-}
-
 export function setWorkspaceMeta(key: string, value: string | null) {
   if (meta[key] === value) return
   meta = { ...meta, [key]: value }
   emit()
 }
 
-function getMetaSnapshot() {
-  return meta
-}
-
 export function useWorkspaceMeta() {
-  return useSyncExternalStore(subscribe, getMetaSnapshot, getMetaSnapshot)
+  return useSyncExternalStore(subscribe, () => meta, () => meta)
 }
 
 export function useWorkspace() {
-  const snapshot = useSyncExternalStore(subscribe, getWorkspaceSnapshot, getWorkspaceSnapshot)
+  const snapshot = useSyncExternalStore(subscribe, () => blocks, () => blocks)
   const list = Object.values(snapshot)
   return {
     blocks: list,
     dirty: list.filter((block) => block.dirty),
     saving: list.some((block) => block.saving),
-    saveAll: async () => {
-      for (const block of list) {
-        if (!block.dirty) continue
-        await block.save()
-      }
-    },
+    saveAll: () => saveWorkspaceBlocks(list),
   }
 }

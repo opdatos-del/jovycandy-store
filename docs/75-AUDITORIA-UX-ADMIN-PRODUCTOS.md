@@ -298,7 +298,13 @@ La reducción grande sigue dependiendo de secciones nativas más pesadas como Me
 
 Validación: E2E real verifica estado inicial, expansión global, toggle individual por `Enter` y restauración; `jovy-product-card-visual` + `jovy-product-editorial` **2/2** PASS.
 
-## 11. Limitaciones de esta auditoría
+## 11. Guardado y alcance de presets (P1)
+
+- El guardado global procesa los bloques Jovy pendientes en orden y reporta explícitamente si fue total o parcial.
+- Si un bloque falla o se cancela, sus cambios permanecen pendientes; los bloques que ya persistieron no se presentan como una transacción comercial nativa.
+- Cambiar un preset familiar pide confirmación, muestra productos vinculados y aclara que las configuraciones propias no se modifican.
+
+## 12. Limitaciones de esta auditoría
 
 - Un solo producto y una sola resolución de escritorio; el Admin de Medusa es desktop-first.
 - Sin pruebas con usuarios reales ni medición de tiempos de tarea.

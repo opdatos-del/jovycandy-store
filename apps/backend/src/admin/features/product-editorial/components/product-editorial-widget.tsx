@@ -6,7 +6,7 @@ import {
   registerWorkspaceBlock,
   setWorkspaceMeta,
   unregisterWorkspaceBlock,
-} from "@admin/features/product-workspace/store"
+} from "@admin/shared/state/product-workspace"
 import { useProductEditorial } from "../hooks/use-product-editorial"
 import { STATUS_BADGE, STATUS_LABELS } from "../model"
 import type { ProductEditorialWidgetProps } from "../types"
@@ -56,9 +56,7 @@ const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
       label: "Ficha editorial",
       dirty,
       saving,
-      save: async () => {
-        await save()
-      },
+      save,
     })
     return () => unregisterWorkspaceBlock("editorial")
   }, [dirty, saving, save])

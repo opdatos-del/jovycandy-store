@@ -3,9 +3,9 @@
 import { Badge, Button, Container, Text } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
 
-import { listEditorial } from "@admin/features/product-editorial/api"
+import { fetchEditorialStatus } from "../api"
 import { useNativeProductDetailDisclosure } from "../hooks/use-native-product-detail-disclosure"
-import { useWorkspace, useWorkspaceMeta } from "../store"
+import { useWorkspace, useWorkspaceMeta } from "@admin/shared/state/product-workspace"
 
 type Props = {
   product: {
@@ -38,14 +38,14 @@ export const ProductWorkspaceBar = ({ product }: Props) => {
   const [editorialStatus, setEditorialStatus] = useState<string | null>(null)
   const [editorialLoading, setEditorialLoading] = useState(true)
   const [compactNativeDetail, setCompactNativeDetail] = useState(true)
+  const [saveSummary, setSaveSummary] = useState<{ message: string; failed: boolean } | null>(null)
 
   useNativeProductDetailDisclosure({ compact: compactNativeDetail })
 
   const loadEditorial = useCallback(async () => {
     setEditorialLoading(true)
     try {
-      const records = await listEditorial(product.id)
-      setEditorialStatus(records[0]?.editorial_status ?? null)
+      setEditorialStatus(await fetchEditorialStatus(product.id))
     } catch {
       setEditorialStatus(null)
     } finally {
@@ -66,6 +66,23 @@ export const ProductWorkspaceBar = ({ product }: Props) => {
     window.addEventListener("beforeunload", handler)
     return () => window.removeEventListener("beforeunload", handler)
   }, [dirty.length])
+
+  useEffect(() => {
+    if (!dirty.length) setSaveSummary(null)
+  }, [dirty.length])
+
+  const savePendingBlocks = async () => {
+    const result = await saveAll()
+    if (!result.failed.length) {
+      setSaveSummary(result.saved.length ? { message: "Cambios guardados.", failed: false } : null)
+      return
+    }
+    setSaveSummary(
+      result.saved.length
+        ? { message: `Guardado parcial. Pendiente: ${result.failed.join(", ")}.`, failed: true }
+        : { message: `No se guardó: ${result.failed.join(", ")}.`, failed: true },
+    )
+  }
 
   const visualMode =
     meta.visualMode ??
@@ -120,7 +137,16 @@ export const ProductWorkspaceBar = ({ product }: Props) => {
             {compactNativeDetail ? "Mostrar técnicos" : "Ocultar técnicos"}
           </Button>
 
-          {dirty.length ? (
+          {saveSummary ? (
+            <Text
+              size="xsmall"
+              className={saveSummary.failed ? "text-ui-fg-error" : "text-ui-fg-subtle"}
+              aria-live="polite"
+              data-testid="workspace-save-summary"
+            >
+              {saveSummary.message}
+            </Text>
+          ) : dirty.length ? (
             <Text size="xsmall" className="text-ui-fg-subtle" data-testid="workspace-dirty">
               {dirty.length === 1 ? "1 bloque sin guardar" : `${dirty.length} bloques sin guardar`}
             </Text>
@@ -135,7 +161,7 @@ export const ProductWorkspaceBar = ({ product }: Props) => {
             variant="primary"
             isLoading={saving}
             disabled={!dirty.length || saving}
-            onClick={() => void saveAll()}
+            onClick={() => void savePendingBlocks()}
             data-testid="workspace-save-all"
           >
             Guardar cambios{blocks.length && dirty.length ? ` (${dirty.length})` : ""}

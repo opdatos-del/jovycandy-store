@@ -31,7 +31,7 @@ type CartResponse = {
   }
 }
 
-const CATALOG_MESSAGE = "no se puede comprar"
+const CATALOG_MESSAGE = "Uno de los productos del carrito no está disponible para compra."
 
 medusaIntegrationTestRunner({
   cwd: path.join(__dirname, "..", ".."),
@@ -195,9 +195,10 @@ medusaIntegrationTestRunner({
       return response.data.cart as CartResponse["cart"]
     }
 
-    const expectCatalogRejection = (response: { status: number; data: unknown }) => {
+    const expectCatalogRejection = (response: { status: number; data: { type?: string; message?: string } }) => {
       expect(response.status).toBe(400)
-      expect(JSON.stringify(response.data)).toContain(CATALOG_MESSAGE)
+      expect(response.data.type).toBe("not_allowed")
+      expect(response.data.message).toBe(CATALOG_MESSAGE)
     }
 
     beforeAll(async () => {

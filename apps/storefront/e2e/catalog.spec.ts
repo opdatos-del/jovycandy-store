@@ -15,7 +15,7 @@ test.describe("catálogo oficial", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await expect(page.getByRole("complementary", { name: "Filtrar por" })).toBeVisible()
     await expect(page.getByLabel("Buscar productos")).toBeVisible()
-    await expect(page.locator(".catalog-card__layer--decor")).toHaveCount(1)
+    await expect(page.locator(".catalog-card__layer--decor")).toHaveCount(2)
 
     const cards = page.locator(".catalog-card")
     const initialCount = await cards.count()
@@ -89,15 +89,16 @@ test.describe("catálogo oficial", () => {
       .toBe("1")
     await ringCard.locator(".catalog-card__image").blur()
 
-    const plainCard = page.locator(".catalog-card").filter({ hasText: "Ositos Surtidos 12 Sabores" })
-    await expect(plainCard.locator(".catalog-card__layer--decor")).toHaveCount(0)
-    await expect(plainCard).toHaveAttribute("data-card-visual", "zoom")
+    const inheritedCard = page.locator(".catalog-card").filter({ hasText: "Ositos Surtidos 12 Sabores" })
+    const inheritedLayer = inheritedCard.locator(".catalog-card__layer--decor")
+    await expect(inheritedLayer).toHaveCount(1)
+    await expect(inheritedLayer).toHaveAttribute("src", /\/static\/.*\.webp$/)
+    await expect(inheritedCard).toHaveAttribute("data-card-visual", "layered")
 
-    await plainCard.hover()
-    const baseTransform = await plainCard
-      .locator(".catalog-card__layer--base")
-      .evaluate((node) => getComputedStyle(node).transform)
-    expect(baseTransform).not.toBe("none")
+    await inheritedCard.hover()
+    await expect
+      .poll(async () => inheritedLayer.evaluate((node) => getComputedStyle(node).opacity))
+      .toBe("1")
 
     await layer.evaluate((node) => node.dispatchEvent(new Event("error")))
     await expect(layer).toHaveCount(0)
