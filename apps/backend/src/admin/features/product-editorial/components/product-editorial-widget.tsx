@@ -1,5 +1,12 @@
 import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
+import { useEffect } from "react"
+
+import {
+  registerWorkspaceBlock,
+  setWorkspaceMeta,
+  unregisterWorkspaceBlock,
+} from "@admin/features/product-workspace/store"
 import { useProductEditorial } from "../hooks/use-product-editorial"
 import { STATUS_BADGE, STATUS_LABELS } from "../model"
 import type { ProductEditorialWidgetProps } from "../types"
@@ -26,6 +33,7 @@ const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
     loadError,
     formError,
     saving,
+    dirty,
     reload,
     update,
     toggleCertification,
@@ -38,14 +46,35 @@ const ProductEditorialWidget = ({ data }: ProductEditorialWidgetProps) => {
     restoreDeleted,
   } = useProductEditorial(data.id)
 
+  useEffect(() => {
+    setWorkspaceMeta("editorialStatus", draft.editorial_status ?? null)
+  }, [draft.editorial_status])
+
+  useEffect(() => {
+    registerWorkspaceBlock({
+      id: "editorial",
+      label: "Ficha editorial",
+      dirty,
+      saving,
+      save: async () => {
+        await save()
+      },
+    })
+    return () => unregisterWorkspaceBlock("editorial")
+  }, [dirty, saving, save])
+
   return (
-    <Container className="p-4 sm:p-6" data-testid="product-editorial-widget">
+    <Container
+      id="jovy-product-editorial"
+      className="scroll-mt-24 p-4 pb-24 sm:p-6 sm:pb-24"
+      data-testid="product-editorial-widget"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-3xl">
           <Heading level="h2">Editor editorial Jovy</Heading>
-          <Text size="small" className="text-ui-fg-subtle mt-1">
-            Panel separado del producto comercial. Edita presentación y ciclo editorial; SKU, precio, stock, variantes e
-            imágenes se mantienen en el detalle nativo de Medusa.
+          <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
+            Ficha editorial y estado de publicación. SKU, precio, stock, variantes e imágenes se mantienen en el
+            detalle nativo de Medusa.
           </Text>
         </div>
         {editorial && <Badge color={STATUS_BADGE[editorial.editorial_status]} data-testid="editorial-status-badge">{STATUS_LABELS[editorial.editorial_status]}</Badge>}

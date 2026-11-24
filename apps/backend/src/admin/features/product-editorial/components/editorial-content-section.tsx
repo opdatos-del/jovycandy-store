@@ -15,36 +15,78 @@ export const EditorialContentSection = ({
   onUpdate,
   onToggleCertification,
 }: EditorialContentSectionProps) => (
-  <section aria-labelledby="editorial-content-heading" className="border-ui-border-base rounded-lg border p-4">
-    <Heading id="editorial-content-heading" level="h3">Presentación editorial</Heading>
-    <Text size="xsmall" className="text-ui-fg-subtle mt-1">Campos visibles en el catálogo editorial; no sustituyen la información comercial.</Text>
-    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_8rem]">
-      <div className="flex flex-col gap-y-1">
-        <label htmlFor="editorial-gramaje" className={labelClass}>Gramaje</label>
-        <Input id="editorial-gramaje" maxLength={50} placeholder="250 g" value={draft.gramaje} onChange={(event) => onUpdate({ gramaje: event.target.value })} />
-        <Text size="xsmall" className="text-ui-fg-subtle">Texto corto opcional, máximo 50 caracteres.</Text>
+  <section aria-labelledby="editorial-content-heading" className="border-ui-border-base rounded-lg border p-3">
+    <Heading id="editorial-content-heading" level="h3">
+      Presentación editorial
+    </Heading>
+
+    <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className="col-span-2 sm:col-span-1">
+        <label htmlFor="editorial-gramaje" className={labelClass}>
+          Gramaje
+        </label>
+        <Input
+          id="editorial-gramaje"
+          maxLength={50}
+          placeholder="170 g"
+          value={draft.gramaje}
+          onChange={(event) => onUpdate({ gramaje: event.target.value })}
+        />
+        <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+          Usa gramos o kilos
+        </Text>
       </div>
-      <div className="flex flex-col gap-y-1">
-        <label htmlFor="editorial-sort-order" className={labelClass}>Orden</label>
-        <Input id="editorial-sort-order" type="number" min={0} step={1} value={draft.sort_order} onChange={(event) => onUpdate({ sort_order: event.target.value })} />
-        <Text size="xsmall" className="text-ui-fg-subtle">Menor aparece antes.</Text>
+      <div>
+        <label htmlFor="editorial-sort-order" className={labelClass}>
+          Orden
+        </label>
+        <Input
+          id="editorial-sort-order"
+          type="number"
+          min={0}
+          step={1}
+          value={draft.sort_order}
+          onChange={(event) => onUpdate({ sort_order: event.target.value })}
+        />
+      </div>
+      <div className="col-span-2 flex items-center justify-between gap-2 rounded-md border border-ui-border-base px-2.5 py-2">
+        <label htmlFor="editorial-is-new" className="text-sm font-medium">
+          Marcar como novedad
+        </label>
+        <Switch
+          id="editorial-is-new"
+          aria-label="Novedad"
+          checked={draft.is_new}
+          onCheckedChange={(checked) => onUpdate({ is_new: checked })}
+        />
       </div>
     </div>
-    <fieldset className="mt-4 flex flex-col gap-y-2">
+
+    <fieldset className="mt-3">
       <legend className={labelClass}>Certificaciones</legend>
-      <Text size="xsmall" className="text-ui-fg-subtle">Selecciona una o varias del catálogo permitido por servidor.</Text>
-      <div className="flex flex-wrap gap-x-5 gap-y-3">
-        {CERTIFICATIONS.map((certification) => (
-          <label key={certification} className="flex min-h-6 items-center gap-2 text-sm">
-            <input type="checkbox" className="h-4 w-4" checked={draft.certifications.includes(certification)} onChange={(event) => onToggleCertification(certification, event.target.checked)} />
-            {certification}
-          </label>
-        ))}
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {CERTIFICATIONS.map((certification) => {
+          const checked = draft.certifications.includes(certification)
+          return (
+            <label
+              key={certification}
+              className={`inline-flex cursor-pointer items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+                checked
+                  ? "border-ui-border-interactive bg-ui-bg-base text-ui-fg-base"
+                  : "border-ui-border-base text-ui-fg-subtle"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5"
+                checked={checked}
+                onChange={(event) => onToggleCertification(certification, event.target.checked)}
+              />
+              {certification}
+            </label>
+          )
+        })}
       </div>
     </fieldset>
-    <div className="mt-4 flex items-center gap-2">
-      <Switch id="editorial-is-new" aria-label="Novedad" checked={draft.is_new} onCheckedChange={(checked) => onUpdate({ is_new: checked })} />
-      <label htmlFor="editorial-is-new" className="text-sm font-medium">Marcar como novedad</label>
-    </div>
   </section>
 )

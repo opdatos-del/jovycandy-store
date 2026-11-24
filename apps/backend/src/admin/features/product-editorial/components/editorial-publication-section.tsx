@@ -39,26 +39,91 @@ export const EditorialPublicationSection = ({
   canRestore,
   canDelete,
 }: EditorialPublicationSectionProps) => (
-  <section aria-labelledby="editorial-publication-heading" className="border-ui-border-base rounded-lg border p-4">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <Heading id="editorial-publication-heading" level="h3">Publicación editorial</Heading>
-        <Text size="small" className="text-ui-fg-subtle mt-1">Estado actual: {STATUS_LABELS[editorial?.editorial_status ?? "draft"]}. Publicar o archivar pide confirmación y nunca cambia el producto comercial.</Text>
-      </div>
-      {editorial && <Badge color={STATUS_BADGE[editorial.editorial_status]}>{STATUS_LABELS[editorial.editorial_status]}</Badge>}
+  <section aria-labelledby="editorial-publication-heading" className="border-ui-border-base rounded-lg border p-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <Heading id="editorial-publication-heading" level="h3">
+        Publicación
+      </Heading>
+      {editorial ? (
+        <Badge color={STATUS_BADGE[editorial.editorial_status]}>
+          {STATUS_LABELS[editorial.editorial_status]}
+        </Badge>
+      ) : (
+        <Badge color="grey">Sin ficha</Badge>
+      )}
     </div>
-    <div className="mt-3" aria-live="polite">
+
+    <div className="mt-2" aria-live="polite">
       {publishIssues.length > 0 ? (
-        <div className="text-ui-fg-error text-sm"><Text size="small" weight="plus">Antes de publicar</Text><ul className="mt-1 list-disc pl-5">{publishIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>
-      ) : <Text size="small" className="text-ui-fg-subtle">La ficha cumple los requisitos editoriales conocidos. Store también exige que el producto comercial esté publicado.</Text>}
+        <div className="text-ui-fg-error flex flex-wrap items-center gap-1.5 text-xs">
+          <Text size="xsmall" weight="plus">
+            Falta:
+          </Text>
+          {publishIssues.map((issue) => (
+            <Badge key={issue} size="2xsmall" color="red">
+              {issue}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <Text size="xsmall" className="text-ui-fg-subtle">
+          Requisitos editoriales completos. Store exige además el producto comercial publicado.
+        </Text>
+      )}
     </div>
-    <div className="mt-4 flex flex-wrap gap-2">
-      {canUpdate && <Button type="submit" size="small" isLoading={saving}>Guardar cambios</Button>}
-      {canPublish && <Button type="button" size="small" variant="secondary" disabled={saving || draft.editorial_status === "published"} onClick={onPublish}>Publicar en Store</Button>}
-      {canArchive && <Button type="button" size="small" variant="secondary" disabled={saving || draft.editorial_status === "archived"} onClick={onArchive}>Archivar ficha</Button>}
-      {canRestore && draft.editorial_status === "archived" && <Button type="button" size="small" variant="secondary" disabled={saving} onClick={onRestoreArchived}>Restaurar a borrador</Button>}
-      {canDelete && editorial && <Button type="button" size="small" variant="danger" disabled={saving} onClick={onRemove}>Eliminar ficha</Button>}
-      <Button type="button" size="small" variant="secondary" disabled={saving} onClick={onReload}>Actualizar</Button>
+
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {canUpdate && (
+        <Button type="submit" size="small" isLoading={saving}>
+          Guardar cambios
+        </Button>
+      )}
+      {canPublish && (
+        <Button
+          type="button"
+          size="small"
+          variant="secondary"
+          disabled={saving || draft.editorial_status === "published"}
+          onClick={onPublish}
+        >
+          Publicar en Store
+        </Button>
+      )}
+      {canArchive && (
+        <Button
+          type="button"
+          size="small"
+          variant="secondary"
+          disabled={saving || draft.editorial_status === "archived"}
+          onClick={onArchive}
+        >
+          Archivar ficha
+        </Button>
+      )}
+      {canRestore && draft.editorial_status === "archived" && (
+        <Button type="button" size="small" variant="secondary" disabled={saving} onClick={onRestoreArchived}>
+          Restaurar a borrador
+        </Button>
+      )}
+      <Button type="button" size="small" variant="transparent" disabled={saving} onClick={onReload}>
+        Actualizar
+      </Button>
     </div>
+
+    {canDelete && editorial ? (
+      <details className="mt-2">
+        <summary className="text-ui-fg-subtle cursor-pointer text-xs">Opciones de eliminación</summary>
+        <Button
+          type="button"
+          size="small"
+          variant="danger"
+          className="mt-2"
+          disabled={saving}
+          onClick={onRemove}
+        >
+          Eliminar ficha
+        </Button>
+      </details>
+    ) : null}
   </section>
 )

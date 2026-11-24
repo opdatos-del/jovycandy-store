@@ -32,6 +32,7 @@ import {
 } from "@jovy/lib/jovy/catalog-seed"
 import {
   buildPresentations,
+  formatGrams,
   parseWeightGrams,
 } from "@jovy/lib/jovy/catalog-presentations"
 import { JOVY_CATALOGUE_MODULE } from "@jovy/modules/jovy-catalogue"
@@ -501,6 +502,28 @@ export default async function seedJovyCatalog({ container }: ExecArgs) {
         })
       }
     }
+
+    // Retira valores heredados ("6 oz") que ya no tienen variante: la UI del
+    // Admin debe mostrar una sola presentación por producto.
+    const staleValues = (option.values ?? []).filter((value) => !labels.includes(value.value))
+    if (staleValues.length) {
+      try {
+        await productService.updateProductOptionValuesOnProduct({
+          product_option_id: option.id,
+          product_id: product.id,
+          remove: staleValues.map((value) => value.id),
+        })
+        logger.info(
+          `[jovy-seed] ${seed.handle}: valores heredados retirados (${staleValues.map((value) => value.value).join(", ")})`,
+        )
+      } catch (error) {
+        logger.warn(
+          `[jovy-seed] ${seed.handle}: no se pudieron retirar valores heredados: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
+      }
+    }
   }
 
   logger.info(
@@ -555,7 +578,7 @@ export default async function seedJovyCatalog({ container }: ExecArgs) {
       await saveProductEditorialWorkflow(container).run({
         input: {
           product_id: productId,
-          gramaje: product.gramaje,
+          gramaje: formatGrams(parseWeightGrams(product.gramaje) ?? 0) || product.gramaje,
           certifications: product.certifications as never,
           sort_order: index,
           is_new: Boolean(product.isNew),

@@ -13,6 +13,7 @@ const ProductFamily = model
     slug: model.text(),
     description: model.text().nullable(),
     medusa_category_id: model.text().nullable(),
+    card_preset: model.text().nullable(),
     sort_order: model.number().default(0),
     active: model.boolean().default(true),
   })

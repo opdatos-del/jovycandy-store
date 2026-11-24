@@ -55,7 +55,7 @@ export const EditorialForm = ({
     : ["guardar una ficha para que el servidor pueda comprobar los requisitos de publicación"]
 
   return (
-    <form className="mt-5 flex max-w-4xl flex-col gap-y-5" onSubmit={(event) => { event.preventDefault(); void onSave() }}>
+    <form className="mt-4 grid max-w-5xl gap-3 lg:grid-cols-2" onSubmit={(event) => { event.preventDefault(); void onSave() }}>
       {editorial?.product_missing && <p role="alert" className="text-ui-fg-error text-sm">El producto comercial de esta ficha ya no existe en Medusa. Restaura o depura el registro antes de publicarlo.</p>}
       {!editorial && <Text size="small" className="text-ui-fg-subtle">Aún no hay ficha editorial. Guardar crea un borrador sin crear ni duplicar un producto comercial.</Text>}
       {formError && <p role="alert" className="text-ui-fg-error text-sm">{formError}</p>}

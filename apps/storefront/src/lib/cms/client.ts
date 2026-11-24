@@ -30,7 +30,7 @@ export type CmsProduct = {
   certifications: string[]
   isNew: boolean
   categoryKeys: string[]
-  family: { id: string; slug: string; name: string } | null
+  family: { id: string; slug: string; name: string; cardPreset?: string | null } | null
 }
 
 export type CmsEvent = {
@@ -108,7 +108,7 @@ type RawProduct = {
     handle?: string
     thumbnail?: string | null
   } | null
-  family?: { id?: string; slug?: string; name?: string } | null
+  family?: { id?: string; slug?: string; name?: string; card_preset?: string | null } | null
 }
 
 type RawBanner = {
@@ -407,6 +407,7 @@ function normalizeProduct(raw: RawProduct): CmsProduct | null {
           id: raw.family.id ?? raw.family.slug ?? "",
           slug: raw.family.slug ?? "",
           name: raw.family.name,
+          cardPreset: raw.family.card_preset ?? null,
         }
       : null,
   }

@@ -2,8 +2,9 @@
 
 import { CatalogPage } from "@/features/catalog/catalog-page"
 import { getHomeContent, type CmsProduct } from "@/lib/cms/client"
+import { resolveCardVisual, type CardVisual } from "@/lib/commerce/card-visual"
 import { getDictionary, isLocale } from "@/lib/i18n"
-import { getMexicoRegion, listCommerceProducts, type CardHoverConfig } from "@/lib/medusa/store"
+import { getMexicoRegion, listCommerceProducts } from "@/lib/medusa/store"
 
 import "@/styles/catalog/catalog.css"
 
@@ -48,10 +49,16 @@ export default async function CataloguePage({ params, searchParams }: CatalogueP
     }),
   )
 
-  const hoverConfigs = Object.fromEntries(
-    commerceProducts
-      .filter((product) => product.cardHover)
-      .map((product) => [product.handle, product.cardHover as CardHoverConfig]),
+  const commerceByHandle = new Map(commerceProducts.map((product) => [product.handle, product]))
+  const visuals: Record<string, CardVisual> = Object.fromEntries(
+    viewableProducts
+      .filter((product) => Boolean(product.handle))
+      .map((product) => [
+        product.handle as string,
+        resolveCardVisual(commerceByHandle.get(product.handle as string)?.cardVisual ?? null, {
+          familyPreset: product.family?.cardPreset ?? null,
+        }),
+      ]),
   )
 
   return (
@@ -63,7 +70,7 @@ export default async function CataloguePage({ params, searchParams }: CatalogueP
       categoryCounts={categoryCounts}
       totalProducts={viewableProducts.length}
       prices={prices}
-      hoverConfigs={hoverConfigs}
+      visuals={visuals}
       selectedCategoryKey={selected?.key}
       selectedCategoryName={selected?.name}
       selectedCategoryDescription={selected?.description}

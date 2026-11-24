@@ -56,7 +56,7 @@ Cada flujo contempla:
 - notificaciones discretas para agregar, eliminar, iniciar/cerrar sesión y confirmar pedido;
 - skeletons por ruta para que la navegación se sienta inmediata;
 - animación corta en galería, badge del carrito, drawer y confirmación de pedido;
-- hover de tarjeta por capas configurado en Medusa: gomitas detrás de la bolsa sin cambiar su tamaño;
+- motor visual de tarjeta con zoom global por defecto y modos swap/layered/none administrables desde Medusa;
 - spinners por línea del carrito sin bloquear el resto de la interfaz;
 - barra de compra fija en móvil;
 - todo el movimiento se desactiva con `prefers-reduced-motion`.

@@ -83,6 +83,10 @@ const familyFields = {
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "El slug debe usar minúsculas, números y guiones"),
   description: z.string().trim().max(2_000).nullable().optional(),
   medusa_category_id: id.nullable().optional(),
+  card_preset: z
+    .enum(["jovy-default", "jovy-gummies", "jovy-swap", "jovy-none"])
+    .nullable()
+    .optional(),
   sort_order: z.number().int().min(0),
   active: z.boolean(),
 }

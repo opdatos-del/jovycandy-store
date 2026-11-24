@@ -25,6 +25,7 @@ export function useProductEditorial(productId: string) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -42,6 +43,7 @@ export function useProductEditorial(productId: string) {
         setDraft(draftFrom(editorialRecord))
       }
       setLoadError(null)
+      setDirty(false)
     } catch (error) {
       setLoadError(errorMessage(error, "No se pudo cargar la ficha editorial."))
     } finally {
@@ -53,7 +55,10 @@ export function useProductEditorial(productId: string) {
     void load()
   }, [load])
 
-  const update = (patch: Partial<EditorialDraft>) => setDraft((current) => ({ ...current, ...patch }))
+  const update = (patch: Partial<EditorialDraft>) => {
+    setDraft((current) => ({ ...current, ...patch }))
+    if (Object.keys(patch).length) setDirty(true)
+  }
 
   const toggleCertification = (certification: string, checked: boolean) => {
     setDraft((current) => ({
@@ -62,6 +67,7 @@ export function useProductEditorial(productId: string) {
         ? [...current.certifications, certification]
         : current.certifications.filter((value) => value !== certification),
     }))
+    setDirty(true)
   }
 
   /** Pasar a vendible exige confirmación; nunca se inventan precios ni stock. */
@@ -100,6 +106,7 @@ export function useProductEditorial(productId: string) {
       setEditorial(result.editorial)
       setDeleted(result.deleted)
       setDraft(draftFrom(result.editorial))
+      setDirty(false)
       toast.success(
         next.editorial_status === "published"
           ? "Producto publicado en el catálogo editorial."
@@ -214,6 +221,7 @@ export function useProductEditorial(productId: string) {
     loadError,
     formError,
     saving,
+    dirty,
     reload: load,
     update,
     toggleCertification,

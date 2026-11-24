@@ -119,6 +119,7 @@ export type EditorialCatalogueFamily = {
   slug: string
   name: string
   medusa_category_id?: string | null
+  card_preset?: string | null
   active?: boolean | null
 }
 

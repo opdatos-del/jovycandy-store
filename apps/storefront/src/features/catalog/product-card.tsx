@@ -1,13 +1,13 @@
 import Link from "next/link"
 
 import { formatMoney } from "@/lib/commerce/format"
+import { resolveCardVisual, type CardVisual } from "@/lib/commerce/card-visual"
 import { weightLabel } from "@/lib/commerce/weight"
 import type { CmsProduct } from "@/lib/cms/client"
 import { responsiveSrcSet } from "@/lib/images"
 import type { Dictionary, Locale } from "@/lib/i18n"
-import type { CardHoverConfig } from "@/lib/medusa/store"
 
-import { ProductCardMedia } from "./product-card-media"
+import { ProductCardVisual } from "./product-card-visual"
 
 export type ViewableProduct = CmsProduct & { handle: string }
 
@@ -17,7 +17,7 @@ export function CatalogCard({
   dictionary,
   fallbackFamily,
   price,
-  hover,
+  visual,
   priority = false,
 }: {
   product: ViewableProduct
@@ -25,7 +25,7 @@ export function CatalogCard({
   dictionary: Dictionary
   fallbackFamily?: string | null
   price?: { amount: number; currencyCode: string } | null
-  hover?: CardHoverConfig | null
+  visual?: CardVisual
   priority?: boolean
 }) {
   const endpoint = `/${locale}/productos/${product.handle}`
@@ -37,9 +37,10 @@ export function CatalogCard({
     product.thumbnail && product.thumbnail.startsWith("/assets/catalog/products/")
       ? responsiveSrcSet(product.thumbnail, [400, 640])
       : undefined
+  const resolvedVisual = visual ?? resolveCardVisual(null)
 
   return (
-    <article className="catalog-card">
+    <article className="catalog-card" data-card-visual={resolvedVisual.mode}>
       <Link
         className="catalog-card__image"
         href={endpoint}
@@ -53,11 +54,11 @@ export function CatalogCard({
             <span className="catalog-badge catalog-badge--catalog">{dictionary.catalog.modeCatalogOnly}</span>
           ) : null}
         </div>
-        <ProductCardMedia
+        <ProductCardVisual
           title={product.title}
           image={image}
           imageSrcSet={srcSet}
-          hover={hover}
+          visual={resolvedVisual}
           priority={priority}
           noImageLabel={dictionary.catalog.noImage}
         />

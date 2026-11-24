@@ -46,6 +46,24 @@ function jovyLogoImageMedia(req: MedusaRequest, res: MedusaResponse, next: Medus
   })
 }
 
+function jovyProductVisualMedia(req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) {
+  jovyImageUpload.array("files", 1)(req as never, res as never, (error: unknown) => {
+    if (!error) {
+      next()
+      return
+    }
+    if (error instanceof multer.MulterError) {
+      const tooLarge = error.code === "LIMIT_FILE_SIZE"
+      res.status(tooLarge ? 413 : 400).json({
+        type: "invalid_data",
+        message: tooLarge ? "La imagen supera el límite de 5 MB." : "Se requiere una sola imagen",
+      })
+      return
+    }
+    next(error)
+  })
+}
+
 // El carril de vídeo/GIF escribe a disco y tiene su propio límite (100 MB). No
 // comparte el de imágenes para no relajar las pantallas que sólo admiten
 // PNG/JPEG/WebP.
@@ -162,6 +180,11 @@ export default defineMiddlewares({
       method: ["POST"],
       matcher: "/admin/jovy/brand/logos/media",
       middlewares: [jovyLogoImageMedia],
+    },
+    {
+      method: ["POST"],
+      matcher: "/admin/jovy/product-card-visual/media",
+      middlewares: [jovyProductVisualMedia],
     },
     {
       method: ["POST"],

@@ -38,6 +38,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       description: family.description,
       sort_order: family.sort_order,
       medusa_category_id: family.medusa_category_id,
+      card_preset: family.card_preset ?? null,
     })),
   })
 }

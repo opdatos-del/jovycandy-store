@@ -1,6 +1,10 @@
 import "server-only"
 
 import { sortByWeight } from "@/lib/commerce/weight"
+import {
+  parseCardVisualOverrides,
+  type CardVisualOverrides,
+} from "@/lib/commerce/card-visual"
 
 /**
  * Cliente de lectura/escritura contra la Store API de Medusa.
@@ -92,17 +96,6 @@ export type CommerceVariant = {
   currencyCode: string | null
 }
 
-export type CardHoverConfig = {
-  mode: "layered" | "swap"
-  /** Capa decorativa de gomitas (modo layered). */
-  overlayUrl: string | null
-  /** Composición bolsa + explosión (modo swap). */
-  fullUrl: string | null
-  /** Recurso opcional de una gomita para usos editoriales. */
-  gummyUrl: string | null
-  background: string | null
-}
-
 export type CommerceProduct = {
   id: string
   handle: string
@@ -110,7 +103,7 @@ export type CommerceProduct = {
   thumbnail: string | null
   images: string[]
   variants: CommerceVariant[]
-  cardHover: CardHoverConfig | null
+  cardVisual: CardVisualOverrides | null
 }
 
 type RawVariant = {
@@ -137,49 +130,10 @@ type RawProduct = {
 }
 
 /**
- * Proyección pública de `product.metadata` para el hover de tarjetas.
- * Solo se aceptan las claves card_hover_* con URLs http(s) o rutas locales; el
- * resto del metadata no se expone al cliente.
+ * Proyección pública de `product.metadata` para el visual de tarjetas.
+ * La validación vive en `lib/commerce/card-visual`; aquí solo se normaliza el
+ * producto comercial.
  */
-const PLACEHOLDER_PATTERN = /URL_REAL|REPLACE_ME|TODO|<|>/i
-const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
-
-function publicMediaUrl(value: unknown): string | null {
-  if (typeof value !== "string") return null
-  const candidate = value.trim()
-  if (!candidate || PLACEHOLDER_PATTERN.test(candidate)) return null
-  if (candidate.startsWith("/")) return candidate
-  try {
-    const url = new URL(candidate)
-    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null
-  } catch {
-    return null
-  }
-}
-
-export function parseCardHover(metadata: unknown): CardHoverConfig | null {
-  if (!metadata || typeof metadata !== "object") return null
-  const data = metadata as Record<string, unknown>
-  const enabled = data.card_hover_enabled === true || data.card_hover_enabled === "true"
-  if (!enabled) return null
-
-  const overlayUrl = publicMediaUrl(data.card_hover_overlay_url)
-  const fullUrl = publicMediaUrl(data.card_hover_full_url)
-  const gummyUrl = publicMediaUrl(data.card_gummy_url)
-  const background =
-    typeof data.card_hover_background === "string" && HEX_COLOR.test(data.card_hover_background.trim())
-      ? data.card_hover_background.trim()
-      : null
-
-  if (overlayUrl) {
-    return { mode: "layered", overlayUrl, fullUrl, gummyUrl, background }
-  }
-  if (fullUrl) {
-    return { mode: "swap", overlayUrl: null, fullUrl, gummyUrl, background }
-  }
-  return null
-}
-
 function normalizeProduct(raw: RawProduct): CommerceProduct | null {
   if (!raw.id || !raw.handle || !raw.title) return null
 
@@ -218,7 +172,7 @@ function normalizeProduct(raw: RawProduct): CommerceProduct | null {
     thumbnail: raw.thumbnail ?? null,
     images,
     variants,
-    cardHover: parseCardHover(raw.metadata),
+    cardVisual: parseCardVisualOverrides(raw.metadata),
   }
 }
 

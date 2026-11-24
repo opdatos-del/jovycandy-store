@@ -1534,30 +1534,31 @@
   }
 }
 
-/* Visual de tarjeta con capas de hover ------------------------------------ */
+/* Motor visual de tarjetas ------------------------------------------------- */
 
 .catalog-card__media {
   position: absolute;
   inset: 0;
   display: block;
   background: var(--card-hover-bg, transparent);
-  transition: background-color 240ms ease;
+  transition: background-color var(--visual-duration, 350ms) ease;
 }
 
 .catalog-card__layer {
   transition:
-    opacity 420ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    opacity var(--visual-duration, 350ms) cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform var(--visual-duration, 350ms) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .catalog-card__layer--base {
   z-index: 2;
 }
 
-.catalog-card__layer--gomitas {
+.catalog-card__layer--decor {
   z-index: 1;
   opacity: 0;
-  transform: translateY(12px) scale(0.9);
+  transform: translateY(calc(12px * var(--visual-intensity, 1)))
+    scale(calc(1 - 0.1 * var(--visual-intensity, 1)));
 }
 
 .catalog-card__layer--swap {
@@ -1565,9 +1566,14 @@
   opacity: 0;
 }
 
+/* Escala discreta del modo zoom; la bolsa conserva su caja. */
+.catalog-card__media[data-visual="zoom"] .catalog-card__layer--base {
+  transform-origin: 50% 60%;
+}
+
 @media (hover: hover) {
-  .catalog-card:hover .catalog-card__layer--gomitas,
-  .catalog-card:has(.catalog-card__image:focus-visible) .catalog-card__layer--gomitas {
+  .catalog-card:hover .catalog-card__layer--decor,
+  .catalog-card:has(.catalog-card__image:focus-visible) .catalog-card__layer--decor {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
@@ -1575,6 +1581,13 @@
   .catalog-card:hover .catalog-card__layer--swap,
   .catalog-card:has(.catalog-card__image:focus-visible) .catalog-card__layer--swap {
     opacity: 1;
+  }
+
+  .catalog-card:hover .catalog-card__media[data-visual="zoom"] .catalog-card__layer--base,
+  .catalog-card:has(.catalog-card__image:focus-visible)
+    .catalog-card__media[data-visual="zoom"]
+    .catalog-card__layer--base {
+    transform: scale(var(--visual-scale, 1.04));
   }
 }
 
@@ -1584,7 +1597,14 @@
     transition: none;
   }
 
-  .catalog-card__layer--gomitas {
+  .catalog-card__layer--decor {
+    transform: none;
+  }
+
+  .catalog-card:hover .catalog-card__media[data-visual="zoom"] .catalog-card__layer--base,
+  .catalog-card:has(.catalog-card__image:focus-visible)
+    .catalog-card__media[data-visual="zoom"]
+    .catalog-card__layer--base {
     transform: none;
   }
 }

@@ -2,44 +2,40 @@
 
 import { useState, type CSSProperties } from "react"
 
-import type { CardHoverConfig } from "@/lib/medusa/store"
+import { cardVisualStyle, type CardVisual } from "@/lib/commerce/card-visual"
 
-type ProductCardMediaProps = {
+type ProductCardVisualProps = {
   title: string
   image: string | null
   imageSrcSet?: string
-  hover?: CardHoverConfig | null
+  visual: CardVisual
   priority?: boolean
   noImageLabel: string
 }
 
 /**
- * Visual de tarjeta: bolsa base siempre visible y una capa decorativa opcional.
- * - layered: gomitas detrás de la bolsa; la bolsa no cambia de tamaño.
- * - swap: composición completa con crossfade.
- * Si la capa falla, se oculta y queda el thumbnail base.
+ * Motor visual de la tarjeta. Solo recibe URLs y configuración resuelta:
+ * no conoce Medusa, presets ni reglas comerciales.
  */
-export function ProductCardMedia({
+export function ProductCardVisual({
   title,
   image,
   imageSrcSet,
-  hover,
+  visual,
   priority = false,
   noImageLabel,
-}: ProductCardMediaProps) {
-  const [layerFailed, setLayerFailed] = useState(false)
-  const style = hover?.background
-    ? ({ "--card-hover-bg": hover.background } as CSSProperties)
-    : undefined
+}: ProductCardVisualProps) {
+  const [failedLayer, setFailedLayer] = useState<"swap" | "overlay" | null>(null)
+  const style = cardVisualStyle(visual) as CSSProperties
 
-  const showLayered = hover?.mode === "layered" && Boolean(hover.overlayUrl) && !layerFailed
-  const showSwap = hover?.mode === "swap" && Boolean(hover.fullUrl) && !layerFailed
+  const showOverlay = visual.mode === "layered" && Boolean(visual.overlayUrl) && failedLayer !== "overlay"
+  const showSwap = visual.mode === "swap" && Boolean(visual.swapUrl) && failedLayer !== "swap"
 
   return (
-    <span className="catalog-card__media" style={style}>
-      {showLayered ? (
+    <span className="catalog-card__media" data-visual={visual.mode} style={style}>
+      {showOverlay ? (
         <img
-          src={hover?.overlayUrl ?? undefined}
+          src={visual.overlayUrl ?? undefined}
           alt=""
           aria-hidden="true"
           width={1600}
@@ -47,8 +43,8 @@ export function ProductCardMedia({
           loading="lazy"
           decoding="async"
           fetchPriority="low"
-          className="catalog-card__layer catalog-card__layer--gomitas"
-          onError={() => setLayerFailed(true)}
+          className="catalog-card__layer catalog-card__layer--decor"
+          onError={() => setFailedLayer("overlay")}
         />
       ) : null}
 
@@ -71,7 +67,7 @@ export function ProductCardMedia({
 
       {showSwap ? (
         <img
-          src={hover?.fullUrl ?? undefined}
+          src={visual.swapUrl ?? undefined}
           alt=""
           aria-hidden="true"
           width={1600}
@@ -80,7 +76,7 @@ export function ProductCardMedia({
           decoding="async"
           fetchPriority="low"
           className="catalog-card__layer catalog-card__layer--swap"
-          onError={() => setLayerFailed(true)}
+          onError={() => setFailedLayer("swap")}
         />
       ) : null}
     </span>

@@ -4,8 +4,8 @@ import Link from "next/link"
 import { useMemo, useRef, useState } from "react"
 
 import type { CmsCategory, CmsProduct } from "@/lib/cms/client"
+import type { CardVisual } from "@/lib/commerce/card-visual"
 import type { Dictionary, Locale } from "@/lib/i18n"
-import type { CardHoverConfig } from "@/lib/medusa/store"
 import { CatalogCard, type ViewableProduct } from "./product-card"
 
 type CatalogPageProps = {
@@ -16,7 +16,7 @@ type CatalogPageProps = {
   categoryCounts: Record<string, number>
   totalProducts: number
   prices: Record<string, { amount: number; currencyCode: string } | null>
-  hoverConfigs: Record<string, CardHoverConfig>
+  visuals: Record<string, CardVisual>
   selectedCategoryKey?: string
   selectedCategoryName?: string | null
   selectedCategoryDescription?: string | null
@@ -111,7 +111,7 @@ export function CatalogPage({
   categoryCounts,
   totalProducts,
   prices,
-  hoverConfigs,
+  visuals,
   selectedCategoryKey,
   selectedCategoryName,
   selectedCategoryDescription,
@@ -465,7 +465,7 @@ export function CatalogPage({
                     dictionary={dictionary}
                     fallbackFamily={categoryName}
                     price={prices[product.handle] ?? null}
-                    hover={hoverConfigs[product.handle] ?? null}
+                    visual={visuals[product.handle]}
                     priority={index < 5}
                   />
                 ))}

@@ -15,7 +15,7 @@ test.describe("catálogo oficial", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await expect(page.getByRole("complementary", { name: "Filtrar por" })).toBeVisible()
     await expect(page.getByLabel("Buscar productos")).toBeVisible()
-    await expect(page.locator(".catalog-card__layer--gomitas")).toHaveCount(1)
+    await expect(page.locator(".catalog-card__layer--decor")).toHaveCount(1)
 
     const cards = page.locator(".catalog-card")
     const initialCount = await cards.count()
@@ -59,7 +59,7 @@ test.describe("catálogo oficial", () => {
     const ringCard = page.locator(".catalog-card").filter({ hasText: "Aros Sabor Manzana Verde" })
     await expect(ringCard).toHaveCount(1)
 
-    const layer = ringCard.locator(".catalog-card__layer--gomitas")
+    const layer = ringCard.locator(".catalog-card__layer--decor")
     await expect(layer).toHaveCount(1)
     await expect(layer).toHaveAttribute("src", /\/static\/.*gomitas-explosion\.webp$/)
     await expect(layer).toHaveAttribute("aria-hidden", "true")
@@ -90,7 +90,14 @@ test.describe("catálogo oficial", () => {
     await ringCard.locator(".catalog-card__image").blur()
 
     const plainCard = page.locator(".catalog-card").filter({ hasText: "Ositos Surtidos 12 Sabores" })
-    await expect(plainCard.locator(".catalog-card__layer--gomitas")).toHaveCount(0)
+    await expect(plainCard.locator(".catalog-card__layer--decor")).toHaveCount(0)
+    await expect(plainCard).toHaveAttribute("data-card-visual", "zoom")
+
+    await plainCard.hover()
+    const baseTransform = await plainCard
+      .locator(".catalog-card__layer--base")
+      .evaluate((node) => getComputedStyle(node).transform)
+    expect(baseTransform).not.toBe("none")
 
     await layer.evaluate((node) => node.dispatchEvent(new Event("error")))
     await expect(layer).toHaveCount(0)
@@ -99,7 +106,7 @@ test.describe("catálogo oficial", () => {
   test("hover respeta movimiento reducido", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" })
     await page.goto("/es/catalogo")
-    const layer = page.locator(".catalog-card__layer--gomitas").first()
+    const layer = page.locator(".catalog-card__layer--decor").first()
     await expect(layer).toHaveCount(1)
     const duration = await layer.evaluate((node) => getComputedStyle(node).transitionDuration)
     expect(parseFloat(duration)).toBeLessThan(0.05)

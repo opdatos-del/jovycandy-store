@@ -1,5 +1,7 @@
 # Hover de producto Jovy Rings (imágenes servidas por Medusa)
 
+> Este documento describe el caso Rings. A partir de `docs/74-PRODUCT-CARD-VISUAL-MANAGER.md` forma parte del motor global `ProductCardVisual`; el comportamiento y las claves se conservan.
+
 **Estado:** IMPLEMENTADO Y VALIDADO EN LABORATORIO.  
 **Producto de referencia:** `jovy-aros-manzana-verde` (Jovy Rings Green Apple Flavor).  
 **Alcance:** tarjetas del catálogo; no modifica el diseño del empaque ni la ficha de producto.

@@ -85,7 +85,7 @@ export type DecoratedProductEditorial = ProductEditorialRecord & {
   product_missing: boolean
   /** Estado del producto comercial; Store solo publica `published`. */
   product_status: string | null
-  family: { id: string; slug: string; name: string } | null
+  family: { id: string; slug: string; name: string; card_preset?: string | null } | null
   category_keys: string[]
   publish_issues: string[]
   /** Requisitos pendientes para vender: diagnóstico interno de Admin, nunca expuesto en Store. */
@@ -110,6 +110,7 @@ export async function loadEditorialCatalogue(scope: ReadScope): Promise<Editoria
       slug: family.slug,
       name: family.name,
       medusa_category_id: family.medusa_category_id ?? null,
+      card_preset: family.card_preset ?? null,
       active: family.active ?? null,
     })),
   }
@@ -153,7 +154,7 @@ export function decorateProductEditorial(
       : null,
     product_missing: !product,
     product_status: product?.status ?? null,
-    family: family ? { id: family.id, slug: family.slug, name: family.name } : null,
+    family: family ? { id: family.id, slug: family.slug, name: family.name, card_preset: family.card_preset ?? null } : null,
     category_keys: productPresentationCategoryKeys(product, context.categories),
     publish_issues: productPublishIssues(product, context.categories, context.families),
     sellable_requirements: sellableRequirements(product),

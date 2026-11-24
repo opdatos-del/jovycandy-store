@@ -89,7 +89,7 @@ Ambos son idempotentes. El catálogo oculta los productos demo `t-shirt` y `swea
 - precios MXN calculados por Medusa;
 - presentaciones en gramos (paquete base y hasta dos tamaños mayores) con precio por presentación;
 - galería con miniaturas, ampliación y recuperación de packshots locales;
-- hover configurable desde `product.metadata` de Medusa: capa de gomitas detrás de la bolsa o crossfade (ver `docs/hover-producto-jovy-rings.md`);
+- hover configurable desde `product.metadata` de Medusa: zoom, swap, capa de gomitas o sin animación (`docs/74-PRODUCT-CARD-VISUAL-MANAGER.md`);
 - selector de variante y cantidad con precio;
 - barra de compra fija en móvil;
 - carrito persistente con drawer y página;
