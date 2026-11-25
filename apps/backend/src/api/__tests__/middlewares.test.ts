@@ -81,7 +81,10 @@ describe("autorización de las rutas administrativas", () => {
     // `methods` ausente significa que el matcher cubre todos los métodos.
     expect(adminRoute!.methods).toBeUndefined()
     expect(guard).toBeDefined()
-    expect(adminRoute!.middlewares).toHaveLength(1)
+    // El observer de revalidación corre después del guardia: una petición no
+    // autorizada no debe emitir eventos editoriales.
+    expect(adminRoute!.middlewares).toHaveLength(2)
+    expect(adminRoute!.middlewares?.[1]).toBeDefined()
   })
 
   it("responde 401 sin sesión ni token", async () => {

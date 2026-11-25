@@ -5,7 +5,13 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from '@medusajs/framework/http'
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import multer from "multer"
+import {
+  CONTENT_REVALIDATION_EVENT,
+  CONTENT_REVALIDATION_TAG,
+  isContentRevalidationRequest,
+} from "@jovy/lib/jovy/content-revalidation"
 import { createEventVideoUpload } from "@jovy/lib/jovy/event-video-upload"
 import { authorizeJovyAdmin } from "@jovy/lib/jovy/authz/middleware"
 import {
@@ -158,6 +164,54 @@ function jovyEventVideoMedia(req: MedusaRequest, res: MedusaResponse, next: Medu
   })
 }
 
+/**
+ * Emite un evento interno cuando una mutación Admin ya respondió con éxito.
+ * El subscriber decide si hay storefront configurado y firma la entrega. Se
+ * registra después de `authorizeJovyAdmin`, así una petición no autorizada no
+ * genera eventos.
+ */
+function notifyContentChange(
+  req: MedusaRequest,
+  res: MedusaResponse,
+  next: MedusaNextFunction,
+) {
+  const requestPath = req.originalUrl ?? req.url
+
+  if (!isContentRevalidationRequest(req.method, requestPath)) {
+    next()
+    return
+  }
+
+  res.once("finish", () => {
+    if (res.statusCode < 200 || res.statusCode >= 400) return
+
+    const source = `${req.method} ${requestPath.split("?")[0]}`
+    try {
+      const eventBus = req.scope.resolve(Modules.EVENT_BUS)
+      void eventBus
+        .emit([
+          {
+            name: CONTENT_REVALIDATION_EVENT,
+            data: { tags: [CONTENT_REVALIDATION_TAG], source },
+          },
+        ])
+        .catch((error: unknown) => {
+          const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+          logger.warn(
+            `[content-revalidation] no se pudo emitir el evento (${error instanceof Error ? error.name : "error desconocido"}).`,
+          )
+        })
+    } catch (error) {
+      const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+      logger.warn(
+        `[content-revalidation] event bus no disponible (${error instanceof Error ? error.name : "error desconocido"}).`,
+      )
+    }
+  })
+
+  next()
+}
+
 // The product index declares filterable `status` and `sales_channel_ids`, so
 // the route narrows it to published products in the key's sales channels.
 export default defineMiddlewares({
@@ -166,7 +220,7 @@ export default defineMiddlewares({
     // Reautenticar por duplicado rompía las lecturas del shell del Admin.
     {
       matcher: '/admin/*',
-      middlewares: [authorizeJovyAdmin],
+      middlewares: [authorizeJovyAdmin, notifyContentChange],
     },
     {
       method: ["POST"],
