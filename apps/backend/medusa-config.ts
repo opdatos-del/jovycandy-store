@@ -1,15 +1,29 @@
 import path from 'path'
 import { loadEnv, defineConfig } from '@medusajs/framework/utils'
 import { resolveRuntimeConfiguration } from './src/lib/jovy/runtime-configuration'
+import { assertRuntimePreflight } from './src/lib/jovy/runtime-preflight'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
 const runtime = resolveRuntimeConfiguration()
 
+// El build local/CI no debe exigir infraestructura desplegada. En cualquier
+// otro comando se ejecuta el preflight, incluso si NODE_ENV=production pero
+// DEPLOYMENT_ENV se omitió por error.
+const isBuild =
+  process.env.npm_lifecycle_event === "build" ||
+  process.env.MEDUSA_BUILD === "true"
+if (!isBuild) {
+  assertRuntimePreflight(runtime)
+}
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     workerMode: runtime.workerMode,
+    // Redis de sesiones es independiente del caching/event bus de Medusa.
+    redisUrl: runtime.sessionRedisUrl,
+    redisPrefix: process.env.SESSION_REDIS_PREFIX,
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
