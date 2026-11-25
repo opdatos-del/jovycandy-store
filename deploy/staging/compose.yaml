@@ -1,0 +1,213 @@
+name: jovycandy-staging
+
+x-backend-env: &backend-env
+  NODE_ENV: production
+  DEPLOYMENT_ENV: staging
+  PORT: "9000"
+  HOSTNAME: 0.0.0.0
+  DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+  COOKIE_SECRET: ${COOKIE_SECRET:?COOKIE_SECRET is required}
+  AUTH_MFA_ENCRYPTION_KEY: ${AUTH_MFA_ENCRYPTION_KEY:?AUTH_MFA_ENCRYPTION_KEY is required}
+  STORE_CORS: https://${STAGING_HOST:?STAGING_HOST is required}
+  ADMIN_CORS: https://${STAGING_HOST:?STAGING_HOST is required}
+  AUTH_CORS: https://${STAGING_HOST:?STAGING_HOST is required}
+  ADMIN_ALLOW_HTTP: "false"
+  MEDUSA_REDIS_ENABLED: "true"
+  MEDUSA_FF_CACHING: "true"
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+  EVENTS_REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
+  WORKFLOW_REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/1
+  CACHE_REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/2
+  LOCKING_REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/3
+  SESSION_REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/4
+  SESSION_REDIS_PREFIX: "staging:"
+  FILE_STORAGE_PROVIDER: local
+  STAGING_ALLOW_LOCAL_STORAGE: "true"
+  FILE_BACKEND_URL: https://${STAGING_HOST}/api/medusa/static
+  STOREFRONT_REVALIDATION_URL: http://storefront:3000/api/revalidate
+  STOREFRONT_REVALIDATION_SECRET: ${JOVY_REVALIDATION_SECRET:?JOVY_REVALIDATION_SECRET is required}
+  STOREFRONT_REVALIDATION_TIMEOUT_MS: "3000"
+  STAGING_PUBLISHABLE_KEY_FILE: /app/data/staging-publishable-key.txt
+  STAGING_CONFIGURED_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_API_KEY}
+  STAGING_ROTATE_DEFAULT_PUBLISHABLE_KEY: "true"
+  OTEL_ENABLED: "false"
+  OTEL_TRACES_EXPORTER: console
+  OTEL_SERVICE_NAME: jovycandy-medusa-staging
+
+services:
+  postgres:
+    image: postgres:16.10-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    pull_policy: ${IMAGE_PULL_POLICY:-always}
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      <<: *backend-env
+      WORKER_MODE: server
+    volumes:
+      - media-data:/app/static
+      - staging-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    pull_policy: ${IMAGE_PULL_POLICY:-always}
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      <<: *backend-env
+      WORKER_MODE: worker
+    volumes:
+      - media-data:/app/static
+      - staging-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  storefront:
+    image: ${STOREFRONT_IMAGE:?STOREFRONT_IMAGE is required}
+    pull_policy: ${IMAGE_PULL_POLICY:-always}
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      SITE_URL: https://${STAGING_HOST}
+      MEDUSA_BACKEND_URL: http://backend:9000
+      MEDUSA_PUBLISHABLE_API_KEY: ${MEDUSA_PUBLISHABLE_API_KEY}
+      JOVY_COMMERCE_SECRET: ${JOVY_COMMERCE_SECRET:?JOVY_COMMERCE_SECRET is required}
+      JOVY_REVALIDATION_SECRET: ${JOVY_REVALIDATION_SECRET:?JOVY_REVALIDATION_SECRET is required}
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      STAGING_HOST: ${STAGING_HOST}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      storefront:
+        condition: service_healthy
+
+  migrate:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    pull_policy: ${IMAGE_PULL_POLICY:-always}
+    profiles: ["bootstrap"]
+    environment:
+      <<: *backend-env
+      WORKER_MODE: shared
+    command: ["sh", "-lc", "pnpm exec medusa db:migrate && pnpm exec medusa db:migrate:search"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  bootstrap-key:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    pull_policy: ${IMAGE_PULL_POLICY:-always}
+    profiles: ["bootstrap"]
+    environment:
+      <<: *backend-env
+      WORKER_MODE: shared
+    command: ["sh", "-lc", "pnpm exec medusa exec ./src/scripts/ensure-staging-publishable-key.js"]
+    volumes:
+      - staging-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  print-key:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    pull_policy: ${IMAGE_PULL_POLICY:-always}
+    profiles: ["bootstrap"]
+    user: "1000:1000"
+    command: ["cat", "/app/data/staging-publishable-key.txt"]
+    volumes:
+      - staging-data:/app/data
+
+  seed:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    pull_policy: ${IMAGE_PULL_POLICY:-always}
+    profiles: ["seed"]
+    environment:
+      <<: *backend-env
+      WORKER_MODE: shared
+    command: ["sh", "-lc", "pnpm exec medusa exec ./src/scripts/seed-jovy-catalog.js && pnpm exec medusa exec ./src/scripts/seed-commerce-lab.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+  media-data:
+  staging-data:
+  caddy-data:
+  caddy-config:
