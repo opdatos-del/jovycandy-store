@@ -21,10 +21,14 @@ type ProductPurchaseProps = {
 }
 
 function isVariantAvailable(variant: CommerceVariant | undefined) {
-  if (!variant) return false
-  if (variant.price === null) return false
+  if (!variant || variant.price === null) return false
   if (!variant.manageInventory || variant.allowBackorder) return true
   return (variant.inventoryQuantity ?? 0) > 0
+}
+
+function maxQuantity(variant: CommerceVariant | undefined) {
+  if (!variant || !variant.manageInventory || variant.allowBackorder) return 99
+  return Math.min(99, Math.max(0, Math.floor(variant.inventoryQuantity ?? 0)))
 }
 
 export function ProductPurchase({
@@ -36,16 +40,19 @@ export function ProductPurchase({
   fallbackWeight,
 }: ProductPurchaseProps) {
   const copy = dictionary.commerce
-  const { addItem, setOpen, mutating } = useCommerce()
+  const { addItem, mutating } = useCommerce()
   const { notify } = useToast()
   const rootRef = useRef<HTMLDivElement>(null)
+  const confirmationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [stickyVisible, setStickyVisible] = useState(false)
 
   const variants = useMemo(
-    () => sortByWeight(commerce?.variants ?? []).filter((variant) => variant.price !== null),
+    () => sortByWeight(commerce?.variants ?? []),
     [commerce],
   )
-  const [variantId, setVariantId] = useState<string>(variants[0]?.id ?? "")
+  const [variantId, setVariantId] = useState<string>(
+    variants.find(isVariantAvailable)?.id ?? variants[0]?.id ?? "",
+  )
   const [quantity, setQuantity] = useState(1)
   const [adding, setAdding] = useState(false)
   const [justAdded, setJustAdded] = useState(false)
@@ -53,7 +60,10 @@ export function ProductPurchase({
   const variant = variants.find((item) => item.id === variantId) ?? variants[0]
   const price = variant?.price ?? null
   const currency = variant?.currencyCode ?? "mxn"
-  const canBuy = Boolean(commerce && variant && isVariantAvailable(variant) && !catalogOnly)
+  const available = isVariantAvailable(variant)
+  const quantityLimit = maxQuantity(variant)
+  const purchaseQuantity = Math.min(quantity, Math.max(1, quantityLimit))
+  const canBuy = Boolean(commerce && variant && available && !catalogOnly)
 
   useEffect(() => {
     const node = rootRef.current
@@ -67,17 +77,24 @@ export function ProductPurchase({
     return () => observer.disconnect()
   }, [])
 
+  useEffect(
+    () => () => {
+      if (confirmationTimer.current) clearTimeout(confirmationTimer.current)
+    },
+    [],
+  )
+
   const add = async () => {
     if (!variant || !canBuy || adding) return
     setAdding(true)
     try {
-      await addItem(variant.id, quantity)
+      await addItem(variant.id, purchaseQuantity)
       notify({
         title: copy.addedToCart,
         description: `${productTitle} · ${weightLabel(variant.title) ?? variant.title}`,
       })
       setJustAdded(true)
-      setTimeout(() => setJustAdded(false), 1600)
+      confirmationTimer.current = setTimeout(() => setJustAdded(false), 1600)
     } catch (reason) {
       notify({
         title: copy.cartError,
@@ -91,9 +108,15 @@ export function ProductPurchase({
 
   const availability = !variant
     ? copy.unavailable
-    : isVariantAvailable(variant)
-      ? copy.available
-      : copy.itemUnavailable
+    : variant.price === null
+      ? copy.priceUnavailable
+      : !variant.manageInventory
+        ? copy.inventoryUnverified
+        : variant.allowBackorder
+          ? copy.backorder
+          : available
+            ? copy.available
+            : copy.itemUnavailable
 
   return (
     <div className="product-buy" ref={rootRef}>
@@ -109,23 +132,36 @@ export function ProductPurchase({
           {variants.length > 1 ? (
             <fieldset className="product-variants">
               <legend>{copy.presentation}</legend>
-              <div className="product-variants__options" role="radiogroup" aria-label={copy.presentation}>
+              <div className="product-variants__options">
                 {variants.map((item) => {
                   const selected = item.id === variant?.id
+                  const itemAvailable = isVariantAvailable(item)
                   return (
-                    <label key={item.id} className={selected ? "is-selected" : ""}>
+                    <label
+                      key={item.id}
+                      className={`${selected ? "is-selected" : ""}${itemAvailable ? "" : " is-unavailable"}`}
+                    >
                       <input
                         type="radio"
                         name="product-variant"
                         value={item.id}
                         checked={selected}
+                        aria-disabled={!itemAvailable}
                         onChange={() => {
+                          if (!itemAvailable) return
                           setVariantId(item.id)
                           setQuantity(1)
                         }}
                       />
                       <span>{weightLabel(item.title) ?? item.title}</span>
-                      <small>{formatMoney(item.price, item.currencyCode ?? currency, locale)}</small>
+                      <small>
+                        {item.price === null
+                          ? copy.priceUnavailable
+                          : formatMoney(item.price, item.currencyCode ?? currency, locale)}
+                      </small>
+                      {!itemAvailable ? (
+                        <span className="product-variant__unavailable">{copy.unavailable}</span>
+                      ) : null}
                     </label>
                   )
                 })}
@@ -136,16 +172,20 @@ export function ProductPurchase({
           <div className="product-buy__price">
             <div>
               <span key={variant?.id} className="product-buy__amount jovy-pop">
-                {formatMoney(price, currency, locale)}
+                {price === null
+                  ? copy.priceUnavailable
+                  : formatMoney(price, currency, locale)}
               </span>
             </div>
-            <span className={`product-buy__availability ${variant && isVariantAvailable(variant) ? "" : "is-unavailable"}`}>
+            <span
+              className={`product-buy__availability ${available ? "" : "is-unavailable"}`}
+            >
               {availability}
             </span>
           </div>
 
           <div className="product-buy__row">
-            <div className="product-quantity" aria-label={copy.quantity}>
+            <div className="product-quantity" role="group" aria-label={copy.quantity}>
               <button
                 type="button"
                 onClick={() => setQuantity((value) => Math.max(1, value - 1))}
@@ -154,11 +194,11 @@ export function ProductPurchase({
               >
                 −
               </button>
-              <output aria-live="polite">{quantity}</output>
+              <output aria-live="polite">{purchaseQuantity}</output>
               <button
                 type="button"
-                onClick={() => setQuantity((value) => Math.min(99, value + 1))}
-                disabled={quantity >= 99}
+                onClick={() => setQuantity((value) => Math.min(quantityLimit, value + 1))}
+                disabled={quantity >= quantityLimit}
                 aria-label={copy.increase}
               >
                 +
@@ -168,8 +208,8 @@ export function ProductPurchase({
               type="button"
               onClick={() => void add()}
               disabled={!canBuy || mutating || adding}
+              aria-busy={adding}
               className={`catalog-primary-button product-buy__primary ${justAdded ? "is-confirmed" : ""}`}
-              aria-live="polite"
             >
               {adding ? (
                 <>
@@ -183,6 +223,12 @@ export function ProductPurchase({
             </button>
           </div>
 
+          {variant?.manageInventory && !variant.allowBackorder ? (
+            <p className="product-buy__note">
+              {copy.maxQuantity.replace("{{count}}", String(quantityLimit))}
+            </p>
+          ) : null}
+
           <ul className="product-trust" aria-label={copy.demoNote}>
             <li>{copy.shippingDemo}</li>
             <li>{copy.paymentDemo}</li>
@@ -190,7 +236,7 @@ export function ProductPurchase({
           </ul>
 
           <p className="product-buy__note">
-            {commerce ? copy.demoNote : copy.priceUnavailable}
+            {price === null ? copy.priceUnavailable : copy.demoNote}
           </p>
         </>
       )}
@@ -201,11 +247,13 @@ export function ProductPurchase({
 
       <div
         className={`product-sticky-buy ${stickyVisible && canBuy ? "is-visible" : ""}`}
-        aria-hidden={stickyVisible && canBuy ? undefined : true}
+        hidden={!(stickyVisible && canBuy)}
       >
         <span className="product-sticky-buy__price">
           {weightLabel(variant?.title) ?? fallbackWeight ?? productTitle}
-          <strong>{formatMoney(price, currency, locale)}</strong>
+          <strong>
+            {price === null ? copy.priceUnavailable : formatMoney(price, currency, locale)}
+          </strong>
         </span>
         <button
           type="button"

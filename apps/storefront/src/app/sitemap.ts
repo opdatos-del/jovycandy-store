@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next"
 
 import { getHomeContent } from "@/lib/cms/client"
+import { selectCatalogProducts } from "@/lib/commerce/product-presentations"
 import { locales } from "@/lib/i18n"
 import { SITE_URL } from "@/lib/site"
 
@@ -13,8 +14,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/${locale}/catalogo`, changeFrequency: "weekly", priority: 0.8 },
   ])
 
-  const products = content.products
-    .filter((product) => product.handle)
+  const products = selectCatalogProducts(content.products)
     .flatMap((product) =>
       locales.map((locale) => ({
         url: `${base}/${locale}/productos/${product.handle}`,

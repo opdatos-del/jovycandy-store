@@ -3,26 +3,28 @@
 import Link from "next/link"
 import { useMemo, useRef, useState } from "react"
 
-import type { CmsCategory, CmsProduct } from "@/lib/cms/client"
-import type { CardVisual } from "@/lib/commerce/card-visual"
+import type { CmsCategory } from "@/lib/cms/client"
+import {
+  getProductPresentations,
+  matchesPresentation,
+} from "@/lib/commerce/product-presentations"
 import type { Dictionary, Locale } from "@/lib/i18n"
-import { CatalogCard, type ViewableProduct } from "./product-card"
+
+import { CatalogCard, type CatalogProduct } from "./product-card"
 
 type CatalogPageProps = {
   locale: Locale
   dictionary: Dictionary
-  products: CmsProduct[]
+  products: CatalogProduct[]
   categories: CmsCategory[]
   categoryCounts: Record<string, number>
   totalProducts: number
-  prices: Record<string, { amount: number; currencyCode: string } | null>
-  visuals: Record<string, CardVisual>
   selectedCategoryKey?: string
   selectedCategoryName?: string | null
   selectedCategoryDescription?: string | null
 }
 
-type ModeFilter = "ALL" | CmsProduct["commercialMode"]
+type ModeFilter = "ALL" | CatalogProduct["commercialMode"]
 type SortOption = "featured" | "name-asc" | "name-desc" | "newest"
 
 type Filters = {
@@ -45,6 +47,8 @@ const initialFilters: Filters = {
   sort: "featured",
 }
 
+const PAGE_SIZE = 12
+
 const normalize = (value: string) =>
   value
     .normalize("NFD")
@@ -58,10 +62,10 @@ const unique = (values: Array<string | null | undefined>) =>
   )
 
 function matchesFilters(
-  product: CmsProduct,
+  product: CatalogProduct,
   filters: Filters,
   skip?: "family" | "gramaje" | "certification" | "mode",
-  categoryName?: string | null,
+  categoryNamesByKey?: Map<string, string>,
 ) {
   if (filters.query) {
     const haystack = normalize(
@@ -69,9 +73,9 @@ function matchesFilters(
         product.title,
         product.family?.name,
         product.gramaje,
+        ...getProductPresentations(product.commerce).map((item) => item.label),
         ...product.certifications,
-        ...product.categoryKeys,
-        categoryName,
+        ...product.categoryKeys.map((key) => categoryNamesByKey?.get(key) ?? key),
       ]
         .filter(Boolean)
         .join(" "),
@@ -79,7 +83,13 @@ function matchesFilters(
     if (!haystack.includes(normalize(filters.query))) return false
   }
   if (skip !== "family" && filters.family && product.family?.name !== filters.family) return false
-  if (skip !== "gramaje" && filters.gramaje && product.gramaje !== filters.gramaje) return false
+  if (
+    skip !== "gramaje" &&
+    filters.gramaje &&
+    !matchesPresentation(product.commerce, filters.gramaje)
+  ) {
+    return false
+  }
   if (
     skip !== "certification" &&
     filters.certification &&
@@ -110,26 +120,30 @@ export function CatalogPage({
   categories,
   categoryCounts,
   totalProducts,
-  prices,
-  visuals,
   selectedCategoryKey,
   selectedCategoryName,
   selectedCategoryDescription,
 }: CatalogPageProps) {
   const [filters, setFilters] = useState<Filters>(initialFilters)
   const [filtersVisible, setFiltersVisible] = useState(true)
+  const [page, setPage] = useState(1)
   const filterDialogRef = useRef<HTMLDialogElement>(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
 
   const heading = selectedCategoryName ?? dictionary.catalog.catalogHeadline
   const lead = selectedCategoryDescription ?? dictionary.catalog.catalogLead
   const categoryName = selectedCategoryName ?? null
+  const categoryNamesByKey = useMemo(
+    () => new Map(categories.map((category) => [category.key, category.name])),
+    [categories],
+  )
 
   const filtered = useMemo(
     () =>
-      products
-        .filter((product): product is ViewableProduct => Boolean(product.handle))
-        .filter((product) => matchesFilters(product, filters, undefined, categoryName)),
-    [products, filters, categoryName],
+      products.filter((product) =>
+        matchesFilters(product, filters, undefined, categoryNamesByKey),
+      ),
+    [products, filters, categoryNamesByKey],
   )
 
   const visibleProducts = useMemo(() => {
@@ -139,10 +153,19 @@ export function CatalogPage({
     } else if (filters.sort === "name-desc") {
       items.sort((a, b) => b.title.localeCompare(a.title, locale))
     } else if (filters.sort === "newest") {
-      items.sort((a, b) => Number(b.isNew) - Number(a.isNew))
+      items.sort(
+        (a, b) =>
+          Number(b.isNew) - Number(a.isNew) ||
+          a.title.localeCompare(b.title, locale),
+      )
     }
     return items
   }, [filtered, filters.sort, locale])
+
+  const pageCount = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const pageStart = (currentPage - 1) * PAGE_SIZE
+  const pagedProducts = visibleProducts.slice(pageStart, pageStart + PAGE_SIZE)
 
   const familyOptions = useMemo(
     () =>
@@ -150,22 +173,30 @@ export function CatalogPage({
         value: family,
         label: family,
         count: products.filter(
-          (product) => matchesFilters(product, filters, "family", categoryName) && product.family?.name === family,
+          (product) =>
+            matchesFilters(product, filters, "family", categoryNamesByKey) &&
+            product.family?.name === family,
         ).length,
       })),
-    [products, filters, categoryName],
+    [products, filters, categoryNamesByKey],
   )
 
   const gramajeOptions = useMemo(
     () =>
-      unique(products.map((product) => product.gramaje)).map((gramaje) => ({
+      unique(
+        products.flatMap((product) =>
+          getProductPresentations(product.commerce).map((item) => item.label),
+        ),
+      ).map((gramaje) => ({
         value: gramaje,
         label: gramaje,
         count: products.filter(
-          (product) => matchesFilters(product, filters, "gramaje", categoryName) && product.gramaje === gramaje,
+          (product) =>
+            matchesFilters(product, filters, "gramaje", categoryNamesByKey) &&
+            matchesPresentation(product.commerce, gramaje),
         ).length,
       })),
-    [products, filters, categoryName],
+    [products, filters, categoryNamesByKey],
   )
 
   const certificationOptions = useMemo(
@@ -175,26 +206,27 @@ export function CatalogPage({
         label: certification,
         count: products.filter(
           (product) =>
-            matchesFilters(product, filters, "certification", categoryName) &&
+            matchesFilters(product, filters, "certification", categoryNamesByKey) &&
             product.certifications.includes(certification),
         ).length,
       })),
-    [products, filters, categoryName],
+    [products, filters, categoryNamesByKey],
   )
 
   const modeCounts = useMemo(
     () => ({
       SELLABLE: products.filter(
         (product) =>
-          matchesFilters(product, filters, "mode", categoryName) && product.commercialMode === "SELLABLE",
+          matchesFilters(product, filters, "mode", categoryNamesByKey) &&
+          product.commercialMode === "SELLABLE",
       ).length,
       CATALOG_ONLY: products.filter(
         (product) =>
-          matchesFilters(product, filters, "mode", categoryName) &&
+          matchesFilters(product, filters, "mode", categoryNamesByKey) &&
           product.commercialMode === "CATALOG_ONLY",
       ).length,
     }),
-    [products, filters, categoryName],
+    [products, filters, categoryNamesByKey],
   )
 
   const activeFilters = [
@@ -210,9 +242,18 @@ export function CatalogPage({
 
   const updateFilter = <Key extends keyof Filters>(key: Key, value: Filters[Key]) => {
     setFilters((current) => ({ ...current, [key]: value }))
+    setPage(1)
   }
 
-  const resetFilters = () => setFilters(initialFilters)
+  const resetFilters = () => {
+    setFilters(initialFilters)
+    setPage(1)
+  }
+
+  const changePage = (nextPage: number) => {
+    setPage(nextPage)
+    requestAnimationFrame(() => resultsRef.current?.focus())
+  }
 
   const productLabel =
     visibleProducts.length === 1
@@ -222,6 +263,11 @@ export function CatalogPage({
       : locale === "es"
         ? `${visibleProducts.length} productos`
         : `${visibleProducts.length} products`
+
+  const showingLabel = dictionary.catalog.showingProducts
+    .replace("{{from}}", String(visibleProducts.length ? pageStart + 1 : 0))
+    .replace("{{to}}", String(Math.min(pageStart + PAGE_SIZE, visibleProducts.length)))
+    .replace("{{total}}", String(visibleProducts.length))
 
   const renderField = (
     key: "family" | "gramaje" | "certification",
@@ -258,6 +304,7 @@ export function CatalogPage({
             <Link
               href={`/${locale}/catalogo`}
               aria-current={!selectedCategoryKey ? "page" : undefined}
+              onClick={resetFilters}
             >
               <span>{dictionary.catalog.allCategories}</span>
               <span>{totalProducts}</span>
@@ -268,6 +315,7 @@ export function CatalogPage({
               <Link
                 href={`/${locale}/catalogo?categoria=${encodeURIComponent(category.key)}`}
                 aria-current={selectedCategoryKey === category.key ? "page" : undefined}
+                onClick={resetFilters}
               >
                 <span>{category.name}</span>
                 <span>{categoryCounts[category.key] ?? 0}</span>
@@ -304,7 +352,7 @@ export function CatalogPage({
   )
 
   return (
-    <main className="catalog jovy-catalog pt-28 pb-16 sm:pt-32">
+    <main id="contenido" tabIndex={-1} className="catalog jovy-catalog pt-28 pb-16 sm:pt-32">
       <header className="catalog-heading">
         <nav aria-label="Breadcrumb" className="catalog-breadcrumb">
           <Link href={`/${locale}`}>{dictionary.nav.home}</Link>
@@ -348,16 +396,19 @@ export function CatalogPage({
           <p className="catalog-count" aria-live="polite">
             {productLabel}
           </p>
-          <label className="catalog-search">
-            <span className="sr-only">{dictionary.catalog.searchPlaceholder}</span>
+          <search className="catalog-search">
+            <label className="sr-only" htmlFor="catalog-search-input">
+              {dictionary.catalog.searchPlaceholder}
+            </label>
             <SearchIcon />
             <input
+              id="catalog-search-input"
               type="search"
               value={filters.query}
               onChange={(event) => updateFilter("query", event.target.value)}
               placeholder={dictionary.catalog.searchPlaceholder}
             />
-          </label>
+          </search>
           <label className="catalog-sort">
             <span>{dictionary.catalog.sortBy}</span>
             <select
@@ -454,22 +505,66 @@ export function CatalogPage({
             {renderFilters()}
           </aside>
 
-          <div className="catalog-results">
-            {visibleProducts.length ? (
-              <div className="catalog-grid">
-                {visibleProducts.map((product, index) => (
-                  <CatalogCard
-                    key={product.id}
-                    product={product}
-                    locale={locale}
-                    dictionary={dictionary}
-                    fallbackFamily={categoryName}
-                    price={prices[product.handle] ?? null}
-                    visual={visuals[product.handle]}
-                    priority={index < 5}
-                  />
-                ))}
-              </div>
+          <div
+            ref={resultsRef}
+            className="catalog-results"
+            tabIndex={-1}
+            aria-label={dictionary.catalog.title}
+          >
+            <p className="sr-only" aria-live="polite">
+              {showingLabel}
+            </p>
+            {pagedProducts.length ? (
+              <>
+                <div className="catalog-grid">
+                  {pagedProducts.map((product, index) => (
+                    <CatalogCard
+                      key={product.id}
+                      product={product}
+                      locale={locale}
+                      dictionary={dictionary}
+                      fallbackFamily={categoryName}
+                      priority={index < 5}
+                    />
+                  ))}
+                </div>
+                {pageCount > 1 ? (
+                  <nav className="catalog-pagination" aria-label={dictionary.catalog.title}>
+                    <button
+                      type="button"
+                      onClick={() => changePage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      aria-label={dictionary.catalog.previousPage}
+                    >
+                      ←
+                    </button>
+                    {Array.from({ length: pageCount }, (_, index) => index + 1).map(
+                      (pageNumber) => (
+                        <button
+                          key={pageNumber}
+                          type="button"
+                          onClick={() => changePage(pageNumber)}
+                          aria-current={pageNumber === currentPage ? "page" : undefined}
+                          aria-label={dictionary.catalog.pageNumber.replace(
+                            "{{number}}",
+                            String(pageNumber),
+                          )}
+                        >
+                          {pageNumber}
+                        </button>
+                      ),
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => changePage(currentPage + 1)}
+                      disabled={currentPage === pageCount}
+                      aria-label={dictionary.catalog.nextPage}
+                    >
+                      →
+                    </button>
+                  </nav>
+                ) : null}
+              </>
             ) : (
               <div className="catalog-empty">
                 <h2>{dictionary.catalog.noResultsTitle}</h2>

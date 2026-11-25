@@ -237,7 +237,7 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
               <InstagramIcon className="h-6 w-6" />
             </a>
             <Link href={otherPath} hrefLang={otherLocale} className="rounded-full border border-[#0d3b6e]/25 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-[#0d3b6e]">
-              {locale === "es" ? "English" : "EspaÃ±ol"}
+              {locale === "es" ? "English" : "Español"}
             </Link>
           </div>
         </div>

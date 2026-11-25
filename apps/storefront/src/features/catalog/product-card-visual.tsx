@@ -26,6 +26,7 @@ export function ProductCardVisual({
   noImageLabel,
 }: ProductCardVisualProps) {
   const [failedLayer, setFailedLayer] = useState<"swap" | "overlay" | null>(null)
+  const [baseFailed, setBaseFailed] = useState(false)
   const style = cardVisualStyle(visual) as CSSProperties
 
   const showOverlay = visual.mode === "layered" && Boolean(visual.overlayUrl) && failedLayer !== "overlay"
@@ -48,7 +49,7 @@ export function ProductCardVisual({
         />
       ) : null}
 
-      {image ? (
+      {image && !baseFailed ? (
         <img
           src={image}
           srcSet={imageSrcSet}
@@ -60,6 +61,7 @@ export function ProductCardVisual({
           decoding="async"
           fetchPriority={priority ? "high" : "auto"}
           className="catalog-card__layer catalog-card__layer--base"
+          onError={() => setBaseFailed(true)}
         />
       ) : (
         <span className="catalog-card__placeholder">{noImageLabel}</span>

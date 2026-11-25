@@ -2,9 +2,15 @@
 import { notFound } from "next/navigation"
 
 import { ProductDetail } from "@/features/catalog/product-detail"
-import type { ViewableProduct } from "@/features/catalog/product-card"
+import { CatalogError } from "@/features/catalog/catalog-error"
+import type { CatalogProduct, ViewableProduct } from "@/features/catalog/product-card"
 import { getHomeContent } from "@/lib/cms/client"
-import { getCommerceProduct, getMexicoRegion } from "@/lib/medusa/store"
+import { selectCatalogProducts } from "@/lib/commerce/product-presentations"
+import {
+  getCommerceProduct,
+  getMexicoRegion,
+  listCommerceProducts,
+} from "@/lib/medusa/store"
 import { getDictionary, isLocale } from "@/lib/i18n"
 
 import "@/styles/catalog/catalog.css"
@@ -16,8 +22,8 @@ type ProductPageProps = {
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { locale, handle } = await params
   if (!isLocale(locale)) return { title: "Jovy Candy" }
-  const dictionary = getDictionary(locale)
   const content = await getHomeContent(locale)
+  if (!content.productsAvailable) return { title: "Jovy Candy" }
   const product = content.products.find((item) => item.handle === handle)
   if (!product) notFound()
   const details = [product.family?.name, product.gramaje].filter(Boolean).join(" · ")
@@ -33,38 +39,54 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!isLocale(locale)) notFound()
   const dictionary = getDictionary(locale)
   const content = await getHomeContent(locale)
+  if (!content.productsAvailable) return <CatalogError />
   const viewableProducts: ViewableProduct[] = content.products.filter(
     (item): item is ViewableProduct => Boolean(item.handle),
   )
   const product = viewableProducts.find((item) => item.handle === handle)
   if (!product) notFound()
 
+  const collection = selectCatalogProducts(viewableProducts)
+
   const categoryName =
     content.categories.find(
       (category) => category.active && product.categoryKeys.includes(category.key),
     )?.name ?? null
-  const relatedByFamily = viewableProducts.filter(
+  const relatedByFamily = collection.filter(
     (item) =>
       item.id !== product.id &&
       (item.family?.id === product.family?.id ||
         item.categoryKeys.some((key) => product.categoryKeys.includes(key))),
   )
-  const related = (relatedByFamily.length
+  const relatedProducts = (relatedByFamily.length
     ? relatedByFamily
-    : viewableProducts.filter((item) => item.id !== product.id)
+    : collection.filter((item) => item.id !== product.id)
   ).slice(0, 4)
 
   const region = await getMexicoRegion().catch(() => null)
-  const commerce = region
-    ? await getCommerceProduct(product.handle, region.id).catch(() => null)
-    : null
+  const [commerce, commerceProducts] = await Promise.all([
+    region
+      ? getCommerceProduct(product.handle, region.id).catch(() => null)
+      : Promise.resolve(null),
+    region ? listCommerceProducts(region.id).catch(() => []) : Promise.resolve([]),
+  ])
+  const commerceByHandle = new Map(
+    commerceProducts.map((item) => [item.handle, item]),
+  )
+  const related: CatalogProduct[] = relatedProducts.map((item) => ({
+    ...item,
+    commerce: commerceByHandle.get(item.handle) ?? null,
+  }))
+  const catalogProduct: CatalogProduct = {
+    ...product,
+    commerce,
+  }
 
   return (
     <ProductDetail
       locale={locale}
       dictionary={dictionary}
-      product={product}
-      commerce={commerce}
+      product={catalogProduct}
       related={related}
       categoryName={categoryName}
     />

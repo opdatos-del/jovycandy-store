@@ -2,17 +2,15 @@ import Link from "next/link"
 
 import { ProductGallery } from "@/features/commerce/product-gallery"
 import { ProductPurchase } from "@/features/commerce/product-purchase"
-import { weightLabel } from "@/lib/commerce/weight"
-import type { CommerceProduct } from "@/lib/medusa/store"
+import { summarizePresentations } from "@/lib/commerce/product-presentations"
 import type { Dictionary, Locale } from "@/lib/i18n"
-import { CatalogCard, type ViewableProduct } from "./product-card"
+import { CatalogCard, type CatalogProduct } from "./product-card"
 
 type ProductDetailProps = {
   locale: Locale
   dictionary: Dictionary
-  product: ViewableProduct
-  commerce: CommerceProduct | null
-  related: ViewableProduct[]
+  product: CatalogProduct
+  related: CatalogProduct[]
   categoryName?: string | null
 }
 
@@ -20,17 +18,17 @@ export function ProductDetail({
   locale,
   dictionary,
   product,
-  commerce,
   related,
   categoryName,
 }: ProductDetailProps) {
+  const commerce = product.commerce
   const galleryImages = commerce?.images?.length ? commerce.images : product.thumbnail ? [product.thumbnail] : []
   const isSellable = product.commercialMode === "SELLABLE"
   const lead = isSellable ? dictionary.catalog.sellableLead : dictionary.catalog.catalogOnlyLead
-  const weight = weightLabel(product.gramaje)
+  const weight = summarizePresentations(commerce, product.gramaje)
 
   return (
-    <main className="catalog jovy-catalog jovy-product pt-28 pb-16 sm:pt-32">
+    <main id="contenido" tabIndex={-1} className="catalog jovy-catalog jovy-product pt-28 pb-16 sm:pt-32">
       <nav aria-label="Breadcrumb" className="catalog-breadcrumb product-breadcrumb">
         <Link href={`/${locale}`}>{dictionary.nav.home}</Link>
         <span>/</span>
@@ -76,7 +74,7 @@ export function ProductDetail({
             ))}
           </div>
 
-          <p className="product-lead">{lead}</p>
+          <p className="product-lead">{commerce?.description ?? lead}</p>
 
           <dl className="product-specs" aria-label={dictionary.catalog.productInfoTitle}>
             <div>
@@ -95,6 +93,12 @@ export function ProductDetail({
               <dt>{dictionary.catalog.commercialMode}</dt>
               <dd>{isSellable ? dictionary.catalog.modeSellable : dictionary.catalog.modeCatalogOnly}</dd>
             </div>
+            {(commerce?.specs ?? []).map((spec) => (
+              <div key={`${spec.label}:${spec.value}`}>
+                <dt>{spec.label}</dt>
+                <dd>{spec.value}</dd>
+              </div>
+            ))}
           </dl>
 
           <ProductPurchase

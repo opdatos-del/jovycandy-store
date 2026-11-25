@@ -1,8 +1,10 @@
 ﻿import { notFound } from "next/navigation"
 
 import { CatalogPage } from "@/features/catalog/catalog-page"
-import { getHomeContent, type CmsProduct } from "@/lib/cms/client"
-import { resolveCardVisual, type CardVisual } from "@/lib/commerce/card-visual"
+import { CatalogError } from "@/features/catalog/catalog-error"
+import type { CatalogProduct } from "@/features/catalog/product-card"
+import { getHomeContent } from "@/lib/cms/client"
+import { selectCatalogProducts } from "@/lib/commerce/product-presentations"
 import { getDictionary, isLocale } from "@/lib/i18n"
 import { getMexicoRegion, listCommerceProducts } from "@/lib/medusa/store"
 
@@ -19,58 +21,42 @@ export default async function CataloguePage({ params, searchParams }: CatalogueP
   const { categoria } = await searchParams
   const dictionary = getDictionary(locale)
   const content = await getHomeContent(locale)
+  if (!content.productsAvailable) return <CatalogError />
 
   const categories = content.categories.filter((category) => category.active)
   const selected = categories.find((category) => category.key === categoria)
-  // El catálogo comercial solo lista productos con ficha pública. Los datos de
-  // respaldo del CMS no tienen `handle` y no deben ofrecer una acción engañosa.
-  const viewableProducts: CmsProduct[] = content.products.filter((product) => Boolean(product.handle))
+  if (categoria && !selected) notFound()
+
+  // El catálogo público prioriza el snapshot oficial cuando existe. Los
+  // productos históricos se conservan en Medusa y sus fichas directas siguen
+  // funcionando, pero no se mezclan con la colección mexicana verificada.
+  const collection = selectCatalogProducts(content.products)
   const products = selected
-    ? viewableProducts.filter((product) => product.categoryKeys.includes(selected.key))
-    : viewableProducts
+    ? collection.filter((product) => product.categoryKeys.includes(selected.key))
+    : collection
   const categoryCounts = Object.fromEntries(
     categories.map((category) => [
       category.key,
-      viewableProducts.filter((product) => product.categoryKeys.includes(category.key)).length,
+      collection.filter((product) => product.categoryKeys.includes(category.key)).length,
     ]),
   )
 
   const region = await getMexicoRegion().catch(() => null)
   const commerceProducts = region ? await listCommerceProducts(region.id).catch(() => []) : []
-  const prices = Object.fromEntries(
-    commerceProducts.map((product) => {
-      const variant = product.variants.find((item) => item.price !== null) ?? product.variants[0]
-      return [
-        product.handle,
-        variant?.price !== null && variant?.price !== undefined
-          ? { amount: variant.price, currencyCode: variant.currencyCode ?? region?.currency_code ?? "mxn" }
-          : null,
-      ]
-    }),
-  )
-
   const commerceByHandle = new Map(commerceProducts.map((product) => [product.handle, product]))
-  const visuals: Record<string, CardVisual> = Object.fromEntries(
-    viewableProducts
-      .filter((product) => Boolean(product.handle))
-      .map((product) => [
-        product.handle as string,
-        resolveCardVisual(commerceByHandle.get(product.handle as string)?.cardVisual ?? null, {
-          familyPreset: product.family?.cardPreset ?? null,
-        }),
-      ]),
-  )
+  const catalogProducts: CatalogProduct[] = products.map((product) => ({
+    ...product,
+    commerce: commerceByHandle.get(product.handle) ?? null,
+  }))
 
   return (
     <CatalogPage
       locale={locale}
       dictionary={dictionary}
-      products={products}
+      products={catalogProducts}
       categories={categories}
       categoryCounts={categoryCounts}
-      totalProducts={viewableProducts.length}
-      prices={prices}
-      visuals={visuals}
+      totalProducts={collection.length}
       selectedCategoryKey={selected?.key}
       selectedCategoryName={selected?.name}
       selectedCategoryDescription={selected?.description}
