@@ -31,13 +31,15 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "pnpm --dir apps/backend dev",
+      command: "pnpm dev",
+      cwd: path.join(__dirname, "..", "backend"),
       url: "http://localhost:9000/health",
       timeout: 180_000,
       reuseExistingServer: true,
     },
     {
-      command: "pnpm --dir apps/storefront dev",
+      command: "pnpm dev",
+      cwd: __dirname,
       url: baseURL,
       timeout: 120_000,
       reuseExistingServer: true,

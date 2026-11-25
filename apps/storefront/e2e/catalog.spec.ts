@@ -15,12 +15,11 @@ test.describe("catálogo oficial", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await expect(page.getByRole("complementary", { name: "Filtrar por" })).toBeVisible()
     await expect(page.getByLabel("Buscar productos")).toBeVisible()
-    await expect(page.locator(".catalog-card__layer--decor")).toHaveCount(2)
 
     const cards = page.locator(".catalog-card")
-    const initialCount = await cards.count()
-    expect(initialCount).toBeGreaterThan(0)
-    await expect(page.getByRole("link", { name: "Ver producto", exact: true })).toHaveCount(initialCount)
+    await expect(cards).toHaveCount(12)
+    await expect(page.locator(".catalog-count")).toHaveText("35 productos")
+    await expect(page.locator(".catalog-card__link")).toHaveCount(12)
     await expect(page.getByRole("button", { name: "Solicitar información" })).toHaveCount(0)
     await expectNoHorizontalOverflow(page)
 
@@ -32,7 +31,10 @@ test.describe("catálogo oficial", () => {
     expect(sidebarBox).not.toBeNull()
     expect(Math.abs(emptyBox!.y - sidebarBox!.y)).toBeLessThan(40)
     await page.getByRole("link", { name: "Ver todos los productos" }).click()
-    await expect(cards).toHaveCount(initialCount)
+    await expect(cards).toHaveCount(12)
+    await page.getByRole("button", { name: "Página 3" }).click()
+    await expect(cards).toHaveCount(11)
+    await expect(page.locator(".catalog-count")).toHaveText("35 productos")
 
     await page.setViewportSize({ width: 1920, height: 1080 })
     await page.reload()
@@ -54,9 +56,35 @@ test.describe("catálogo oficial", () => {
     await page.getByRole("button", { name: "Cerrar filtros" }).click()
   })
 
-  test("hover de tarjeta lee capas y tema desde Medusa", async ({ page }) => {
+  test("facetas oficiales, paginación y enlace de salto", async ({ page }) => {
     await page.goto("/es/catalogo")
-    const ringCard = page.locator(".catalog-card").filter({ hasText: "Aros Sabor Manzana Verde" })
+    await page.keyboard.press("Tab")
+    const skip = page.getByRole("link", { name: "Saltar al contenido" })
+    await expect(skip).toBeFocused()
+    await page.keyboard.press("Enter")
+    await expect(page.getByRole("main")).toBeFocused()
+
+    await page.getByLabel("Buscar productos").fill("Piñateros")
+    await expect(page.locator(".catalog-count")).toHaveText("5 productos")
+    await expect(page.locator(".catalog-card")).toHaveCount(5)
+    await expect(page.getByText("Ositos Surtidos 12 Sabores")).toHaveCount(0)
+
+    await page.getByRole("button", { name: "Limpiar" }).first().click()
+    await page
+      .getByRole("complementary", { name: "Filtrar por" })
+      .getByLabel("Gramaje")
+      .selectOption("100 g")
+    await expect(
+      page.locator(".catalog-card").filter({ hasText: "GUMMI BEARS" }).first().locator(".catalog-card__link"),
+    ).toHaveAttribute("href", /jovy-mx-/)
+  })
+
+  test("hover de tarjeta oficial conserva la capa layered de Rings", async ({ page }) => {
+    await page.goto("/es/catalogo")
+    await expect(page.locator(".catalog-card")).toHaveCount(12)
+    await page.getByLabel("Ordenar por").selectOption("name-asc")
+    await page.getByLabel("Buscar productos").fill("Rings Manzana")
+    const ringCard = page.locator(".catalog-card").filter({ hasText: "Rings Manzana" })
     await expect(ringCard).toHaveCount(1)
 
     const layer = ringCard.locator(".catalog-card__layer--decor")
@@ -67,7 +95,7 @@ test.describe("catálogo oficial", () => {
     expect(opacityBefore).toBe("0")
 
     const base = ringCard.locator(".catalog-card__layer--base")
-    await expect(base).toHaveAttribute("src", /\/static\/.*bolsa-original\.webp$/)
+    await expect(base).toHaveAttribute("src", /\/static\/.*jovy-mx-.*\.webp$/)
     const boxBefore = await base.boundingBox()
 
     await ringCard.hover()
@@ -83,22 +111,11 @@ test.describe("catálogo oficial", () => {
       .poll(async () => layer.evaluate((node) => getComputedStyle(node).opacity))
       .toBe("0")
 
-    await ringCard.locator(".catalog-card__image").focus()
+    await ringCard.locator(".catalog-card__link").focus()
     await expect
       .poll(async () => layer.evaluate((node) => getComputedStyle(node).opacity))
       .toBe("1")
-    await ringCard.locator(".catalog-card__image").blur()
-
-    const inheritedCard = page.locator(".catalog-card").filter({ hasText: "Ositos Surtidos 12 Sabores" })
-    const inheritedLayer = inheritedCard.locator(".catalog-card__layer--decor")
-    await expect(inheritedLayer).toHaveCount(1)
-    await expect(inheritedLayer).toHaveAttribute("src", /\/static\/.*\.webp$/)
-    await expect(inheritedCard).toHaveAttribute("data-card-visual", "layered")
-
-    await inheritedCard.hover()
-    await expect
-      .poll(async () => inheritedLayer.evaluate((node) => getComputedStyle(node).opacity))
-      .toBe("1")
+    await ringCard.locator(".catalog-card__link").blur()
 
     await layer.evaluate((node) => node.dispatchEvent(new Event("error")))
     await expect(layer).toHaveCount(0)
@@ -107,6 +124,9 @@ test.describe("catálogo oficial", () => {
   test("hover respeta movimiento reducido", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" })
     await page.goto("/es/catalogo")
+    await expect(page.locator(".catalog-card")).toHaveCount(12)
+    await page.getByLabel("Ordenar por").selectOption("name-asc")
+    await page.getByLabel("Buscar productos").fill("Rings Manzana")
     const layer = page.locator(".catalog-card__layer--decor").first()
     await expect(layer).toHaveCount(1)
     const duration = await layer.evaluate((node) => getComputedStyle(node).transitionDuration)
@@ -122,7 +142,7 @@ test.describe("catálogo oficial", () => {
 
   test("el detalle conserva la identidad y vuelve al catálogo", async ({ page }) => {
     await page.goto("/es/catalogo")
-    const href = await page.locator(".catalog-card__action").first().getAttribute("href")
+    const href = await page.locator(".catalog-card__link").first().getAttribute("href")
     expect(href).toBeTruthy()
 
     await page.goto(href as string)
@@ -140,12 +160,12 @@ test.describe("catálogo oficial", () => {
   })
 
   test("compra invitado completa un pedido de laboratorio en Medusa", async ({ page }) => {
-    await page.goto("/es/productos/jovy-ositos-surtidos")
-    await expect(page.getByRole("heading", { level: 1, name: "Ositos Surtidos 12 Sabores" })).toBeVisible()
-    await expect(page.locator(".product-buy__price")).toContainText("$45.00")
+    await page.goto("/es/productos/jovy-mx-gummi-bears-gummi-bears")
+    await expect(page.getByRole("heading", { level: 1, name: "GUMMI BEARS" })).toBeVisible()
+    await expect(page.locator(".product-buy__price")).toContainText("$15.00")
 
-    await page.locator(".product-variants__options label", { hasText: "250 g" }).click()
-    await expect(page.locator(".product-buy__amount")).toHaveText("$65.00")
+    await page.locator(".product-variants__options label", { hasText: "100 g" }).click()
+    await expect(page.locator(".product-buy__amount")).toHaveText("$25.00")
 
     await page.getByRole("button", { name: "Añadir al carrito" }).click()
     await expect(page.getByRole("status").filter({ hasText: "Agregado al carrito" })).toBeVisible()
@@ -177,8 +197,26 @@ test.describe("catálogo oficial", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Pedido confirmado" })).toBeVisible()
     await expect(page.getByText("Pedido de prueba").first()).toBeVisible()
     await expect(
-      page.getByRole("main").getByText("1 × Ositos Surtidos 12 Sabores").first(),
+      page.getByRole("main").getByText("1 × GUMMI BEARS").first(),
     ).toBeVisible()
+  })
+
+  test("ficha oficial muestra descripción, relacionados y límite de stock", async ({ page }) => {
+    await page.goto("/es/productos/jovy-mx-gummi-bears-gummi-bears")
+    await expect(page.locator(".product-lead")).not.toHaveText(
+      "Producto Jovy disponible para compra.",
+    )
+    await expect(page.locator(".product-specs")).toContainText("Peso")
+    await expect(page.locator(".product-related .catalog-card")).toHaveCount(4)
+    await expect(
+      page.locator(".product-related .catalog-card__price--unavailable"),
+    ).toHaveCount(0)
+
+    const increase = page.getByRole("button", { name: "Aumentar cantidad" })
+    for (let index = 0; index < 49; index += 1) await increase.click()
+    await expect(page.locator(".product-quantity output")).toHaveText("50")
+    await expect(increase).toBeDisabled()
+    await expect(page.getByText("Máximo 50 disponibles")).toBeVisible()
   })
 
   test("ficha muestra galería, zoom y presentaciones en gramos", async ({ page }) => {
@@ -206,7 +244,10 @@ test.describe("catálogo oficial", () => {
     await expect(page.getByRole("status").filter({ hasText: "Agregado al carrito" })).toBeVisible()
     await page.locator('button[aria-label^="Abrir carrito"]:visible').first().click()
     await expect(page.getByRole("dialog", { name: "Carrito" })).toBeVisible()
-    await page.getByRole("link", { name: "Ver carrito" }).click()
+    await Promise.all([
+      page.waitForURL(/\/es\/carrito$/),
+      page.getByRole("link", { name: "Ver carrito" }).click(),
+    ])
     await expect(page.getByRole("heading", { level: 1, name: "Carrito" })).toBeVisible()
 
     await page.reload()
@@ -248,7 +289,7 @@ test.describe("catálogo oficial", () => {
 
   test("compra móvil abre drawer y checkout sin overflow", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 })
-    await page.goto("/es/productos/jovy-ositos-surtidos")
+    await page.goto("/es/productos/jovy-mx-gummi-bears-gummi-bears")
     await page.getByRole("button", { name: "Añadir al carrito" }).click()
     await expect(page.getByRole("status").filter({ hasText: "Agregado al carrito" })).toBeVisible()
     await page.locator('button[aria-label^="Abrir carrito"]:visible').first().click()
