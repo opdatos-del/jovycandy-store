@@ -23,6 +23,9 @@
     "test:unit": "cross-env TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
     "test:e2e": "playwright test",
     "seed:catalog": "medusa exec ./src/scripts/seed-jovy-catalog.ts",
+    "seed:official": "medusa exec ./src/scripts/seed-official-catalog.ts",
+    "catalog:extract": "node --experimental-strip-types ./src/scripts/extract-official-catalog.ts",
+    "inventory:restore": "medusa exec ./src/scripts/restore-official-inventory.ts",
     "seed:commerce": "medusa exec ./src/scripts/seed-commerce-lab.ts",
     "seed:card-hover": "medusa exec ./src/scripts/seed-card-hover-rings.ts"
   },

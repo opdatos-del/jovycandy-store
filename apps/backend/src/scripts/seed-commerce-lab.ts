@@ -6,19 +6,31 @@
  * - agrega MXN a la tienda si falta;
  * - crea/verifica la región México;
  * - crea la región fiscal de México;
- * - reutiliza el stock location y el shipping profile existentes;
+ * - crea/verifica el stock location mexicano de laboratorio;
+ * - reutiliza el shipping profile existente;
  * - crea una zona de fulfillment y opciones de envío de laboratorio para México;
  * - deja disponible `pp_system_default` (pago manual de Medusa).
  *
  * No crea pagos reales, no modifica pedidos y es idempotente.
  */
 import {
+  createLinksWorkflow,
   createRegionsWorkflow,
   createShippingOptionsWorkflow,
+  createShippingProfilesWorkflow,
+  createStockLocationsWorkflow,
+  linkSalesChannelsToStockLocationWorkflow,
+  updateRegionsWorkflow,
+  updateShippingOptionsWorkflow,
+  updateStockLocationsWorkflow,
   updateStoresWorkflow,
 } from "@medusajs/medusa/core-flows"
 import type { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import {
+  createJovyLabFulfillmentSetWorkflow,
+  markJovyLabFulfillmentSetWorkflow,
+} from "@jovy/workflows/jovy-lab-commerce/fulfillment-set"
 
 type QueryGraph = {
   graph: (input: {
@@ -30,10 +42,8 @@ type QueryGraph = {
 }
 
 type FulfillmentService = {
-  listFulfillmentSets: (filters?: unknown, config?: unknown) => Promise<Array<{ id: string; name?: string }>>
-  createFulfillmentSets: (data: Record<string, unknown>) => Promise<{ id: string; service_zones?: Array<{ id: string }> }>
-  listShippingOptions: (filters?: unknown, config?: unknown) => Promise<Array<{ id: string; name: string }>>
-  updateShippingOptions: (id: string, data: Record<string, unknown>) => Promise<unknown>
+  listFulfillmentSets: (filters?: unknown, config?: unknown) => Promise<Array<{ id: string; name?: string; metadata?: Record<string, unknown> | null }>>
+  listShippingOptions: (filters?: unknown, config?: unknown) => Promise<Array<{ id: string; name: string; type?: { code?: string } | null }>>
 }
 
 type TaxService = {
@@ -41,28 +51,26 @@ type TaxService = {
   createTaxRegions: (data: Record<string, unknown>) => Promise<unknown>
 }
 
-type LinkService = {
-  create: (payload: Record<string, Record<string, string>>) => Promise<unknown>
-}
-
 const REGION_NAME = "Mexico"
 const CURRENCY = "mxn"
-const COUNTRY = "mx"
-const FULFILLMENT_SET_NAME = "Jovy Mexico Lab delivery"
+const COUNTRY = "MX"
+const FULFILLMENT_SET_NAME = "Jovy México Laboratorio"
+const STOCK_LOCATION_NAME = "Jovy México Laboratorio"
+const LAB_LOCATION_METADATA_KEY = "jovy_lab_stock_location"
+const LAB_FULFILLMENT_METADATA_KEY = "jovy_lab_fulfillment_set"
 
-export default async function seedCommerceLab({ container }: ExecArgs) {
+async function runCommerceSeed({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY) as QueryGraph
-  const link = container.resolve(ContainerRegistrationKeys.LINK) as LinkService
   const fulfillment = container.resolve(Modules.FULFILLMENT) as unknown as FulfillmentService
   const tax = container.resolve(Modules.TAX) as unknown as TaxService
 
   const { data: stores } = await query.graph({
     entity: "store",
-    fields: ["id", "supported_currencies.currency_code"],
+    fields: ["id", "default_sales_channel_id", "supported_currencies.currency_code"],
   })
   const store = stores[0] as
-    | { id: string; supported_currencies?: Array<{ currency_code?: string | null }> }
+    | { id: string; default_sales_channel_id?: string | null; supported_currencies?: Array<{ currency_code?: string | null }> }
     | undefined
   if (!store) throw new MedusaError(MedusaError.Types.NOT_FOUND, "No hay store configurada.")
 
@@ -90,17 +98,26 @@ export default async function seedCommerceLab({ container }: ExecArgs) {
 
   const { data: regionRows } = await query.graph({
     entity: "region",
-    fields: ["id", "name", "currency_code", "countries.iso_2"],
+    fields: [
+      "id",
+      "name",
+      "currency_code",
+      "countries.iso_2",
+      "payment_providers.id",
+    ],
   })
   let region = (regionRows as Array<{
     id: string
     name: string
     currency_code: string
     countries?: Array<{ iso_2?: string | null }> | null
+    payment_providers?: Array<{ id?: string | null }> | null
   }>).find(
     (item) =>
-      item.currency_code === CURRENCY ||
-      (item.countries ?? []).some((country) => country.iso_2 === COUNTRY),
+      String(item.currency_code).toLowerCase() === CURRENCY ||
+      (item.countries ?? []).some(
+        (country) => String(country.iso_2 ?? "").toUpperCase() === COUNTRY,
+      ),
   )
 
   if (!region) {
@@ -120,6 +137,29 @@ export default async function seedCommerceLab({ container }: ExecArgs) {
     region = result[0]
     logger.info(`[jovy-commerce] región ${REGION_NAME} creada`)
   } else {
+    const hasCountry = (region.countries ?? []).some(
+      (country) => String(country.iso_2 ?? "").toUpperCase() === COUNTRY,
+    )
+    const hasProvider = (region.payment_providers ?? []).some(
+      (provider) => provider.id === "pp_system_default",
+    )
+    if (!hasCountry || !hasProvider) {
+      await updateRegionsWorkflow(container).run({
+        input: {
+          selector: { id: region.id },
+          update: {
+            ...(String(region.currency_code).toLowerCase() !== CURRENCY
+              ? { currency_code: CURRENCY }
+              : {}),
+            ...(!hasCountry ? { countries: [COUNTRY] } : {}),
+            ...(!hasProvider
+              ? { payment_providers: ["pp_system_default"] }
+              : {}),
+          },
+        },
+      })
+      logger.info("[jovy-commerce] región México reparada")
+    }
     logger.info(`[jovy-commerce] región ${region.name} reutilizada`)
   }
 
@@ -129,49 +169,170 @@ export default async function seedCommerceLab({ container }: ExecArgs) {
     logger.info(`[jovy-commerce] región fiscal ${COUNTRY} creada`)
   }
 
-  const { data: stockLocationRows } = await query.graph({
+  const stockLocationRows = (await query.graph({
     entity: "stock_location",
-    fields: ["id", "name"],
-    pagination: { take: 1, skip: 0 },
-  })
-  const stockLocation = stockLocationRows[0] as { id: string; name: string } | undefined
+    fields: [
+      "id",
+      "name",
+      "metadata",
+      "sales_channels.id",
+      "fulfillment_providers.id",
+      "fulfillment_sets.id",
+    ],
+    pagination: { take: 1000, skip: 0 },
+  })).data as Array<{
+    id: string
+    name: string
+    metadata?: Record<string, unknown> | null
+    sales_channels?: Array<{ id?: string } | null> | null
+    fulfillment_providers?: Array<{ id?: string } | null> | null
+    fulfillment_sets?: Array<{ id?: string } | null> | null
+  }>
+  let stockLocation = stockLocationRows.find(
+    (location) =>
+      location.metadata?.[LAB_LOCATION_METADATA_KEY] === true ||
+      location.name === STOCK_LOCATION_NAME,
+  )
+
+  if (stockLocation && stockLocation.metadata?.[LAB_LOCATION_METADATA_KEY] !== true) {
+    await updateStockLocationsWorkflow(container).run({
+      input: {
+        selector: { id: stockLocation.id },
+        update: {
+          metadata: {
+            ...(stockLocation.metadata ?? {}),
+            [LAB_LOCATION_METADATA_KEY]: true,
+            jovy_lab: true,
+            country_code: COUNTRY,
+          },
+        },
+      },
+    })
+  }
+
   if (!stockLocation) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_FOUND,
-      "No hay stock location. Ejecuta el seed inicial de Medusa.",
-    )
+    const { result } = (await createStockLocationsWorkflow(container).run({
+      input: {
+        locations: [
+          {
+            name: STOCK_LOCATION_NAME,
+            metadata: {
+              [LAB_LOCATION_METADATA_KEY]: true,
+              jovy_lab: true,
+              country_code: COUNTRY,
+            },
+          },
+        ],
+      },
+    })) as unknown as { result: Array<{ id: string; name: string }> }
+    stockLocation = result[0]
+    logger.info(`[jovy-commerce] ubicación mexicana creada: ${stockLocation.name}`)
   }
 
-  const { data: shippingProfileRows } = await query.graph({
-    entity: "shipping_profile",
+  const salesChannels = (await query.graph({
+    entity: "sales_channel",
     fields: ["id"],
-    pagination: { take: 1, skip: 0 },
-  })
-  const shippingProfile = shippingProfileRows[0] as { id: string } | undefined
-  if (!shippingProfile) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_FOUND,
-      "No hay shipping profile. Ejecuta el seed inicial de Medusa.",
-    )
+  })).data as Array<{ id: string }>
+  const configuredChannelId = process.env.JOVY_SALES_CHANNEL_ID
+  const salesChannelId = configuredChannelId
+    ? salesChannels.find((channel) => channel.id === configuredChannelId)?.id
+    : salesChannels.find((channel) => channel.id === store.default_sales_channel_id)?.id ??
+      salesChannels[0]?.id
+  if (!salesChannelId) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "No hay sales channel disponible.")
   }
 
-  let [fulfillmentSet] = await fulfillment.listFulfillmentSets({ name: FULFILLMENT_SET_NAME })
-  if (!fulfillmentSet) {
-    fulfillmentSet = await fulfillment.createFulfillmentSets({
-      name: FULFILLMENT_SET_NAME,
-      type: "shipping",
-      service_zones: [
+  if (!(stockLocation.sales_channels ?? []).some((channel) => channel?.id === salesChannelId)) {
+    await linkSalesChannelsToStockLocationWorkflow(container).run({
+      input: { id: stockLocation.id, add: [salesChannelId] },
+    })
+  }
+
+  if (!(stockLocation.fulfillment_providers ?? []).some((provider) => provider?.id === "manual_manual")) {
+    await createLinksWorkflow(container).run({
+      input: [
         {
-          name: "Mexico",
-          geo_zones: [{ country_code: COUNTRY, type: "country" }],
+          [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
+          [Modules.FULFILLMENT]: { fulfillment_provider_id: "manual_manual" },
         },
       ],
     })
-    await link.create({
-      [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
-      [Modules.FULFILLMENT]: { fulfillment_set_id: fulfillmentSet.id },
+  }
+
+  const shippingProfileRows = (await query.graph({
+    entity: "shipping_profile",
+    fields: ["id", "name"],
+    pagination: { take: 1000, skip: 0 },
+  })).data as Array<{ id: string; name: string }>
+  const configuredProfileId = process.env.JOVY_SHIPPING_PROFILE_ID
+  let shippingProfile = configuredProfileId
+    ? shippingProfileRows.find((profile) => profile.id === configuredProfileId)
+    : shippingProfileRows.find((profile) => profile.name === "Default Shipping Profile") ??
+      shippingProfileRows[0]
+  if (!shippingProfile) {
+    const { result } = await createShippingProfilesWorkflow(container).run({
+      input: {
+        data: [{ name: "Default Shipping Profile", type: "default" }],
+      },
     })
+    shippingProfile = result[0]
+    logger.info("[jovy-commerce] shipping profile creado")
+  }
+
+  const fulfillmentSets = await fulfillment.listFulfillmentSets({}, { take: 1000 })
+  let fulfillmentSet = fulfillmentSets.find(
+    (set) =>
+      set.metadata?.[LAB_FULFILLMENT_METADATA_KEY] === true ||
+      set.name === FULFILLMENT_SET_NAME,
+  )
+  if (!fulfillmentSet) {
+    const { result } = (await createJovyLabFulfillmentSetWorkflow(container).run({
+      input: {
+        name: FULFILLMENT_SET_NAME,
+        type: "shipping",
+        service_zones: [
+          {
+            name: "Mexico",
+            geo_zones: [{ country_code: COUNTRY, type: "country" }],
+          },
+        ],
+      },
+    })) as unknown as { result: Array<{ id: string; name: string }> }
+    fulfillmentSet = result[0]
     logger.info("[jovy-commerce] fulfillment set México creado")
+  }
+
+  if (fulfillmentSet.metadata?.[LAB_FULFILLMENT_METADATA_KEY] !== true) {
+    await markJovyLabFulfillmentSetWorkflow(container).run({
+      input: {
+        id: fulfillmentSet.id,
+        metadata: {
+          ...(fulfillmentSet.metadata ?? {}),
+          [LAB_FULFILLMENT_METADATA_KEY]: true,
+          country_code: COUNTRY,
+        },
+      },
+    })
+    fulfillmentSet.metadata = {
+      ...(fulfillmentSet.metadata ?? {}),
+      [LAB_FULFILLMENT_METADATA_KEY]: true,
+      country_code: COUNTRY,
+    }
+  }
+
+  if (
+    !(stockLocation.fulfillment_sets ?? []).some(
+      (set) => set?.id === fulfillmentSet.id,
+    )
+  ) {
+    await createLinksWorkflow(container).run({
+      input: [
+        {
+          [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
+          [Modules.FULFILLMENT]: { fulfillment_set_id: fulfillmentSet.id },
+        },
+      ],
+    })
   }
 
   const { data: fulfillmentSetRows } = await query.graph({
@@ -199,7 +360,9 @@ export default async function seedCommerceLab({ container }: ExecArgs) {
   for (const existing of existingOptions) {
     const nextName = legacyNames[existing.name]
     if (!nextName) continue
-    await fulfillment.updateShippingOptions(existing.id, { name: nextName })
+    await updateShippingOptionsWorkflow(container).run({
+      input: [{ id: existing.id, name: nextName }],
+    })
     existing.name = nextName
     logger.info(`[jovy-commerce] opción de envío renombrada: ${nextName}`)
   }
@@ -220,7 +383,12 @@ export default async function seedCommerceLab({ container }: ExecArgs) {
   ]
 
   for (const option of options) {
-    if (existingOptions.some((existing) => existing.name === option.name)) continue
+    if (
+      existingOptions.some(
+        (existing) =>
+          existing.type?.code === option.code || existing.name === option.name,
+      )
+    ) continue
     await createShippingOptionsWorkflow(container).run({
       input: [
         {
@@ -247,5 +415,20 @@ export default async function seedCommerceLab({ container }: ExecArgs) {
 
   logger.info(
     `[jovy-commerce] listo. Región ${region.name} (${region.currency_code}), envío manual y pago pp_system_default disponibles.`,
+  )
+}
+
+export default async function seedCommerceLab({ container }: ExecArgs) {
+  const locking = container.resolve(Modules.LOCKING) as {
+    execute: <T>(
+      key: string,
+      job: () => Promise<T>,
+      args?: { timeout?: number; expire?: number },
+    ) => Promise<T>
+  }
+  await locking.execute(
+    "jovy:seed:commerce-infrastructure",
+    () => runCommerceSeed({ container } as ExecArgs),
+    { timeout: 300, expire: 600 },
   )
 }
