@@ -1,0 +1,47 @@
+name: Staging image smoke
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: staging-image-smoke
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    name: Construir y levantar topología staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build backend
+        run: docker build -f apps/backend/Dockerfile -t ghcr.io/jovycandy-ci/backend:ci .
+      - name: Build storefront
+        run: docker build -f apps/storefront/Dockerfile --build-arg SITE_URL=https://127.0.0.1 -t ghcr.io/jovycandy-ci/storefront:ci .
+      - name: Boot completo de staging
+        working-directory: deploy/staging
+        run: |
+          sh ./generate-secrets.sh 127.0.0.1
+          sed -i \
+            -e 's|^GHCR_NAMESPACE=.*|GHCR_NAMESPACE=jovycandy-ci|' \
+            -e 's|^IMAGE_TAG=.*|IMAGE_TAG=ci|' \
+            -e 's|^BACKEND_IMAGE=.*|BACKEND_IMAGE=ghcr.io/jovycandy-ci/backend:ci|' \
+            -e 's|^STOREFRONT_IMAGE=.*|STOREFRONT_IMAGE=ghcr.io/jovycandy-ci/storefront:ci|' \
+            -e 's|^IMAGE_PULL_POLICY=.*|IMAGE_PULL_POLICY=missing|' \
+            .env.staging
+          ALLOW_LOCAL_IMAGES=true SKIP_PULL=true sh ./deploy.sh ci ghcr.io/jovycandy-ci/backend:ci ghcr.io/jovycandy-ci/storefront:ci
+          ALLOW_LOCAL_IMAGES=true SKIP_PULL=true sh ./deploy.sh ci ghcr.io/jovycandy-ci/backend:ci ghcr.io/jovycandy-ci/storefront:ci
+      - name: Logs ante fallo
+        if: failure()
+        working-directory: deploy/staging
+        run: docker compose --env-file .env.staging logs --no-color --tail 200
+      - name: Limpieza
+        if: always()
+        working-directory: deploy/staging
+        run: |
+          if [ -f .env.staging ]; then
+            docker compose --env-file .env.staging down -v --remove-orphans
+          fi

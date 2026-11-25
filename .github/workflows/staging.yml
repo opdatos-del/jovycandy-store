@@ -1,0 +1,171 @@
+name: Staging deploy
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22.23.4"
+  PNPM_VERSION: "11.17.0"
+
+jobs:
+  build-and-push:
+    name: Build y publicar imágenes
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: staging-images
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+    outputs:
+      repository: ${{ steps.repository.outputs.repository }}
+      backend-digest: ${{ steps.backend.outputs.digest }}
+      storefront-digest: ${{ steps.storefront.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Exigir CI verde para este commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CONCLUSION=$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --commit "$GITHUB_SHA" \
+            --workflow ci.yml \
+            --limit 1 \
+            --json conclusion \
+            --jq '.[0].conclusion // empty')
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "CI no está en success para $GITHUB_SHA (estado: ${CONCLUSION:-pendiente})." >&2
+            exit 1
+          fi
+
+      - name: Configurar repositorio GHCR en minúsculas
+        id: repository
+        run: echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Validar URL pública de staging
+        env:
+          STAGING_PUBLIC_URL: ${{ vars.STAGING_PUBLIC_URL }}
+        run: |
+          test -n "$STAGING_PUBLIC_URL"
+          case "$STAGING_PUBLIC_URL" in
+            https://*) ;;
+            *) echo "STAGING_PUBLIC_URL debe usar HTTPS" >&2; exit 1 ;;
+          esac
+
+      - name: Configurar Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Login en GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build y push backend
+        id: backend
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          pull: true
+          tags: |
+            ghcr.io/${{ steps.repository.outputs.repository }}/backend:${{ github.sha }}
+            ghcr.io/${{ steps.repository.outputs.repository }}/backend:staging
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          provenance: true
+          sbom: true
+
+      - name: Build y push storefront
+        id: storefront
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: .
+          file: apps/storefront/Dockerfile
+          platforms: linux/amd64
+          push: true
+          pull: true
+          tags: |
+            ghcr.io/${{ steps.repository.outputs.repository }}/storefront:${{ github.sha }}
+            ghcr.io/${{ steps.repository.outputs.repository }}/storefront:staging
+          cache-from: type=gha,scope=storefront
+          cache-to: type=gha,mode=max,scope=storefront
+          build-args: |
+            SITE_URL=${{ vars.STAGING_PUBLIC_URL }}
+          provenance: true
+          sbom: true
+
+  deploy:
+    name: Deploy SSH a staging
+    if: github.ref == 'refs/heads/main'
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Preparar SSH firmado
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Copiar artefactos de despliegue
+        env:
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          SSH_PORT: ${{ vars.STAGING_SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH }}
+        run: |
+          test -n "$SSH_HOST"
+          test -n "$SSH_USER"
+          test -n "$DEPLOY_PATH"
+          SSH_OPTS="-i $HOME/.ssh/id_ed25519 -p $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          tar -C deploy/staging -czf "$RUNNER_TEMP/staging-deploy.tar.gz" .
+          ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "mkdir -p -- '$DEPLOY_PATH'"
+          cat "$RUNNER_TEMP/staging-deploy.tar.gz" | ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "tar -xzf - -C '$DEPLOY_PATH'"
+
+      - name: Ejecutar deploy y smoke
+        env:
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          SSH_PORT: ${{ vars.STAGING_SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH }}
+          IMAGE_TAG: ${{ github.sha }}
+          BACKEND_IMAGE: ghcr.io/${{ needs.build-and-push.outputs.repository }}/backend@${{ needs.build-and-push.outputs.backend-digest }}
+          STOREFRONT_IMAGE: ghcr.io/${{ needs.build-and-push.outputs.repository }}/storefront@${{ needs.build-and-push.outputs.storefront-digest }}
+        run: |
+          SSH_OPTS="-i $HOME/.ssh/id_ed25519 -p $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "cd '$DEPLOY_PATH' && chmod 700 *.sh && sh ./deploy.sh '$IMAGE_TAG' '$BACKEND_IMAGE' '$STOREFRONT_IMAGE'"
+
+      - name: Resumen
+        run: |
+          {
+            echo "### Staging actualizado"
+            echo "- Imagen backend: \`${{ needs.build-and-push.outputs.repository }}/backend@${{ needs.build-and-push.outputs.backend-digest }}\`"
+            echo "- Imagen storefront: \`${{ needs.build-and-push.outputs.repository }}/storefront@${{ needs.build-and-push.outputs.storefront-digest }}\`"
+            echo "- Environment: \`staging\`"
+            echo "- Deploy: manual con aprobación y smoke automático"
+          } >> "$GITHUB_STEP_SUMMARY"
