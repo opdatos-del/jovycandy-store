@@ -88,6 +88,7 @@ export type CommerceVariant = {
   id: string
   title: string
   sku: string | null
+  grams: number | null
   manageInventory: boolean
   allowBackorder: boolean
   inventoryQuantity: number | null
@@ -97,10 +98,14 @@ export type CommerceVariant = {
 
 export type CommerceProduct = {
   id: string
+  externalId: string | null
+  officialManaged: boolean
   handle: string
   title: string
+  description: string | null
   thumbnail: string | null
   images: string[]
+  specs: Array<{ label: string; value: string }>
   variants: CommerceVariant[]
   cardVisual: CardVisualOverrides | null
 }
@@ -109,6 +114,7 @@ type RawVariant = {
   id?: string
   title?: string | null
   sku?: string | null
+  metadata?: Record<string, unknown> | null
   manage_inventory?: boolean | null
   allow_backorder?: boolean | null
   inventory_quantity?: number | null
@@ -120,12 +126,30 @@ type RawVariant = {
 
 type RawProduct = {
   id?: string
+  external_id?: string | null
   handle?: string | null
   title?: string | null
+  description?: string | null
   thumbnail?: string | null
   images?: Array<{ url?: string | null }> | null
   metadata?: Record<string, unknown> | null
   variants?: RawVariant[] | null
+}
+
+const PRODUCT_FIELDS =
+  "id,external_id,title,description,handle,thumbnail,images.url,metadata,variants.id,variants.title,variants.sku,variants.metadata,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price"
+
+function normalizeSpecs(value: unknown): Array<{ label: string; value: string }> {
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (spec): spec is { label: string; value: string } =>
+      Boolean(
+        spec &&
+          typeof spec === "object" &&
+          typeof (spec as { label?: unknown }).label === "string" &&
+          typeof (spec as { value?: unknown }).value === "string",
+      ),
+  )
 }
 
 /**
@@ -143,6 +167,10 @@ function normalizeProduct(raw: RawProduct): CommerceProduct | null {
         id: variant.id,
         title: variant.title ?? "",
         sku: variant.sku ?? null,
+        grams:
+          typeof variant.metadata?.jovy_official_grams === "number"
+            ? variant.metadata.jovy_official_grams
+            : null,
         manageInventory: Boolean(variant.manage_inventory),
         allowBackorder: Boolean(variant.allow_backorder),
         inventoryQuantity:
@@ -166,10 +194,16 @@ function normalizeProduct(raw: RawProduct): CommerceProduct | null {
 
   return {
     id: raw.id,
+    externalId: raw.external_id ?? null,
+    officialManaged:
+      raw.metadata?.jovy_official_managed === true ||
+      String(raw.external_id ?? "").startsWith("jovy-mx:"),
     handle: raw.handle,
     title: raw.title,
+    description: raw.description ?? null,
     thumbnail: raw.thumbnail ?? null,
     images,
+    specs: normalizeSpecs(raw.metadata?.jovy_official_specs),
     variants,
     cardVisual: parseCardVisualOverrides(raw.metadata),
   }
@@ -186,10 +220,30 @@ export async function getMexicoRegion(): Promise<StoreRegion | null> {
 }
 
 export async function listCommerceProducts(regionId: string): Promise<CommerceProduct[]> {
-  const payload = await storeFetch<{ products?: RawProduct[] }>(
-    `/products?region_id=${encodeURIComponent(regionId)}&limit=100&fields=id,title,handle,thumbnail,images.url,metadata,variants.id,variants.title,variants.sku,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price`,
-  )
-  return (payload.products ?? [])
+  const products: RawProduct[] = []
+  const limit = 100
+  let offset = 0
+
+  while (true) {
+    const payload = await storeFetch<{
+      products?: RawProduct[]
+      count?: number
+    }>(
+      `/products?region_id=${encodeURIComponent(regionId)}&limit=${limit}&offset=${offset}&fields=${PRODUCT_FIELDS}`,
+    )
+    const page = payload.products ?? []
+    products.push(...page)
+    offset += page.length
+
+    if (
+      page.length < limit ||
+      (typeof payload.count === "number" && products.length >= payload.count)
+    ) {
+      break
+    }
+  }
+
+  return products
     .map(normalizeProduct)
     .filter((product): product is CommerceProduct => Boolean(product))
 }
@@ -199,7 +253,7 @@ export async function getCommerceProduct(
   regionId: string,
 ): Promise<CommerceProduct | null> {
   const payload = await storeFetch<{ products?: RawProduct[] }>(
-    `/products?handle=${encodeURIComponent(handle)}&region_id=${encodeURIComponent(regionId)}&fields=id,title,handle,thumbnail,images.url,metadata,variants.id,variants.title,variants.sku,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price`,
+    `/products?handle=${encodeURIComponent(handle)}&region_id=${encodeURIComponent(regionId)}&fields=${PRODUCT_FIELDS}`,
   )
   const product = payload.products?.[0]
   return product ? normalizeProduct(product) : null

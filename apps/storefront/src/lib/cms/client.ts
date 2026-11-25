@@ -30,6 +30,8 @@ export type CmsProduct = {
   gramaje: string | null
   certifications: string[]
   isNew: boolean
+  officialCatalogComplete?: boolean
+  officialCatalogSize?: number | null
   categoryKeys: string[]
   family: { id: string; slug: string; name: string; cardPreset?: string | null } | null
 }
@@ -81,6 +83,7 @@ export type HomeContent = {
   promo: CmsBanner[]
   categories: CmsCategory[]
   products: CmsProduct[]
+  productsAvailable: boolean
   events: CmsEvent[]
   gallery: CmsGalleryItem[]
   announcement: CmsAnnouncement | null
@@ -102,6 +105,8 @@ type RawProduct = {
   gramaje?: string | null
   certifications?: string[] | null
   is_new?: boolean | null
+  official_catalog_complete?: boolean | null
+  official_catalog_size?: number | null
   category_keys?: string[] | null
   product?: {
     id?: string
@@ -402,6 +407,11 @@ function normalizeProduct(raw: RawProduct): CmsProduct | null {
     gramaje: raw.gramaje ?? null,
     certifications: Array.isArray(raw.certifications) ? raw.certifications : [],
     isNew: Boolean(raw.is_new),
+    officialCatalogComplete: Boolean(raw.official_catalog_complete),
+    officialCatalogSize:
+      typeof raw.official_catalog_size === "number"
+        ? raw.official_catalog_size
+        : null,
     categoryKeys: Array.isArray(raw.category_keys) ? raw.category_keys : [],
     family: raw.family?.name
       ? {
@@ -520,6 +530,7 @@ export async function getHomeContent(locale: Locale): Promise<HomeContent> {
       .filter((banner) => banner.image && !/demo/i.test(`${banner.title} ${banner.alt}`)),
     categories,
     products: products.length ? products : FALLBACK_PRODUCTS,
+    productsAvailable: productsPayload !== null,
     events: cmsEvents.length ? cmsEvents : FALLBACK_EVENTS,
     gallery: cmsGallery.length >= 2 ? cmsGallery : FALLBACK_GALLERY,
     announcement: announcementPayload?.settings
