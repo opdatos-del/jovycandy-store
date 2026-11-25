@@ -35,8 +35,19 @@ El catálogo muestra el precio de la primera variante con precio; la ficha usa e
 
 La primera ejecución renombra las variantes `oz` a gramos, crea las que falten y asegura precio y vínculo de opción. Las siguientes ejecuciones son idempotentes.
 
+## Search e inventario de laboratorio
+
+El índice de Search incluye `mxn`, `eur` y `usd` con precio mínimo, máximo,
+original y descuento. Ver `docs/77-SEARCH-MXN-Y-SINCRONIZACION.md`.
+
+Las variantes Jovy siguen con `manage_inventory=false` y
+`allow_backorder=true`. Las pruebas de stock, backorder, reservas y concurrencia
+viven en `apps/backend/integration-tests/http/commerce-operations.spec.ts` y no
+activan inventario comercial. Ver `docs/78-INVENTORY-RESERVAS-Y-CONCURRENCIA.md`.
+
 ## Pendiente productivo
 
 - Revisar precios/certificaciones e imágenes remotas.
 - Definir stock real y reglas de inventario.
+- Aprobar la lista MXN y su vigencia.
 - Añadir variantes múltiples por presentación cuando el catálogo comercial lo requiera.

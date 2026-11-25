@@ -4,7 +4,16 @@ Monorepo local para la nueva plataforma JovyCandy: un storefront Next.js y Medus
 
 ## Estado
 
-La infraestructura base está validada: PostgreSQL local conectado, migraciones oficiales aplicadas, Medusa Health/Admin/login comprobados y el primer módulo CMS (`jovy_content`) migrado. Consulte [`docs/03-VALIDACION-ENTORNO.md`](docs/03-VALIDACION-ENTORNO.md) y [`docs/21-ESTADO-REESCRITURA-ADMIN.md`](docs/21-ESTADO-REESCRITURA-ADMIN.md) para evidencia y pendientes.
+La infraestructura base está validada: PostgreSQL local conectado, migraciones
+oficiales aplicadas, Medusa Health/Admin/login comprobados y el CMS Jovy
+migrado. La segunda campaña agregó Search MXN, pruebas de inventario,
+promociones y pedidos, revalidación CMS y readiness. El despliegue de staging con
+GitHub Actions, GHCR, Redis y worker está preparado; Redis/S3 reales, staging y
+producción siguen pendientes de infraestructura o decisión comercial.
+
+Consulte [`docs/86-REPORTE-CIERRE-SEGUNDA-CAMPANA.md`](docs/86-REPORTE-CIERRE-SEGUNDA-CAMPANA.md)
+para el estado verificable y [`docs/03-VALIDACION-ENTORNO.md`](docs/03-VALIDACION-ENTORNO.md)
+para la base local.
 
 ## Aplicaciones
 
@@ -39,3 +48,15 @@ No copie ni reutilice secretos, datos, catálogos o configuraciones de los proye
 - [`docs/60-CATALOGO-PRODUCTOS.md`](docs/60-CATALOGO-PRODUCTOS.md)
 - [`docs/65-ARQUITECTURA-ECOMMERCE-B2C.md`](docs/65-ARQUITECTURA-ECOMMERCE-B2C.md)
 - [`docs/73-REPORTE-IMPLEMENTACION-ECOMMERCE.md`](docs/73-REPORTE-IMPLEMENTACION-ECOMMERCE.md)
+- [`docs/76-AUDITORIA-CONFIGURACION-MEDUSA.md`](docs/76-AUDITORIA-CONFIGURACION-MEDUSA.md)
+- [`docs/77-SEARCH-MXN-Y-SINCRONIZACION.md`](docs/77-SEARCH-MXN-Y-SINCRONIZACION.md)
+- [`docs/78-INVENTORY-RESERVAS-Y-CONCURRENCIA.md`](docs/78-INVENTORY-RESERVAS-Y-CONCURRENCIA.md)
+- [`docs/79-PROMOCIONES-Y-OPERACION-PEDIDOS.md`](docs/79-PROMOCIONES-Y-OPERACION-PEDIDOS.md)
+- [`docs/80-REVALIDACION-CMS-NEXTJS.md`](docs/80-REVALIDACION-CMS-NEXTJS.md)
+- [`docs/81-REDIS-SERVER-WORKER.md`](docs/81-REDIS-SERVER-WORKER.md)
+- [`docs/82-FILE-MODULE-STORAGE.md`](docs/82-FILE-MODULE-STORAGE.md)
+- [`docs/83-OBSERVABILIDAD-MEDUSA.md`](docs/83-OBSERVABILIDAD-MEDUSA.md)
+- [`docs/84-STAGING-Y-CI-CD.md`](docs/84-STAGING-Y-CI-CD.md)
+- [`docs/85-MATRIZ-PRUEBAS-SEGUNDA-CAMPANA.md`](docs/85-MATRIZ-PRUEBAS-SEGUNDA-CAMPANA.md)
+- [`docs/86-REPORTE-CIERRE-SEGUNDA-CAMPANA.md`](docs/86-REPORTE-CIERRE-SEGUNDA-CAMPANA.md)
+- [`docs/89-DESPLIEGUE-STAGING-GHCR.md`](docs/89-DESPLIEGUE-STAGING-GHCR.md)

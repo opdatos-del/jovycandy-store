@@ -9,16 +9,20 @@
 
 La estabilización publicada en `1ba0b8188d1f04df0b6aaa5d2f29221eb6eac0e3`
 pasó los cinco jobs de CI en [GitHub Actions run 45437735774](https://github.com/opdatos-del/jovycandy-store/actions/runs/45437735774).
-La configuración posterior de perfiles runtime permanece sin commit, sin
-despliegue y no cambia el dictamen de este documento.
+El commit posterior `c61edc8709c62f36a1f54516dd5de9087301fc34` incorporó los
+perfiles runtime. El run [45450870051](https://github.com/opdatos-del/jovycandy-store/actions/runs/45450870051)
+pasó build, unitarias, módulos e HTTP, y falló únicamente en Gitleaks por un
+falso positivo `generic-api-key` en `S3_SECRET_ACCESS_KEY`. La plantilla se
+corrigió en la rama local de la segunda campaña; el CI debe re-ejecutarse tras
+el commit. La segunda campaña no se ha desplegado.
 
 | Control | Evidencia | Estado |
 |---|---|---|
 | Typecheck backend/storefront | `pnpm typecheck` | VERIFICADO |
 | Lint | 0 errores; 2 warnings preexistentes | VERIFICADO |
-| Unitarias | 39 suites / 376 pruebas | VERIFICADO |
+| Unitarias | 47 suites / 444 pruebas | VERIFICADO (segunda campaña) |
 | Integración de módulos | 7 suites / 47 pruebas | VERIFICADO |
-| Integración HTTP | 12 suites / 93 pruebas | VERIFICADO |
+| Integración HTTP | 13 suites / 102 pruebas | VERIFICADO (segunda campaña) |
 | E2E Admin | 31/31 en `127.0.0.1:9001` | VERIFICADO |
 | Build producción | `medusa build` | VERIFICADO |
 | revocación en el mismo proceso | HTTP: 200 → 403 tras retirar roles | VERIFICADO |
@@ -29,7 +33,7 @@ despliegue y no cambia el dictamen de este documento.
 | Bootstrap/recovery | Módulo + comando + auditoría | VERIFICADO en local |
 | Errores de autorización | Denegación por defecto | VERIFICADO por código y pruebas de ruta |
 | Migraciones | `jovy_authz_*` aplicadas; sin `rbac_*` | VERIFICADO |
-| CI | Workflow ejecutado en GitHub: run `44906197461` | VERIFICADO |
+| CI | Run `45450870051`: 4/5 PASS; Gitleaks corregido en rama local | PARCIAL |
 
 ## 2. Qué no se pudo validar
 
@@ -52,25 +56,25 @@ despliegue y no cambia el dictamen de este documento.
 
 Situación actual:
 
-```ts
-const isProductionRuntime = process.env.NODE_ENV === 'production'
-const allowHttpCookies = process.env.ADMIN_ALLOW_HTTP === 'true'
-const secureSessionCookie = isProductionRuntime && !allowHttpCookies
-```
+`resolveRuntimeConfiguration` rechaza `ADMIN_ALLOW_HTTP=true` cuando
+`NODE_ENV=production`. El perfil `DEPLOYMENT_ENV=staging|production` añade un
+preflight que exige HTTPS exacto, secretos fuertes, PostgreSQL no loopback y
+almacenamiento persistente. El build local no activa ese preflight porque no
+define `DEPLOYMENT_ENV`.
 
-Riesgo: `ADMIN_ALLOW_HTTP=true` en un proceso con `NODE_ENV=production` desactiva la cookie `Secure`. Es aceptable solo en `localhost` y nunca detrás de un despliegue real.
+Riesgo residual: un despliegue que no declare `DEPLOYMENT_ENV` infiere
+`production` desde `NODE_ENV` y ejecuta igualmente el preflight. Solo el comando
+de build está exento, de forma explícita, para no exigir infraestructura durante
+la compilación.
 
 Requisitos antes de producción:
 
-1. `NODE_ENV=production`.
+1. `NODE_ENV=production` y `DEPLOYMENT_ENV=production`.
 2. `ADMIN_ALLOW_HTTP` ausente o `false`.
 3. TLS terminado en el proxy y backend no expuesto directamente.
 4. `ADMIN_CORS` y `AUTH_CORS` con orígenes exactos, sin `*`.
-5. Cookies `Secure`, `HttpOnly` y `SameSite` verificado en navegador.
-6. Validación de arranque que rechace `ADMIN_ALLOW_HTTP=true` en producción. **PENDIENTE**:
-   no se implementó un guard duro porque el build/arranque local de este repositorio usa
-   HTTP y no se dispone de un indicador fiable de entorno; se documenta como requisito
-   de despliegue y se recomienda validarlo en el pipeline de staging.
+5. Cookies `Secure`, `HttpOnly` y `SameSite` verificadas en navegador.
+6. Preflight de arranque aprobado en staging.
 
 ## 4. Comportamiento ante fallos
 

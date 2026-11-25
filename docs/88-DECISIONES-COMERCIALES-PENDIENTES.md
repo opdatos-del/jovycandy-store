@@ -1,8 +1,11 @@
 # Decisiones comerciales pendientes
 
 **Corte:** 2026-11-24
-**Estado:** PREPARADO / BLOQUEADO. Ninguna decisión de negocio se infiere desde
-código de laboratorio.
+**Estado:** PREPARADO / BLOQUEADO para decisiones de negocio; varios frentes
+técnicos ya están implementados en laboratorio.
+**Avance de la segunda campaña:** Search MXN, pruebas de inventario/promociones/
+pedido, revalidación CMS y readiness están implementados. Redis, S3, pagos,
+logística, fiscalidad y staging siguen bloqueados por decisión o infraestructura.
 
 ## Matriz
 
@@ -11,8 +14,8 @@ código de laboratorio.
 | Pagos | Proveedor, contrato, credenciales sandbox, política webhook/reembolso | Stripe, Mercado Pago, Conekta u otro aprobado | Elegir uno y verificar soporte Medusa 2.22.6; mantener `pp_system_default` hasta entonces | No hay cobro real ni conciliación | Contratos, pruebas de fallos y webhooks sin proveedor activo |
 | Logística | Carrier, tarifas, cobertura, SLA, devoluciones | Paquetería por definir | Mantener shipping manual DEMO separado de tarifas reales | No hay guías, tracking ni tarifas comerciales | Modelo de zonas y pruebas de disponibilidad |
 | Fiscal/CFDI | Tratamiento IVA, catálogo, razón social, RFC, PAC, cancelaciones | PAC autorizado | No asumir tasa ni clasificación fiscal | No se puede facturar comercialmente | Documentar contrato pedido-factura y validaciones |
-| Precios | Lista MXN aprobada, vigencia, canal y segmento | Price lists Medusa | Sustituir datos DEMO solo mediante importación validada | Precios de laboratorio no son autorizados | Validación de importación y escenarios sin precio |
-| Inventario | Medusa, ERP o WMS como autoridad; reservas y conflictos | Medusa-only, ERP/WMS integrado | Definir una sola autoridad y contrato de caída/reconciliación | Variantes Jovy no gestionan stock | Diseño de reservas y pruebas aisladas |
+| Precios | Lista MXN aprobada, vigencia, canal y segmento | Price lists Medusa | Sustituir datos DEMO solo mediante importación validada | Precios de laboratorio no son autorizados | Search MXN y eventos implementados; falta política de vigencia |
+| Inventario | Medusa, ERP o WMS como autoridad; reservas y conflictos | Medusa-only, ERP/WMS integrado | Definir una sola autoridad y contrato de caída/reconciliación | Variantes Jovy no gestionan stock | Reservas y concurrencia probadas; activación comercial pendiente |
 | Correo | Proveedor, dominio, sandbox, SPF/DKIM/DMARC | SendGrid, Resend u otro aprobado | Activar un único provider sandbox tras aprobación | Sin notificaciones transaccionales reales | Plantillas, idempotencia y registro de fallos |
 | Storage | S3/R2/MinIO, bucket, CDN, CORS, retención y backup | S3-compatible aprobado | Usar perfil opt-in `file-s3`; conservar `file-local` | Medios no son persistentes para staging | Inventario/hash/referencias y plan reversible |
 | Hosting | Medusa Cloud o self-hosted; responsables y presupuesto | Una opción aprobada | No montar dos topologías productivas | No hay staging desplegado | Configuración por entorno y pipeline sin deploy |
@@ -36,6 +39,10 @@ considera preparada en código, no desplegada.
 ## Reglas de operación
 
 - `pp_system_default`, envío manual y precios DEMO solo sirven para laboratorio.
+- Las pruebas de promociones, inventario y pedidos usan bases descartables; no
+  autorizan promociones, stock ni pedidos reales.
+- La revalidación CMS puede activarse por entorno con secreto compartido; no
+  sustituye una decisión de contenido ni publica datos privados.
 - Una publishable API key identifica un canal; no concede permisos administrativos.
 - No instalar varios proveedores de pago, correo o logística para "probar" sin
   decisión comercial.

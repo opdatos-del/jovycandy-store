@@ -1,7 +1,8 @@
 # Auditoría de configuración Medusa
 
 **Corte:** 2026-11-24
-**Estado:** EN IMPLEMENTACIÓN. Preparación local; ningún proveedor externo fue activado.
+**Estado:** IMPLEMENTADO EN LABORATORIO. Ningún proveedor externo fue activado.
+**Segunda campaña:** ver `docs/77` a `docs/86`.
 
 ## Objetivo y alcance
 
@@ -39,7 +40,9 @@ autorización administrativa.
 | Pedidos/clientes | 24 pedidos y 26 clientes de laboratorio | FUNCIONAL EN LABORATORIO |
 | Promociones | 0 promociones | PENDIENTE |
 | API keys | 2 publishable API keys | CONFIGURADO; revisar asignación por canal antes de staging |
-| Search | Índice PostgreSQL disponible | INCOMPLETO: campos de precio solo `eur`/`usd`, no `mxn` |
+| Search | Índice PostgreSQL disponible | MXN/EUR/USD implementado en segunda campaña |
+| Revalidación CMS | Evento + HMAC + endpoint Next.js | IMPLEMENTADO Y VALIDADO LOCALMENTE |
+| Readiness | `/health/ready` contra PostgreSQL | IMPLEMENTADO Y PROBADO |
 
 Los datos históricos no se eliminan durante esta campaña. Su depuración exige
 decisión operativa y respaldo validado.
@@ -71,7 +74,14 @@ Staging/producción autorizado
 
 La configuración rechaza `ADMIN_ALLOW_HTTP=true` bajo `NODE_ENV=production`.
 Las cookies de sesión son `Secure` en producción. No existe bypass para HTTP
-productivo.
+productivo. `SESSION_REDIS_URL` configura solo el almacén de sesiones de
+`express-session` y es independiente de `MEDUSA_REDIS_ENABLED`.
+
+El preflight de `apps/backend/src/lib/jovy/runtime-preflight.ts` se ejecuta en
+cualquier arranque: exige HTTPS exacto, PostgreSQL no loopback, secretos fuertes y
+distintos, Redis compartido si server/worker están separados y storage S3
+persistente. Solo `pnpm build`/`MEDUSA_BUILD=true` está exento. Si falta
+`DEPLOYMENT_ENV`, `NODE_ENV=production` infiere producción y no evita el control.
 
 ## Procedimiento por entorno
 
@@ -98,13 +108,12 @@ productivo.
 
 ## Pruebas y límites actuales
 
-- Especificación unitaria: perfil local, rechazo HTTP productivo, Redis
-  incompleto, caching feature flag, worker separado y S3 incompleto.
-- Validación histórica de estabilización: build/typecheck backend, 394 unitarias,
-  47 integración de módulos, 93 HTTP, Admin E2E 2/2, Storefront E2E 25/25 y
-  seed aislado idempotente.
-- Pendiente: Redis real, S3 real, worker reiniciable, HTTPS, caching/invalidation,
-  recuperación, pagos, correo, logística, fiscalidad y búsqueda MXN.
+- Especificación unitaria: perfiles, preflight por entorno, Redis incompleto,
+  caching feature flag, worker separado, sesiones Redis y S3 incompleto.
+- Segunda campaña: 444 unitarias, 47 integración de módulos, 102 HTTP,
+  revalidación CMS 202/401, Search MXN y preflight.
+- Pendiente: Redis real, S3 real, worker reiniciable, HTTPS, caching real,
+  restauración, pagos, correo, logística y fiscalidad.
 
 ## Dictamen
 
