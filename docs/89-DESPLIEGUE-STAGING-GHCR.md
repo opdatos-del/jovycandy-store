@@ -56,7 +56,7 @@ compartido o producción se requiere un dominio y TLS válido.
 | `deploy/staging/generate-secrets.sh` | Crea `.env.staging` con secretos nuevos |
 | `deploy/staging/deploy.sh` | Migra, bootstrap, despliega y verifica |
 | `deploy/staging/smoke.sh` | Health, Redis, worker y revalidación |
-| `deploy/staging/seed.sh` | Seed DEMO idempotente |
+| `deploy/staging/seed.sh` | Seed de laboratorio idempotente |
 | `deploy/staging/backup.sh` | Backup de PostgreSQL y volúmenes |
 | `deploy/staging/rollback.sh` | Vuelve a los digests anteriores |
 | `.github/workflows/staging.yml` | Build/push GHCR y deploy SSH manual |
@@ -186,7 +186,7 @@ cd /opt/jovycandy-staging
 ./seed.sh
 ```
 
-El seed crea el catálogo y el comercio DEMO de forma idempotente. No usar datos
+El seed crea el catálogo y el comercio de laboratorio de forma idempotente. No usar datos
 de proyectos históricos ni producción.
 
 La publishable key se crea en el bootstrap y se guarda en el volumen

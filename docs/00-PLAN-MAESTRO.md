@@ -23,7 +23,7 @@ La auditoría de `admin-webjovy` identifica gestión editorial de productos de c
 | Capacidad actual | Destino previsto |
 | --- | --- |
 | Productos, variantes, precios, inventario, clientes, pedidos | Medusa nativo |
-| Región, moneda, sales channel, envíos y pagos DEMO | Configuración oficial de Medusa |
+| Región, moneda, sales channel, envíos y pagos de laboratorio | Configuración oficial de Medusa |
 | Hero, banners, carruseles, eventos, galerías, marca y SEO editorial | Módulos DML de Medusa futuros |
 | Contactos y auditoría CMS | Módulos/API administrativos de Medusa futuros |
 | Gestión comercial y editorial | Medusa Admin nativo, UI Routes/Widgets solo cuando sea necesario |
@@ -62,7 +62,7 @@ Las APIs futuras se dividirán entre Store API para contenido publicado/comercio
 1. **Cimientos actuales:** crear administrador local y validar runtime, login y reinicio de Medusa.
 2. **CMS administrativo:** completar módulos editoriales por bloques verticales, empezando por `jovy_content` ya migrado.
 3. **Diseño:** analizar assets y establecer dirección/sistema visual corporativo.
-4. **Primer vertical comercial:** home → carrusel DEMO → ficha DEMO → carrito Medusa → checkout DEMO.
+4. **Primer vertical comercial:** home → carrusel de laboratorio → ficha de laboratorio → carrito Medusa → checkout de laboratorio.
 5. **Cuentas B2C:** auth Medusa, sesiones BFF seguras, perfil, direcciones y pedidos.
 6. **Calidad transversal:** pruebas unitarias, integración, Playwright, accesibilidad, SEO, PWA evaluada y revisión visual.
 

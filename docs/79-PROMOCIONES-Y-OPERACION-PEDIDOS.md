@@ -8,7 +8,7 @@
 ## Promociones nativas
 
 No se creó un gestor de descuentos en `jovy-marketing`. Se usó el Promotion
-Module de Medusa. Las promociones DEMO se crean en la base descartable de la
+Module de Medusa. Las promociones de laboratorio se crean en la base descartable de la
 suite y no se publican en la tienda real.
 
 | Caso | Resultado |

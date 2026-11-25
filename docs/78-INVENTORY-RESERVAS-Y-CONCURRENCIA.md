@@ -1,22 +1,30 @@
 # Inventario, reservas y concurrencia
 
 **Corte:** 2026-11-24
-**Estado:** IMPLEMENTADO Y VALIDADO EN LABORATORIO. NO ACTIVADO COMERCIALMENTE.
+**Estado:** IMPLEMENTADO Y VALIDADO EN LABORATORIO. Catálogo oficial con inventario activo solo en la ubicación de laboratorio.
 **Autoridad de inventario:** sin decisión. Medusa es la única fuente en el
 laboratorio; no se creó un sistema paralelo.
 
 ## Punto de partida real
 
-Las variantes Jovy del catálogo usan:
+Las variantes históricas del catálogo usan:
 
 ```text
 manage_inventory = false
 allow_backorder = true
 ```
 
-Por tanto, el catálogo actual no controla existencias. Las pruebas de esta
-campaña usan productos, stock locations, inventory items y niveles nuevos en una
-base descartable. No se modificó stock de productos existentes.
+Las 61 variantes oficiales `JOVY-MX-*` usan:
+
+```text
+manage_inventory = true
+allow_backorder = false
+stock_location = Jovy México Laboratorio
+apertura = 50 unidades por variante
+```
+
+La apertura ocurre una sola vez. El seed preserva niveles, reservas y ajustes
+posteriores. Las pruebas usan bases descartables y no tocan stock productivo.
 
 ## Comportamiento comprobado
 
@@ -69,8 +77,9 @@ Antes de activar inventario comercial hay que definir:
 - Cómo se reconcilia stock entre sistemas.
 - Quién puede ajustar niveles y con qué auditoría.
 
-No se debe activar `manage_inventory=true` en el catálogo real solo porque las
-pruebas pasan. Hace falta la decisión anterior y una carga inicial validada.
+No se debe activar este inventario como autoridad productiva solo porque las
+pruebas pasan. La ubicación de laboratorio ya controla existencias; producción
+requiere la decisión anterior y una carga inicial validada.
 
 ## Contrato preparado para ERP/WMS
 
@@ -102,7 +111,12 @@ Reglas mínimas del futuro adaptador:
 | Tres reservas concurrentes contra stock 2 | 2 aceptadas, 1 rechazada |
 | Nivel final tras reservas | `reserved=2`, `available=0` |
 | Producto `CATALOG_ONLY` | No se modificó; sigue fuera de compra |
+| Seed oficial dos veces y concurrente | Sin duplicados; precio, familia, título y stock preservados |
+| Reserva activa + reposición | 50 disponibles y reserva conservada |
+| Presentación nueva | Valor de opción creado y variante enlazada |
+| Renombre oficial | Producto/handle existentes reutilizados por SKU |
+| Variante solo USD | MXN añadido al mismo price set |
 
 Suite: `apps/backend/integration-tests/http/commerce-operations.spec.ts`.
-Base descartable `medusa-jovy-http-commerce-operations`. Sin pagos ni stock
-productivo.
+Seed oficial: `apps/backend/integration-tests/http/official-catalog-seed.spec.ts`.
+Bases descartables. Sin pagos ni stock productivo.

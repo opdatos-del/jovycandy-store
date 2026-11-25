@@ -34,7 +34,7 @@ autorización administrativa.
 | Productos | 31 productos; catálogo Jovy con variantes nativas | FUNCIONAL |
 | Inventario | 20 inventory items; variantes Jovy con `manage_inventory=false` y `allow_backorder=true` | INCOMPLETO PARA PRODUCCIÓN |
 | Ubicaciones | Una ubicación europea histórica; fulfillment set de México laboratorio | PREPARADO EN LABORATORIO |
-| Envío | 4 opciones manuales, incluyendo estándar/express DEMO México | FUNCIONAL EN LABORATORIO |
+| Envío | 4 opciones manuales, incluyendo estándar/express de laboratorio México | FUNCIONAL EN LABORATORIO |
 | Impuestos | Tax region de México; sin política contable autorizada | BLOQUEADO POR DECISIÓN FISCAL |
 | Pago | `pp_system_default` | FUNCIONAL EN LABORATORIO; no cobra |
 | Pedidos/clientes | 24 pedidos y 26 clientes de laboratorio | FUNCIONAL EN LABORATORIO |
@@ -90,7 +90,7 @@ persistente. Solo `pnpm build`/`MEDUSA_BUILD=true` está exento. Si falta
    y Redis desactivado.
 3. Staging: crear PostgreSQL, Redis y bucket aislados; cargar secretos mediante
    gestor de secretos; configurar CORS HTTPS exactos; ejecutar migraciones y
-   seeds DEMO solo en la base aislada.
+   seeds de laboratorio solo en la base aislada.
 4. Iniciar API con `WORKER_MODE=server` y worker con `WORKER_MODE=worker` solo
    después de comprobar Redis, health checks, retención de jobs y reintentos.
 5. Probar subida/lectura de archivos, eventos, workflows, caché e invalidación

@@ -1,6 +1,6 @@
 # Catálogo y compra JovyCandy
 
-**Estado:** IMPLEMENTADO · catálogo, precios, carrito, checkout de laboratorio y cuentas B2C en laboratorio.  
+**Estado:** IMPLEMENTADO · catálogo oficial mexicano, precios sintéticos de laboratorio, carrito, checkout de laboratorio y cuentas B2C.
 **Rutas:** `/{locale}/catalogo`, `/{locale}/productos/[handle]`, `/{locale}/carrito`, `/{locale}/checkout`, `/{locale}/checkout/confirmacion`, `/{locale}/cuenta`.  
 **Alcance:** laboratorio local; sin cobros reales, envíos productivos ni despliegue.
 
@@ -12,8 +12,8 @@ El catálogo oficial usa una composición de alta densidad:
 - catálogo a ancho completo con filtros laterales persistentes;
 - sidebar sticky con scroll propio cuando excede el viewport;
 - tarjetas con packshot, familia, gramaje, precio, certificaciones y CTA;
-- grid de máximo 6 columnas en escritorio amplio;
-- ficha con galería, variantes, cantidad, precio, disponibilidad y relacionados;
+- grid de máximo 6 columnas en escritorio amplio y paginación de 12 productos;
+- ficha con galería, variantes, cantidad limitada por stock, precio, disponibilidad y relacionados;
 - carrito lateral, página de carrito y checkout de cuatro pasos;
 - 404 de producto alineado a la misma identidad.
 
@@ -45,7 +45,9 @@ pnpm --filter storefront build
 pnpm --dir apps/storefront test:e2e
 ```
 
-Los E2E levantan backend y storefront si no están activos.
+Los E2E levantan backend y storefront si no están activos. Requieren
+`seed:commerce` y `seed:official` aplicados previamente sobre la base local de
+laboratorio; no reinician ni borran esa base.
 
 ## 4. Implementación
 
@@ -77,17 +79,22 @@ El storefront combina editorial + Medusa en servidor y nunca confía en precios 
 ## 6. Seeds
 
 ```powershell
-pnpm --dir apps/backend seed:catalog   # 25 productos Jovy
-pnpm --dir apps/backend seed:commerce  # región MX, MXN, envío de laboratorio y pago manual
+pnpm --dir apps/backend seed:commerce   # región MX, MXN, envío y pago de laboratorio
+$env:OFFICIAL_SEED_MODE="preview"
+pnpm --dir apps/backend seed:official   # 35 productos / 61 variantes verificadas
+$env:OFFICIAL_SEED_MODE="apply"
+pnpm --dir apps/backend seed:official
 ```
 
-Ambos son idempotentes. El catálogo oculta los productos demo `t-shirt` y `sweatpants`; no los borra. Los precios, textos y certificaciones son datos de desarrollo.
+`seed:catalog` queda como semilla histórica. El catálogo público prioriza los
+productos oficiales `jovy-mx-*` cuando existen; no borra los históricos y sus
+fichas directas siguen disponibles. Detalle y runbook: `docs/90-CATALOGO-OFICIAL-MEXICO.md`.
 
 ## 7. Funcionalidad
 
 - búsqueda, filtros, conteos y ordenamiento;
 - precios MXN calculados por Medusa;
-- presentaciones en gramos (paquete base y hasta dos tamaños mayores) con precio por presentación;
+- presentaciones oficiales en gramos con precio por presentación y filtros multivariante;
 - galería con miniaturas, ampliación y recuperación de packshots locales;
 - hover configurable desde `product.metadata` de Medusa: zoom, swap, capa de gomitas o sin animación (`docs/74-PRODUCT-CARD-VISUAL-MANAGER.md`);
 - selector de variante y cantidad con precio;
@@ -108,7 +115,7 @@ Ambos son idempotentes. El catálogo oculta los productos demo `t-shirt` y `swea
 - No hay recuperación de contraseña con correo real.
 - El historial solo incluye pedidos asociados al cliente autenticado.
 - Los precios, imágenes remotas y certificaciones del seed requieren revisión antes de producción.
-- Los filtros se resuelven en cliente; un catálogo grande requerirá búsqueda/paginación en servidor.
+- Los filtros se resuelven en cliente y se paginan localmente; un catálogo grande requerirá búsqueda/paginación en servidor.
 - No hubo prueba con usuarios ni medición de Core Web Vitals.
 
 ## 9. Documentos relacionados

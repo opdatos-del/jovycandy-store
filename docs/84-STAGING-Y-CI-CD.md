@@ -92,7 +92,7 @@ Reglas:
 - backup antes de staging;
 - verificar Search: versión nueva, activación e idempotencia;
 - no usar eliminación automática de índices sin revisión;
-- no ejecutar seeds DEMO sobre datos comerciales reales.
+- no ejecutar seeds de laboratorio sobre datos comerciales reales.
 
 ## Recuperación
 

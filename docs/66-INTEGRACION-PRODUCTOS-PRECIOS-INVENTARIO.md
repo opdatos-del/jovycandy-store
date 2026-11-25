@@ -1,53 +1,76 @@
 # Productos, precios e inventario
 
-**Estado:** IMPLEMENTADO EN LABORATORIO.
+**Estado:** IMPLEMENTADO Y VALIDADO EN LABORATORIO LOCAL.
+**Fuente comercial:** catálogo oficial mexicano versionado en
+`apps/backend/src/data/catalog/official-mx.json`.
 
 ## Fuente
 
 - Editorial: `/store/jovy/products` (Jovy CMS).
 - Comercial: `/store/products?region_id=...` (Medusa Store API).
-- Región: México (`mxn`), creada por `seed:commerce`.
+- Región: México (`mxn`), creada/reparada por `seed:commerce`.
 - Precio: `variants.calculated_price.calculated_amount`.
+- Inventario: Medusa Inventory Module, ubicación `Jovy México Laboratorio`.
 
 ## Mapper
 
-`src/lib/medusa/store.ts` combina:
+`src/lib/medusa/store.ts` proyecta:
 
-- `id`, `handle`, `title`, `thumbnail`;
-- variantes: `id`, `title`, `sku`;
-- `manage_inventory`, `allow_backorder`, `inventory_quantity`;
-- precio calculado y moneda.
+- `id`, `external_id`, `handle`, título, descripción y miniatura;
+- imágenes y especificaciones oficiales;
+- variantes con id, SKU, gramaje, precio calculado y moneda;
+- `manage_inventory`, `allow_backorder` e `inventory_quantity`;
+- metadata visual y propiedad `jovy_official_managed`.
 
-El catálogo muestra el precio de la primera variante con precio; la ficha usa el precio de la variante seleccionada.
+El catálogo usa el precio mínimo y lo marca como “Desde” cuando hay varias
+presentaciones con precio. La ficha usa el precio de la variante seleccionada.
 
 ## Reglas
 
 - Un producto sin precio no es comprable.
-- Una variante sin precio se deshabilita.
+- Una variante sin precio o sin stock se muestra deshabilitada.
 - `CATALOG_ONLY` nunca habilita carrito.
-- `manage_inventory=false` no se presenta como stock verificado; se considera no gestionado.
-- Si Medusa no responde, el catálogo conserva la presentación y la ficha muestra precio no disponible.
-- El cliente nunca envía precio, moneda ni total: el BFF y Medusa los recalculan.
+- `manage_inventory=false` se presenta como disponibilidad no verificada.
+- Backorder solo se anuncia cuando `allow_backorder=true`.
+- La cantidad no excede el stock disponible devuelto por Medusa.
+- Si Medusa no responde, el catálogo conserva la presentación y muestra precio
+  no disponible; si el CMS falla, muestra error y reintento.
+- El cliente nunca envía precio, moneda ni total.
 
-## Seed
+## Seed oficial
 
-`seed:catalog` crea 25 productos y, para cada uno, una escalera corta de presentaciones reales en Medusa: paquete base más hasta dos tamaños estándar mayores (250 g, 500 g o 1 kg). Los precios son proporcionales al gramo con descuento suave por volumen y todos los importes son de desarrollo.
+```powershell
+$env:OFFICIAL_SEED_MODE="preview"
+pnpm --dir apps/backend seed:official
 
-La primera ejecución renombra las variantes `oz` a gramos, crea las que falten y asegura precio y vínculo de opción. Las siguientes ejecuciones son idempotentes.
+$env:OFFICIAL_SEED_MODE="apply"
+pnpm --dir apps/backend seed:official
+```
 
-## Search e inventario de laboratorio
+Crea 35 productos y 61 variantes oficiales. Es aditivo, serializado con el
+Locking Module y resuelve identidades por SKU antes de crear. No borra
+históricos, no repone stock y no sobrescribe precios MXN existentes. Si falta
+MXN en un price set existente, lo añade conservando otras monedas.
 
-El índice de Search incluye `mxn`, `eur` y `usd` con precio mínimo, máximo,
-original y descuento. Ver `docs/77-SEARCH-MXN-Y-SINCRONIZACION.md`.
+Los precios son sintéticos de laboratorio: tarifa por 100 g, descuento por
+volumen, redondeo a $5 y mínimo de $15. No son precios autorizados para venta.
 
-Las variantes Jovy siguen con `manage_inventory=false` y
-`allow_backorder=true`. Las pruebas de stock, backorder, reservas y concurrencia
-viven en `apps/backend/integration-tests/http/commerce-operations.spec.ts` y no
-activan inventario comercial. Ver `docs/78-INVENTORY-RESERVAS-Y-CONCURRENCIA.md`.
+## Inventario de laboratorio
 
-## Pendiente productivo
+- Apertura inicial: 50 unidades por variante oficial.
+- `manage_inventory=true`, `allow_backorder=false`.
+- Ubicación, canal, proveedor manual, fulfillment set y zona México enlazados.
+- Reservas y carrito usan workflows nativos con locking PostgreSQL/Redis.
+- `inventory:restore` es manual, requiere confirmación y bloquea por ubicación e
+  inventory item antes de recalcular el absoluto.
 
-- Revisar precios/certificaciones e imágenes remotas.
-- Definir stock real y reglas de inventario.
-- Aprobar la lista MXN y su vigencia.
-- Añadir variantes múltiples por presentación cuando el catálogo comercial lo requiera.
+## Search
+
+El índice incluye `mxn`, `eur` y `usd`. El seed espera la ingesta de los
+productos oficiales; si Search falla, deja el catálogo persistido y registra que
+falta reindexar. Ver `docs/77-SEARCH-MXN-Y-SINCRONIZACION.md`.
+
+## Runbook y límites
+
+Ver `docs/90-CATALOGO-OFICIAL-MEXICO.md`. Pagos, envío, precios y stock siguen
+siendo de laboratorio. No hay cobro, fulfillment, devolución ni reembolso real.

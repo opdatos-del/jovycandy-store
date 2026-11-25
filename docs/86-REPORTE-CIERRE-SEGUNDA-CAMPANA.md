@@ -1,8 +1,8 @@
 # Reporte de cierre — segunda campaña
 
-**Corte:** 2026-11-24
+**Corte:** 2026-11-25
 **Rama de trabajo:** `feat/campaign-2-stabilization`
-**Commit base:** `c61edc8709c62f36a1f54516dd5de9087301fc34`
+**Commit base:** `6eda78935fdf4aa2bcd96976f59af628a294f13f`
 **Estado Git:** cambios locales sin commit ni push. `.agents/` y
 `skills-lock.json` permanecen sin rastrear y no forman parte de la entrega.
 
@@ -13,8 +13,10 @@ La campaña cerró los frentes que no dependen de infraestructura externa:
 - falso positivo de Gitleaks corregido en las plantillas;
 - preflight de runtime por entorno, con sesiones Redis separadas del caching;
 - Search MXN con esquema, resolución de eventos y pruebas;
-- inventario, promociones, pedido DEMO y cancelación probados contra PostgreSQL
+- inventario, promociones, pedido de laboratorio y cancelación probados contra PostgreSQL
   descartable;
+- catálogo oficial mexicano con 35 productos/61 variantes, inventario inicial de
+  laboratorio, storefront accesible y runbook reproducible;
 - revalidación CMS autenticada Medusa → Next.js con HMAC;
 - readiness real contra PostgreSQL y OpenTelemetry opt-in;
 - documentación de staging, riesgos y bloqueos.
@@ -45,6 +47,8 @@ se activaron Redis/S3 y no se hizo commit.
 | `code-review` | Revisión de diff, límites y casos negativos |
 | `documentation` | Evidencia y estados sin inflar resultados |
 | `find-docs` / docs de Next.js 16 | `revalidateTag(tag, { expire: 0 })`, sin APIs obsoletas |
+| `modern-web-guidance` | Tarjetas con enlace nativo, radios accesibles y `<progress>` para carga |
+| `api-design` | Marcador aditivo de catálogo completo en `/store/jovy/products` |
 
 ## 4. Archivos principales modificados
 
@@ -150,7 +154,8 @@ sistema de inventario.
 - Tres reservas concurrentes contra stock 2: 2 aceptadas, 1 rechazada.
 - Hallazgo: el servicio directo `createReservationItems` no aplica locking; el
   workflow oficial sí. Producción debe usar el workflow.
-- No se activó `manage_inventory` en el catálogo real.
+- Catálogo oficial: 61 variantes con 50 unidades iniciales en `Jovy México
+  Laboratorio`; seed y reposición usan locking y preservan reservas/ajustes.
 
 ## 11. Promociones
 
@@ -162,7 +167,7 @@ sistema de inventario.
 
 ## 12. Pedidos
 
-- Pedido DEMO completado con `pp_system_default` y envío manual.
+- Pedido de laboratorio completado con `pp_system_default` y envío manual.
 - Cancelación Admin persistida: `pending` → `canceled`.
 - Sin cobro, captura, fulfillment real, devolución ni reembolso.
 - No se creó un segundo administrador de pedidos.
@@ -214,9 +219,9 @@ configuración incompleta o insegura. No se migraron medios.
 
 | Comando | Entorno | Resultado |
 |---|---|---|
-| `pnpm --dir apps/backend test:unit` | local | 444/444 PASS |
+| `pnpm --dir apps/backend test:unit` | local | 451/451 PASS |
 | `pnpm --dir apps/backend test:integration:modules` | PostgreSQL descartable | 47/47 PASS |
-| `pnpm --dir apps/backend test:integration:http` | PostgreSQL descartable | 102/102 PASS |
+| `pnpm --dir apps/backend test:integration:http` | PostgreSQL descartable | 104/104 PASS |
 | `pnpm --filter @dtc/backend typecheck` | local | PASS |
 | `pnpm --filter @dtc/backend build` | local | PASS |
 | `pnpm --filter @dtc/backend lint` | local | 0 errores, 2 warnings preexistentes |
@@ -231,12 +236,28 @@ configuración incompleta o insegura. No se migraron medios.
 | Paquete backend compilado | resolución `@jovy/*` sin TS | PASS |
 | Next.js standalone | servidor real | PASS |
 | Boot Compose completo | local | NO EJECUTADO; gate preparado en CI |
-| Storefront E2E | local | NO EJECUTADO: timeout de arranque |
+| Storefront E2E | local | 30/30 PASS |
 | Admin E2E | local | NO EJECUTADO |
 
 Warnings preexistentes del backend: dos `eslint-disable` sin uso en
 `.test-results/audit-headings/audit.cjs`. Warnings del storefront: uso de
 `<img>` y una variable sin uso; no son errores de esta campaña.
+
+## 19.1 Catálogo oficial de México
+
+- Snapshot verificable: 61 presentaciones, 35 productos, 61 variantes, 24
+  familias y 173 medios verificados.
+- Seed `--preview`/`--apply`, Locking Module, resolución por SKU y preservación de
+  precios, stock, reservas y ajustes manuales.
+- Apertura de 50 unidades por variante en `Jovy México Laboratorio`.
+- Nueva suite de integración: 2/2 PASS en PostgreSQL descartable.
+- Storefront: colección oficial aislada de históricos, paginación, filtros por
+  presentación, precio mínimo, descripción/especificaciones, stock máximo,
+  estados accesibles y capa `layered` de Rings preservada.
+- Runbook: `docs/90-CATALOGO-OFICIAL-MEXICO.md`.
+
+Los precios son sintéticos y no autorizados para venta. No se ejecutaron pagos,
+envíos ni operaciones productivas.
 
 ## 20. Migraciones
 
@@ -262,8 +283,7 @@ aprobación operativa.
 6. Sin aislamiento B2C nuevo, la cobertura de privacidad entre clientes es
    parcial.
 7. CI no se re-ejecutó; Gitleaks está corregido solo en el árbol local.
-8. Las suites Playwright de storefront y Admin no completaron en esta campaña;
-   no se declara regresión E2E.
+8. La suite Playwright del Admin no se ejecutó; storefront sí completó 30/30.
 
 ## 23. Decisiones pendientes
 

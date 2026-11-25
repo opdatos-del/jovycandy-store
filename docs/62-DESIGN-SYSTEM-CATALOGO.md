@@ -41,10 +41,10 @@ El header corporativo permanece transparente y el contenido reserva su altura.
 
 | Componente | Estados |
 |---|---|
-| Product card | default, hover/focus, nuevo, solo catálogo |
+| Product card | default, hover/focus, nuevo, solo catálogo; enlace único de destino |
 | Filtros | activo, sin resultados, limpiar, cero resultados, sticky |
 | Búsqueda | vacía, normalizada, sin resultados |
-| Grilla | 6 columnas, 5, 2/3 y 1/2 en móvil |
+| Grilla | 6 columnas, 5, 2/3 y 1/2 en móvil; paginación de 12 |
 | Card CTA | ficha pública; sin botones deshabilitados |
 | Ficha | `SELLABLE` con carrito pendiente; `CATALOG_ONLY` con contacto |
 | Relacionados | familia/categoría y respaldo a otros publicados |
@@ -63,8 +63,10 @@ El sidebar se oculta bajo 900 px y se reemplaza por un `<dialog>` inferior. La f
 ## 6. Accesibilidad
 
 - landmarks, un solo `h1`, breadcrumbs etiquetados y labels explícitos;
+- `<article>` con un único enlace nativo que cubre la tarjeta; sin enlaces duplicados;
 - `<dialog>` modal con cierre visible y cierre ligero nativo;
-- foco visible y orden de tabulación natural;
+- foco visible y orden de tabulación natural; enlace de salto hacia `main`;
+- carga con `<progress>` indeterminado y error de CMS con reintento;
 - imágenes de producto con `alt`; decorativas con `alt=""`;
 - contraste objetivo WCAG 2.2 AA;
 - carrito deshabilitado con `aria-describedby` hacia su nota explicativa;
