@@ -5,6 +5,10 @@ import {
   parseCardVisualOverrides,
   type CardVisualOverrides,
 } from "@/lib/commerce/card-visual"
+import {
+  MEDUSA_BACKEND_URL as BACKEND,
+  MEDUSA_PUBLISHABLE_API_KEY as PUBLISHABLE_KEY,
+} from "@/lib/medusa/config"
 
 /**
  * Cliente de lectura/escritura contra la Store API de Medusa.
@@ -12,11 +16,6 @@ import {
  * pero el carrito y las mutaciones siempre pasan por el BFF con cookie HttpOnly.
  */
 
-const BACKEND = (process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000").replace(
-  /\/$/,
-  "",
-)
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_API_KEY ?? ""
 const TIMEOUT_MS = 8_000
 
 export class StoreApiError extends Error {

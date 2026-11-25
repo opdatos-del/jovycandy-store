@@ -1,9 +1,10 @@
 import { cacheLife, cacheTag } from "next/cache"
 
 import type { Locale } from "@/lib/i18n"
-
-const BACKEND = (process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000").replace(/\/$/, "")
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_API_KEY ?? ""
+import {
+  MEDUSA_BACKEND_URL as BACKEND,
+  MEDUSA_PUBLISHABLE_API_KEY as PUBLISHABLE_KEY,
+} from "@/lib/medusa/config"
 
 const REQUEST_TIMEOUT_MS = 4_000
 

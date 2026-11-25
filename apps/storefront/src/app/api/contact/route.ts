@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 
-const BACKEND = (process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000").replace(/\/$/, "")
-const KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_API_KEY ?? ""
+import {
+  MEDUSA_BACKEND_URL as BACKEND,
+  MEDUSA_PUBLISHABLE_API_KEY as KEY,
+} from "@/lib/medusa/config"
 
 const CONTACT_TYPES = new Set(["national-sales", "international-sales", "customer-service", "catalogue"])
 

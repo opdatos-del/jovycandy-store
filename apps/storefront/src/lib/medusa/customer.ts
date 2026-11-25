@@ -1,12 +1,10 @@
 import "server-only"
 
 import { StoreApiError } from "./store"
-
-const BACKEND = (process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000").replace(
-  /\/$/,
-  "",
-)
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_API_KEY ?? ""
+import {
+  MEDUSA_BACKEND_URL as BACKEND,
+  MEDUSA_PUBLISHABLE_API_KEY as PUBLISHABLE_KEY,
+} from "./config"
 
 type RequestOptions = {
   method?: "GET" | "POST" | "DELETE"

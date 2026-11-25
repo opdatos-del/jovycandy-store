@@ -2,8 +2,9 @@ import type { MetadataRoute } from "next"
 
 import { getHomeContent } from "@/lib/cms/client"
 import { locales } from "@/lib/i18n"
+import { SITE_URL } from "@/lib/site"
 
-const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "")
+const base = SITE_URL
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const content = await getHomeContent("es")

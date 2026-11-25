@@ -11,6 +11,7 @@ import { CommerceProvider } from "@/features/commerce/cart-provider"
 import { ToastProvider } from "@/features/commerce/toast-provider"
 import { getHomeContent } from "@/lib/cms/client"
 import { getDictionary, isLocale, locales, type Locale } from "@/lib/i18n"
+import { SITE_URL } from "@/lib/site"
 
 import "../globals.css"
 import "@/styles/commerce/commerce.css"
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title: "Jovy Candy | Dulces mexicanos",
     description: "Descubre el catálogo de dulces, gomitas, chamoy y productos Jovy Candy.",
-    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+    metadataBase: new URL(SITE_URL),
     alternates: {
       canonical: `/${locale}`,
       languages: { es: "/es", en: "/en" },
