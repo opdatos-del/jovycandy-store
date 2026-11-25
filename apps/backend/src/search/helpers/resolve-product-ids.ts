@@ -135,6 +135,20 @@ export async function resolveProductIds(
       );
     case "sales-channel":
       return productIdsInSalesChannels(query, ids);
+    case "price-list":
+      // Una Price List apunta a price sets de variantes; el producto se
+      // resuelve con la relación `price_set.variant.product_id`.
+      return relatedProductIds(
+        query,
+        "price_list",
+        ["prices.price_set.variant.product_id"],
+        ids,
+        (row) =>
+          ((row.prices ?? []) as Array<{
+            price_set?: { variant?: { product_id?: string | null } | null } | null
+          }>).flatMap((price) => [price?.price_set?.variant?.product_id]),
+        deleted,
+      );
     default:
       return [];
   }

@@ -122,11 +122,17 @@ const source = {
  * products it touches. Only `product.deleted` removes documents: a deleted
  * variant, option, tag or category means the product has to be re-read.
  *
- * TODO: price lists emit no events (create, update, delete, batch prices).
- * TODO: price lists crossing their start or end date change prices silently.
- * TODO: linkProductsToSalesChannelWorkflow emits nothing.
- * TODO: batchLinkProductsToCategoryWorkflow emits nothing.
- * TODO: upsertVariantPricesWorkflow emits nothing when called directly.
+ * Verificado contra Medusa 2.22.6:
+ * - `linkProductsToSalesChannelWorkflow` y
+ *   `batchLinkProductsToCategoryWorkflow` emiten `product.updated` con los IDs
+ *   de producto afectados.
+ * - `upsertVariantPricesWorkflow` emite `product-variant.updated`.
+ * - El Pricing Module emite `price-list.created|updated|deleted` y
+ *   `price-list.prices_added|prices_updated|prices_removed` desde 2.21.3.
+ *
+ * Limitación conocida: una Price List que cruza `starts_at` o `ends_at` cambia
+ * precios sin emitir evento. Hasta definir una política de reindexación
+ * programada, el índice conserva el precio calculado en su última escritura.
  */
 const PRODUCT_EVENTS = [
   "product.created",
@@ -145,6 +151,12 @@ const PRODUCT_EVENTS = [
   "product-category.updated",
   "product-category.deleted",
   "sales-channel.deleted",
+  "price-list.created",
+  "price-list.updated",
+  "price-list.deleted",
+  "price-list.prices_added",
+  "price-list.prices_updated",
+  "price-list.prices_removed",
 ];
 
 export default defineSearchIndex({
