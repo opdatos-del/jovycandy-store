@@ -1,24 +1,37 @@
-// Uncomment this file to enable instrumentation and observability using OpenTelemetry
-// Refer to the docs for installation instructions: https://docs.medusajs.com/learn/debugging-and-testing/instrumentation
+import { registerOtel } from "@medusajs/medusa"
+import { ConsoleSpanExporter } from "@medusajs/framework/opentelemetry/sdk-trace-node"
+import { MedusaError } from "@medusajs/framework/utils"
 
-// import { registerOtel } from "@medusajs/medusa"
-// // If using an exporter other than Zipkin, require it here.
-// import { ZipkinExporter } from "@opentelemetry/exporter-zipkin"
+/**
+ * Instrumentación OpenTelemetry opt-in.
+ *
+ * Medusa 2.22.6 ya trae `NodeSDK`, `sdk-trace-node` y la instrumentación de
+ * PostgreSQL mediante `@medusajs/framework/opentelemetry/*`. No se añade un
+ * exporter de red: el único disponible sin una dependencia nueva es el de
+ * consola, útil para laboratorio. Staging/producción deben aprobar un exporter
+ * OTLP y sustituirlo aquí; activar `OTEL_ENABLED=true` con otro exporter falla
+ * de forma explícita.
+ */
+export function register() {
+  if (process.env.OTEL_ENABLED !== "true") return
 
-// // If using an exporter other than Zipkin, initialize it here.
-// const exporter = new ZipkinExporter({
-//   serviceName: 'my-medusa-project',
-// })
+  const exporter = process.env.OTEL_TRACES_EXPORTER ?? "console"
+  if (exporter !== "console") {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "OTEL_TRACES_EXPORTER no soportado: solo 'console' está disponible sin añadir una dependencia aprobada.",
+    )
+  }
 
-// export function register() {
-//   registerOtel({
-//     serviceName: 'medusajs',
-//     // pass exporter
-//     exporter,
-//     instrument: {
-//       http: true,
-//       workflows: true,
-//       query: true
-//     },
-//   })
-// }
+  registerOtel({
+    serviceName: process.env.OTEL_SERVICE_NAME ?? "jovycandy-medusa",
+    exporter: new ConsoleSpanExporter(),
+    instrument: {
+      http: true,
+      workflows: true,
+      query: true,
+      db: true,
+      cache: true,
+    },
+  })
+}
