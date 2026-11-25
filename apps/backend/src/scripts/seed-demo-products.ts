@@ -285,8 +285,8 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     products.push({
       title,
       handle,
-      subtitle: `${type} — demo data`,
-      description: `A ${title.toLowerCase()} generated to fill out the demo catalogue. Not a real product.`,
+      subtitle: `${type} — muestra de laboratorio`,
+      description: `Producto de muestra para el catálogo de laboratorio. No es un producto oficial de JovyCandy.`,
       status: ProductStatus.PUBLISHED,
       thumbnail,
       images: [{ url: thumbnail }],
