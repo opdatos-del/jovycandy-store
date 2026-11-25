@@ -84,6 +84,7 @@ export type EditorialProductRef = {
   title?: string | null
   handle?: string | null
   thumbnail?: string | null
+  metadata?: Record<string, unknown> | null
   /** Estado comercial de Medusa (`draft`, `published`, ...). */
   status?: string | null
   categories?: Array<{ id: string }> | null

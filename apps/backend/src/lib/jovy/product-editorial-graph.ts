@@ -41,6 +41,7 @@ export const EDITORIAL_PRODUCT_FIELDS = [
   "handle",
   "thumbnail",
   "status",
+  "metadata",
   "categories.id",
   "jovy_product_family.id",
   // Solo diagnóstico de `sellableRequirements`; nunca se copian al CMS ni se
@@ -78,6 +79,8 @@ export type EditorialProductSummary = {
   title: string
   handle: string | null
   thumbnail: string | null
+  official_catalog_complete: boolean
+  official_catalog_size: number | null
 }
 
 export type DecoratedProductEditorial = ProductEditorialRecord & {
@@ -150,6 +153,12 @@ export function decorateProductEditorial(
           title: product.title ?? "",
           handle: product.handle ?? null,
           thumbnail: product.thumbnail ?? null,
+          official_catalog_complete:
+            product.metadata?.jovy_official_catalog_complete === true,
+          official_catalog_size:
+            typeof product.metadata?.jovy_official_catalog_size === "number"
+              ? product.metadata.jovy_official_catalog_size
+              : null,
         }
       : null,
     product_missing: !product,

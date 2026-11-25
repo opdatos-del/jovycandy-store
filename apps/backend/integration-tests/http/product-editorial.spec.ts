@@ -229,6 +229,8 @@ medusaIntegrationTestRunner({
         title: product.title,
         handle: product.handle,
         thumbnail: "https://example.test/editorial.png",
+        official_catalog_complete: false,
+        official_catalog_size: null,
       })
       // La ficha no copia datos comerciales sensibles ni de inventario.
       expect(Object.keys(created.data.editorial)).not.toContain("price")
@@ -320,7 +322,14 @@ medusaIntegrationTestRunner({
       })
       expect(Object.keys(storeProducts[0])).not.toContain("editorial_status")
       expect(Object.keys(storeProducts[0])).not.toContain("sellable_requirements")
-      expect(Object.keys(storeProducts[0].product)).toEqual(["id", "title", "handle", "thumbnail"])
+      expect(Object.keys(storeProducts[0].product)).toEqual([
+        "id",
+        "title",
+        "handle",
+        "thumbnail",
+        "official_catalog_complete",
+        "official_catalog_size",
+      ])
 
       const archived = await adminSend("put", `/admin/jovy/products/${setup.product.id}/editorial`, {
         editorial_status: "archived",
