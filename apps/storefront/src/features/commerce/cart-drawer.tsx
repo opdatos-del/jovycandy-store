@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/commerce/format"
 import type { Dictionary, Locale } from "@/lib/i18n"
 
 import { useCommerce } from "./cart-provider"
+import { CouponForm } from "./coupon-form"
 import { useToast } from "./toast-provider"
 
 export function CartDrawer({ locale, dictionary }: { locale: Locale; dictionary: Dictionary }) {
@@ -152,11 +153,20 @@ export function CartDrawer({ locale, dictionary }: { locale: Locale; dictionary:
 
         {cart?.items.length ? (
           <footer className="border-t border-[#0d3b6e]/15 bg-white px-5 py-4">
+            <div className="mb-3">
+              <CouponForm dictionary={dictionary} compact />
+            </div>
             <dl className="grid gap-2 text-sm">
               <div className="flex justify-between gap-4 text-[#5b6f82]">
                 <dt>{copy.subtotal}</dt>
                 <dd>{formatMoney(cart.subtotal, cart.currencyCode, locale)}</dd>
               </div>
+              {cart.discountTotal ? (
+                <div className="flex justify-between gap-4 text-[#007f7b]">
+                  <dt>{copy.discount}</dt>
+                  <dd>-{formatMoney(cart.discountTotal, cart.currencyCode, locale)}</dd>
+                </div>
+              ) : null}
               {cart.shippingTotal ? (
                 <div className="flex justify-between gap-4 text-[#5b6f82]">
                   <dt>{copy.shipping}</dt>

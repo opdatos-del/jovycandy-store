@@ -110,6 +110,10 @@ legacy full run id:   3ca985a4-884d-4999-9d28-09d26a667de0
 legacy full port:     55541
 modules run id:      0d3143f8-db18-4d1a-bc3a-51020be36db2
 modules port:        56085
+commerce run id:     f98754e2-f8a6-4468-a7c7-cee2328d793e
+commerce port:       52793
+editorial run id:    805ab97a-beb3-43e6-805a-1d6069c87f0c
+editorial port:      49359
 reports:             %LOCALAPPDATA%\JovyCandy\integration-runs\reports\
                      <run-id>.json
 ```

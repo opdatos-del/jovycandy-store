@@ -87,10 +87,28 @@ export default async function ConfirmationRoute({ params }: ConfirmRouteProps) {
               </li>
             ))}
           </ul>
-          <div className="mt-4 flex justify-between gap-4 text-base font-black">
-            <span>{copy.total}</span>
-            <span>{formatMoney(order.total, order.currencyCode, locale)}</span>
-          </div>
+          <dl className="mt-4 grid gap-2 border-t border-[#0d3b6e]/12 pt-4 text-sm">
+            <div className="flex justify-between gap-4 text-[#5b6f82]">
+              <dt>{copy.subtotal}</dt>
+              <dd>{formatMoney(order.subtotal, order.currencyCode, locale)}</dd>
+            </div>
+            {order.discountTotal ? (
+              <div className="flex justify-between gap-4 text-[#007f7b]">
+                <dt>{copy.discount}</dt>
+                <dd>-{formatMoney(order.discountTotal, order.currencyCode, locale)}</dd>
+              </div>
+            ) : null}
+            {order.shippingTotal ? (
+              <div className="flex justify-between gap-4 text-[#5b6f82]">
+                <dt>{copy.shipping}</dt>
+                <dd>{formatMoney(order.shippingTotal, order.currencyCode, locale)}</dd>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-4 border-t border-[#0d3b6e]/12 pt-2 text-base font-black">
+              <span>{copy.total}</span>
+              <span>{formatMoney(order.total, order.currencyCode, locale)}</span>
+            </div>
+          </dl>
           <p className="mt-4 text-[0.68rem] leading-5 text-[#5b6f82]">{copy.demoNote}</p>
           <Link
             href={`/${locale}/catalogo`}

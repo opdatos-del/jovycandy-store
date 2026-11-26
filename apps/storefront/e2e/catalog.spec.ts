@@ -306,6 +306,25 @@ test.describe("catálogo Medusa", () => {
     await expect(account.getByRole("heading", { name: "Bienvenido de nuevo" })).toBeVisible()
   })
 
+  test("el cupón inválido se rechaza sin alterar los totales", async ({ page }) => {
+    await page.goto("/es/productos/jovy-mx-gummi-bears-gummi-bears")
+    await page.getByRole("button", { name: "Añadir al carrito" }).click()
+    await expect(page.getByRole("status").filter({ hasText: "Agregado al carrito" })).toBeVisible()
+
+    await page.goto("/es/carrito")
+    const cartMain = page.locator("main")
+    await expect(cartMain.getByLabel("Cupón")).toBeVisible()
+    const total = cartMain.locator("aside dd").last()
+    const before = await total.textContent()
+
+    await cartMain.getByLabel("Cupón").fill("NO-EXISTE-DEMO")
+    await cartMain.getByRole("button", { name: "Aplicar" }).click()
+    await expect(
+      page.getByRole("alert").filter({ hasText: "No pudimos aplicar el cupón" }),
+    ).toBeVisible()
+    await expect(total).toHaveText(before ?? "")
+  })
+
   test("compra móvil abre drawer y checkout sin overflow", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 })
     await page.goto("/es/productos/jovy-mx-gummi-bears-gummi-bears")

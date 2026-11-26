@@ -67,6 +67,14 @@ export function ProductDetail({
 
           <div className="product-badges">
             {weight ? <span className="product-chip">{weight}</span> : null}
+            {commerce?.collection ? (
+              <Link
+                className="product-chip product-chip--soft"
+                href={`/${locale}/colecciones/${commerce.collection.handle}`}
+              >
+                {dictionary.catalog.collection}: {commerce.collection.title}
+              </Link>
+            ) : null}
             {product.certifications.map((certification) => (
               <span key={certification} className="product-chip product-chip--soft">
                 {certification}

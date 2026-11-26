@@ -1,5 +1,11 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ApiKeyType, MedusaError, Modules, PUBLISHABLE_KEY_HEADER } from "@medusajs/framework/utils"
+import {
+  ApiKeyType,
+  ContainerRegistrationKeys,
+  MedusaError,
+  Modules,
+  PUBLISHABLE_KEY_HEADER,
+} from "@medusajs/framework/utils"
 import type { MedusaSuiteOptions } from "@medusajs/test-utils"
 import { JOVY_AUTHZ_MODULE } from "@jovy/modules/jovy-authz"
 import type JovyAuthzModuleService from "@jovy/modules/jovy-authz/service"
@@ -21,6 +27,22 @@ export async function createPublishableApiKey(container: MedusaContainer) {
     type: ApiKeyType.PUBLISHABLE,
     created_by: "integration-test",
   })
+
+  // Una publishable key sin canal no puede resolver productos ni precios. La
+  // suite la vincula al primer canal, igual que haría un administrador real.
+  const salesChannels = await container
+    .resolve(Modules.SALES_CHANNEL)
+    .listSalesChannels({}, { take: 1 })
+  const salesChannel = salesChannels[0]
+  if (salesChannel) {
+    const link = container.resolve(ContainerRegistrationKeys.LINK) as {
+      create: (payload: Record<string, unknown>) => Promise<unknown>
+    }
+    await link.create({
+      [Modules.API_KEY]: { publishable_key_id: key.id },
+      [Modules.SALES_CHANNEL]: { sales_channel_id: salesChannel.id },
+    })
+  }
 
   return key.token
 }

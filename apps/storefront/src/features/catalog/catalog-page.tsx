@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useMemo, useRef, useState } from "react"
 
-import type { CmsCategory } from "@/lib/cms/client"
 import {
   getProductPresentations,
   matchesPresentation,
@@ -12,11 +11,18 @@ import type { Dictionary, Locale } from "@/lib/i18n"
 
 import { CatalogCard, type CatalogProduct } from "./product-card"
 
+export type CatalogCategory = {
+  key: string
+  name: string
+  description: string | null
+  medusaCategoryId: string | null
+}
+
 type CatalogPageProps = {
   locale: Locale
   dictionary: Dictionary
   products: CatalogProduct[]
-  categories: CmsCategory[]
+  categories: CatalogCategory[]
   categoryCounts: Record<string, number>
   totalProducts: number
   selectedCategoryKey?: string
@@ -73,6 +79,7 @@ function matchesFilters(
         product.title,
         product.family?.name,
         product.gramaje,
+        ...(product.commerce?.categories.map((category) => category.name) ?? []),
         ...getProductPresentations(product.commerce).map((item) => item.label),
         ...product.certifications,
         ...product.categoryKeys.map((key) => categoryNamesByKey?.get(key) ?? key),
@@ -323,6 +330,12 @@ export function CatalogPage({
             </li>
           ))}
         </ul>
+        <Link
+          href={`/${locale}/colecciones`}
+          className="mt-2 inline-flex text-[0.65rem] font-bold uppercase tracking-[0.08em] text-[#0d3b6e] underline underline-offset-4"
+        >
+          {dictionary.catalog.collections}
+        </Link>
       </div>
       {renderField("family", dictionary.catalog.family, familyOptions)}
       {renderField("gramaje", dictionary.catalog.weight, gramajeOptions)}

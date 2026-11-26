@@ -41,8 +41,14 @@ export const EDITORIAL_PRODUCT_FIELDS = [
   "handle",
   "thumbnail",
   "status",
+  "created_at",
   "metadata",
   "categories.id",
+  "categories.handle",
+  "categories.name",
+  "collection.id",
+  "collection.handle",
+  "collection.title",
   "jovy_product_family.id",
   // Solo diagnóstico de `sellableRequirements`; nunca se copian al CMS ni se
   // exponen como precio/inventario en la Store API.

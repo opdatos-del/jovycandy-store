@@ -158,6 +158,11 @@ export function ProductPurchase({
                         {item.price === null
                           ? copy.priceUnavailable
                           : formatMoney(item.price, item.currencyCode ?? currency, locale)}
+                        {item.onSale && item.originalPrice !== null ? (
+                          <s className="product-variant__original">
+                            {formatMoney(item.originalPrice, item.currencyCode ?? currency, locale)}
+                          </s>
+                        ) : null}
                       </small>
                       {!itemAvailable ? (
                         <span className="product-variant__unavailable">{copy.unavailable}</span>
@@ -171,11 +176,17 @@ export function ProductPurchase({
 
           <div className="product-buy__price">
             <div>
+              {variant?.onSale && variant.originalPrice !== null ? (
+                <s className="product-buy__original">
+                  {formatMoney(variant.originalPrice, currency, locale)}
+                </s>
+              ) : null}
               <span key={variant?.id} className="product-buy__amount jovy-pop">
                 {price === null
                   ? copy.priceUnavailable
                   : formatMoney(price, currency, locale)}
               </span>
+              {variant?.onSale ? <span className="product-buy__sale">{copy.onSale}</span> : null}
             </div>
             <span
               className={`product-buy__availability ${available ? "" : "is-unavailable"}`}

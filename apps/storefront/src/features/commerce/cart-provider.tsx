@@ -26,6 +26,8 @@ type CommerceContextValue = {
   addItem: (variantId: string, quantity?: number) => Promise<StoreCart>
   updateItem: (itemId: string, quantity: number) => Promise<StoreCart>
   removeItem: (itemId: string) => Promise<StoreCart>
+  applyPromotion: (code: string) => Promise<StoreCart>
+  removePromotion: (code: string) => Promise<StoreCart>
   clearError: () => void
 }
 
@@ -140,6 +142,24 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
     [mutate],
   )
 
+  const applyPromotion = useCallback(
+    (code: string) =>
+      mutate("/api/cart/promotions", {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      }),
+    [mutate],
+  )
+
+  const removePromotion = useCallback(
+    (code: string) =>
+      mutate("/api/cart/promotions", {
+        method: "DELETE",
+        body: JSON.stringify({ code }),
+      }),
+    [mutate],
+  )
+
   const value = useMemo<CommerceContextValue>(
     () => ({
       cart,
@@ -154,9 +174,24 @@ export function CommerceProvider({ children }: { children: ReactNode }) {
       addItem,
       updateItem,
       removeItem,
+      applyPromotion,
+      removePromotion,
       clearError: () => setError(null),
     }),
-    [cart, loading, mutating, pendingItemId, error, open, refresh, addItem, updateItem, removeItem],
+    [
+      cart,
+      loading,
+      mutating,
+      pendingItemId,
+      error,
+      open,
+      refresh,
+      addItem,
+      updateItem,
+      removeItem,
+      applyPromotion,
+      removePromotion,
+    ],
   )
 
   return <CommerceContext.Provider value={value}>{children}</CommerceContext.Provider>

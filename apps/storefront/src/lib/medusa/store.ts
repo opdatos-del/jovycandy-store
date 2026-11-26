@@ -93,7 +93,21 @@ export type CommerceVariant = {
   allowBackorder: boolean
   inventoryQuantity: number | null
   price: number | null
+  originalPrice: number | null
+  onSale: boolean
   currencyCode: string | null
+}
+
+export type CommerceCategory = {
+  id: string
+  handle: string
+  name: string
+}
+
+export type CommerceCollection = {
+  id: string
+  handle: string
+  title: string
 }
 
 export type CommerceProduct = {
@@ -105,6 +119,8 @@ export type CommerceProduct = {
   thumbnail: string | null
   images: string[]
   specs: Array<{ label: string; value: string }>
+  categories: CommerceCategory[]
+  collection: CommerceCollection | null
   variants: CommerceVariant[]
   cardVisual: CardVisualOverrides | null
 }
@@ -120,7 +136,9 @@ type RawVariant = {
   inventory_quantity?: number | null
   calculated_price?: {
     calculated_amount?: number | null
+    original_amount?: number | null
     currency_code?: string | null
+    calculated_price?: { price_list_type?: string | null } | null
   } | null
 }
 
@@ -133,11 +151,13 @@ type RawProduct = {
   thumbnail?: string | null
   images?: Array<{ url?: string | null }> | null
   metadata?: Record<string, unknown> | null
+  categories?: Array<{ id?: string; handle?: string; name?: string }> | null
+  collection?: { id?: string; handle?: string; title?: string } | null
   variants?: RawVariant[] | null
 }
 
 const PRODUCT_FIELDS =
-  "id,external_id,title,description,handle,thumbnail,images.url,metadata,variants.id,variants.title,variants.sku,variants.weight,variants.metadata,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price"
+  "id,external_id,title,description,handle,thumbnail,images.url,metadata,categories.id,categories.handle,categories.name,collection.id,collection.handle,collection.title,variants.id,variants.title,variants.sku,variants.weight,variants.metadata,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price"
 
 function normalizeSpecs(value: unknown): Array<{ label: string; value: string }> {
   if (!Array.isArray(value)) return []
@@ -176,6 +196,15 @@ function normalizeProduct(raw: RawProduct): CommerceProduct | null {
           typeof variant.calculated_price?.calculated_amount === "number"
             ? variant.calculated_price.calculated_amount
             : null,
+        originalPrice:
+          typeof variant.calculated_price?.original_amount === "number"
+            ? variant.calculated_price.original_amount
+            : null,
+        onSale:
+          variant.calculated_price?.calculated_price?.price_list_type === "sale" &&
+          typeof variant.calculated_price?.original_amount === "number" &&
+          typeof variant.calculated_price?.calculated_amount === "number" &&
+          variant.calculated_price.original_amount > variant.calculated_price.calculated_amount,
         currencyCode: variant.calculated_price?.currency_code ?? null,
       })),
   )
@@ -204,6 +233,24 @@ function normalizeProduct(raw: RawProduct): CommerceProduct | null {
         raw.metadata?.jovy_legacy_specs ??
         raw.metadata?.jovy_official_specs,
     ),
+    categories: (raw.categories ?? [])
+      .filter(
+        (category): category is { id: string; handle: string; name: string } =>
+          Boolean(category.id && category.handle && category.name),
+      )
+      .map((category) => ({
+        id: category.id,
+        handle: category.handle,
+        name: category.name,
+      })),
+    collection:
+      raw.collection?.id && raw.collection.handle && raw.collection.title
+        ? {
+            id: raw.collection.id,
+            handle: raw.collection.handle,
+            title: raw.collection.title,
+          }
+        : null,
     variants,
     cardVisual: parseCardVisualOverrides(raw.metadata),
   }
@@ -248,6 +295,38 @@ export async function listCommerceProducts(regionId: string): Promise<CommercePr
     .filter((product): product is CommerceProduct => Boolean(product))
 }
 
+export async function listCommerceCategories(): Promise<CommerceCategory[]> {
+  const payload = await storeFetch<{
+    product_categories?: Array<{ id?: string; handle?: string; name?: string }>
+  }>("/product-categories?limit=100&fields=id,handle,name")
+  return (payload.product_categories ?? [])
+    .filter(
+      (category): category is { id: string; handle: string; name: string } =>
+        Boolean(category.id && category.handle && category.name),
+    )
+    .map((category) => ({
+      id: category.id,
+      handle: category.handle,
+      name: category.name,
+    }))
+}
+
+export async function listCommerceCollections(): Promise<CommerceCollection[]> {
+  const payload = await storeFetch<{
+    collections?: Array<{ id?: string; handle?: string; title?: string }>
+  }>("/collections?limit=100&fields=id,handle,title")
+  return (payload.collections ?? [])
+    .filter(
+      (collection): collection is { id: string; handle: string; title: string } =>
+        Boolean(collection.id && collection.handle && collection.title),
+    )
+    .map((collection) => ({
+      id: collection.id,
+      handle: collection.handle,
+      title: collection.title,
+    }))
+}
+
 export async function getCommerceProduct(
   handle: string,
   regionId: string,
@@ -269,6 +348,13 @@ export type StoreCartItem = {
   quantity: number
   unitPrice: number
   total: number
+  discountTotal: number
+}
+
+export type StorePromotion = {
+  id: string
+  code: string
+  isAutomatic: boolean
 }
 
 export type StoreCart = {
@@ -282,6 +368,7 @@ export type StoreCart = {
   taxTotal: number
   discountTotal: number
   total: number
+  promotions: StorePromotion[]
   shippingMethodId: string | null
   completedAt: string | null
 }
@@ -295,6 +382,14 @@ type RawLineItem = {
   thumbnail?: string | null
   quantity?: number | null
   unit_price?: number | null
+  total?: number | null
+  discount_total?: number | null
+}
+
+type RawPromotion = {
+  id?: string
+  code?: string | null
+  is_automatic?: boolean | null
 }
 
 type RawCart = {
@@ -307,6 +402,7 @@ type RawCart = {
   tax_total?: number | null
   discount_total?: number | null
   total?: number | null
+  promotions?: RawPromotion[] | null
   shipping_methods?: Array<{ id?: string | null }> | null
   completed_at?: string | null
 }
@@ -318,6 +414,9 @@ export function normalizeCart(raw: RawCart): StoreCart | null {
     .map((item) => {
       const quantity = typeof item.quantity === "number" ? item.quantity : 0
       const unitPrice = typeof item.unit_price === "number" ? item.unit_price : 0
+      const gross = unitPrice * quantity
+      const discountTotal =
+        typeof item.discount_total === "number" ? item.discount_total : 0
       return {
         id: item.id,
         variantId: item.variant_id ?? null,
@@ -327,7 +426,8 @@ export function normalizeCart(raw: RawCart): StoreCart | null {
         thumbnail: item.thumbnail ?? null,
         quantity,
         unitPrice,
-        total: unitPrice * quantity,
+        total: typeof item.total === "number" ? item.total : gross - discountTotal,
+        discountTotal,
       }
     })
 
@@ -342,6 +442,15 @@ export function normalizeCart(raw: RawCart): StoreCart | null {
     taxTotal: raw.tax_total ?? 0,
     discountTotal: raw.discount_total ?? 0,
     total: raw.total ?? 0,
+    promotions: (raw.promotions ?? [])
+      .filter((promotion): promotion is RawPromotion & { code: string } =>
+        Boolean(promotion.code),
+      )
+      .map((promotion) => ({
+        id: promotion.id ?? promotion.code,
+        code: promotion.code,
+        isAutomatic: Boolean(promotion.is_automatic),
+      })),
     shippingMethodId: raw.shipping_methods?.[0]?.id ?? null,
     completedAt: raw.completed_at ?? null,
   }
@@ -410,6 +519,41 @@ export async function removeStoreCartItem(cartId: string, itemId: string): Promi
   )
   const cart = await getStoreCart(cartId)
   if (!cart) throw new StoreApiError("No se pudo actualizar el carrito.")
+  return cart
+}
+
+/**
+ * Medusa es la autoridad del descuento: el storefront solo envía el código y
+ * vuelve a leer el carrito con sus totales y ajustes calculados.
+ */
+export async function applyStoreCartPromotion(
+  cartId: string,
+  code: string,
+): Promise<StoreCart> {
+  const payload = await storeFetch<{ cart?: RawCart }>(
+    `/carts/${encodeURIComponent(cartId)}/promotions`,
+    { method: "POST", body: { promo_codes: [code] } },
+  )
+  const cart = normalizeCart(payload.cart ?? {})
+  if (!cart) throw new StoreApiError("No se pudo aplicar el cupón.")
+  // Medusa puede aceptar la petición y no conceder nada si el código no es
+  // elegible. El cliente debe ver un resultado honesto, no un falso positivo.
+  if (!cart.promotions.some((promotion) => promotion.code.toUpperCase() === code.toUpperCase())) {
+    throw new StoreApiError("El cupón no es válido o ya no está vigente.", 422)
+  }
+  return cart
+}
+
+export async function removeStoreCartPromotion(
+  cartId: string,
+  code: string,
+): Promise<StoreCart> {
+  const payload = await storeFetch<{ cart?: RawCart }>(
+    `/carts/${encodeURIComponent(cartId)}/promotions`,
+    { method: "DELETE", body: { promo_codes: [code] } },
+  )
+  const cart = normalizeCart(payload.cart ?? {})
+  if (!cart) throw new StoreApiError("No se pudo retirar el cupón.")
   return cart
 }
 
@@ -494,6 +638,9 @@ export type CompletedOrder = {
   displayId: number | null
   email: string | null
   currencyCode: string
+  subtotal: number
+  shippingTotal: number
+  discountTotal: number
   total: number
   status: string
   createdAt: string | null
@@ -511,6 +658,9 @@ type RawOrder = {
   display_id?: number | null
   email?: string | null
   currency_code?: string | null
+  subtotal?: number | null
+  shipping_total?: number | null
+  discount_total?: number | null
   total?: number | null
   status?: string | null
   created_at?: string | null
@@ -531,6 +681,9 @@ export function normalizeOrder(raw: RawOrder): CompletedOrder | null {
     displayId: raw.display_id ?? null,
     email: raw.email ?? null,
     currencyCode: raw.currency_code ?? "mxn",
+    subtotal: raw.subtotal ?? 0,
+    shippingTotal: raw.shipping_total ?? 0,
+    discountTotal: raw.discount_total ?? 0,
     total: raw.total ?? 0,
     status: raw.status ?? "pending",
     createdAt: raw.created_at ?? null,

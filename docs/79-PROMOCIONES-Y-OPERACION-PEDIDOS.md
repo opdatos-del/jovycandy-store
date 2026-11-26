@@ -42,10 +42,14 @@ Campos usados:
 
 ### Storefront
 
-El checkout actual no muestra un campo de cupón. Esta campaña no inventó una
-pantalla nueva ni duplicó la lógica de totales: los totales siempre los calcula
-Medusa. La integración de UI queda como trabajo posterior a una decisión de
-experiencia de compra.
+El carrito, el drawer y el checkout muestran un campo de cupón. El cliente puede
+aplicar y retirar códigos; el total, los ajustes y la vigencia siempre los
+calcula Medusa. Las promociones automáticas aparecen como descuento aplicado sin
+botón de retiro. El detalle de la campaña de laboratorio está en
+`docs/93-CAMPANA-COMERCIAL-LABORATORIO.md`.
+
+El storefront no suma descuentos por su cuenta. Si la promoción no es elegible,
+Medusa acepta o rechaza el código y el total se vuelve a leer del carrito.
 
 ## Ciclo de pedido
 
@@ -94,10 +98,10 @@ siendo la fuente de verdad.
 
 Suite `commerce-operations.spec.ts`:
 
-- 4 casos de Promotion Module;
+- 9 casos de Promotion Module, Price List y campañas;
 - 2 casos de Inventory Module;
 - 1 caso de ciclo de pedido;
 - 1 caso de readiness;
 - 1 caso de bootstrap de publishable key.
 
-Total de la suite: 9/9 PASS en base descartable.
+Total de la suite: 18/18 PASS en base descartable.

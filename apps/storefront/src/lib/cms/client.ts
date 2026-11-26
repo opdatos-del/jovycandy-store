@@ -18,6 +18,8 @@ export type CmsCategory = {
   active: boolean
   comingSoon: boolean
   interactionLocked: boolean
+  /** Categoría comercial nativa de Medusa; la tarjeta solo aporta presentación. */
+  medusaCategoryId?: string | null
 }
 
 export type CmsProduct = {
@@ -95,6 +97,7 @@ type RawCategory = {
   coming_soon?: boolean
   interaction_locked?: boolean
   image_url?: string | null
+  medusa_category_id?: string | null
 }
 
 type RawProduct = {
@@ -478,6 +481,7 @@ export async function getHomeContent(locale: Locale): Promise<HomeContent> {
       active: item.active !== false,
       comingSoon: Boolean(item.coming_soon),
       interactionLocked: Boolean(item.interaction_locked),
+      medusaCategoryId: item.medusa_category_id ?? null,
     }
   })
   const categories = [

@@ -51,7 +51,13 @@ export function matchesPresentation(
 
 export function lowestVariantPrice(
   commerce: CommerceProduct | null,
-): { amount: number; currencyCode: string; count: number } | null {
+): {
+  amount: number
+  originalAmount: number | null
+  onSale: boolean
+  currencyCode: string
+  count: number
+} | null {
   const priced = (commerce?.variants ?? []).filter(
     (variant): variant is CommerceVariant & { price: number } =>
       typeof variant.price === "number",
@@ -63,6 +69,8 @@ export function lowestVariantPrice(
   )
   return {
     amount: cheapest.price,
+    originalAmount: cheapest.onSale ? cheapest.originalPrice : null,
+    onSale: cheapest.onSale,
     currencyCode: cheapest.currencyCode ?? "mxn",
     count: priced.length,
   }

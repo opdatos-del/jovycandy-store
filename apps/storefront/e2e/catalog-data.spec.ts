@@ -17,6 +17,8 @@ const commerce: CommerceProduct = {
   thumbnail: null,
   images: [],
   specs: [],
+  categories: [],
+  collection: null,
   cardVisual: null,
   variants: [
     {
@@ -28,6 +30,8 @@ const commerce: CommerceProduct = {
       allowBackorder: false,
       inventoryQuantity: 50,
       price: 215,
+      originalPrice: null,
+      onSale: false,
       currencyCode: "mxn",
     },
     {
@@ -39,6 +43,8 @@ const commerce: CommerceProduct = {
       allowBackorder: false,
       inventoryQuantity: 50,
       price: 25,
+      originalPrice: null,
+      onSale: false,
       currencyCode: "mxn",
     },
     {
@@ -50,6 +56,8 @@ const commerce: CommerceProduct = {
       allowBackorder: false,
       inventoryQuantity: 50,
       price: null,
+      originalPrice: null,
+      onSale: false,
       currencyCode: null,
     },
   ],
@@ -68,10 +76,49 @@ test.describe("datos de catálogo", () => {
   test("usa el precio mínimo y cuenta variantes con precio", () => {
     expect(lowestVariantPrice(commerce)).toEqual({
       amount: 25,
+      originalAmount: null,
+      onSale: false,
       currencyCode: "mxn",
       count: 2,
     })
     expect(lowestVariantPrice(null)).toBeNull()
   })
 
+  test("expone precio original solo cuando la variante más barata está en oferta", () => {
+    const onSale: CommerceProduct = {
+      ...commerce,
+      variants: [
+        {
+          ...commerce.variants[0],
+          price: 180,
+          originalPrice: 215,
+          onSale: true,
+        },
+        commerce.variants[1],
+      ],
+    }
+
+    expect(lowestVariantPrice(onSale)).toEqual({
+      amount: 25,
+      originalAmount: null,
+      onSale: false,
+      currencyCode: "mxn",
+      count: 2,
+    })
+
+    const allOnSale: CommerceProduct = {
+      ...onSale,
+      variants: onSale.variants.map((variant) => ({
+        ...variant,
+        originalPrice: (variant.price ?? 0) + 5,
+        onSale: true,
+      })),
+    }
+
+    expect(lowestVariantPrice(allOnSale)).toMatchObject({
+      amount: 25,
+      originalAmount: 30,
+      onSale: true,
+    })
+  })
 })

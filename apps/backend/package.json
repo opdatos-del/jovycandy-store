@@ -35,6 +35,7 @@
     "legacy:verify-media": "node --experimental-strip-types ./src/scripts/migrations/jovycandy-legacy/verify-media.ts",
     "inventory:restore": "medusa exec ./src/scripts/restore-lab-inventory.ts",
     "seed:commerce": "medusa exec ./src/scripts/seed-commerce-lab.ts",
+    "seed:campaign": "medusa exec ./src/scripts/seed-commerce-campaign.ts",
     "seed:card-hover": "medusa exec ./src/scripts/seed-card-hover-rings.ts"
   },
   "dependencies": {

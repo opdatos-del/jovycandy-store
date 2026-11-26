@@ -87,7 +87,9 @@ export type EditorialProductRef = {
   metadata?: Record<string, unknown> | null
   /** Estado comercial de Medusa (`draft`, `published`, ...). */
   status?: string | null
-  categories?: Array<{ id: string }> | null
+  created_at?: Date | string | null
+  categories?: Array<{ id: string; handle?: string | null; name?: string | null }> | null
+  collection?: { id?: string | null; handle?: string | null; title?: string | null } | null
   jovy_product_family?: { id?: string | null } | null
   /** Campos comerciales que el graph ya consulta para el diagnóstico de venta. */
   variants?: SellableProductSnapshot["variants"]

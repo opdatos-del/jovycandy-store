@@ -28,6 +28,7 @@ El catálogo usa una composición de alta densidad:
 | Confirmación | `/es/checkout/confirmacion` |
 | Cuenta | `/es/cuenta` |
 | Categoría | `/es/catalogo?categoria=chamoy` |
+| Colecciones | `/es/colecciones` y `/es/colecciones/[handle]` |
 
 Carrito, checkout, confirmación y cuenta no se indexan. La confirmación usa una cookie HttpOnly firmada, no un identificador adivinable en la URL.
 
@@ -72,9 +73,10 @@ e2e/catalog.spec.ts                    catálogo, compra, cuenta, móvil y 404
 - Precio: Medusa Pricing, región México/MXN.
 - Disponibilidad: `manage_inventory`, `allow_backorder` e inventario.
 - Modalidad: Jovy Product Editorial (`SELLABLE` / `CATALOG_ONLY`).
+- Categorías y colecciones: Medusa Product Module.
 - Familia, gramaje, certificaciones y novedad: CMS Jovy.
 
-El storefront combina editorial + Medusa en servidor y nunca confía en precios enviados por el cliente. Las mutaciones comerciales pasan por el BFF.
+El storefront combina editorial + Medusa en servidor y nunca confía en precios enviados por el cliente. Las mutaciones comerciales pasan por el BFF. Los cupones se aplican en carrito, drawer y checkout; Medusa calcula el descuento y el total.
 
 ## 6. Seeds
 

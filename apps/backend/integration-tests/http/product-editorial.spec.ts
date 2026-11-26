@@ -1,6 +1,6 @@
 import path from "node:path"
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import {
   createAdminSession,
@@ -45,11 +45,17 @@ medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let adminToken: string
     let publishableApiKey: string
+    let salesChannelId: string
     let stamp = 0
 
     beforeAll(async () => {
       publishableApiKey = await createPublishableApiKey(getContainer())
       adminToken = await createAdminSession(getContainer(), api)
+      const channels = await getContainer()
+        .resolve(Modules.SALES_CHANNEL)
+        .listSalesChannels({}, { take: 1 })
+      salesChannelId = channels[0]?.id as string
+      expect(salesChannelId).toBeTruthy()
     })
 
     const adminConfig = () => ({ headers: adminHeaders(adminToken), validateStatus: () => true })
@@ -62,6 +68,17 @@ medusaIntegrationTestRunner({
     const unique = (prefix: string) => {
       stamp += 1
       return `${prefix}-${stamp}`
+    }
+
+    /** El link producto-canal no forma parte del CreateProductDTO del módulo. */
+    const linkProductToSalesChannel = async (productId: string) => {
+      const link = getContainer().resolve(ContainerRegistrationKeys.LINK) as {
+        create: (payload: Record<string, unknown>) => Promise<unknown>
+      }
+      await link.create({
+        [Modules.PRODUCT]: { product_id: productId },
+        [Modules.SALES_CHANNEL]: { sales_channel_id: salesChannelId },
+      })
     }
 
     const seedCategories = async () => {
@@ -106,6 +123,7 @@ medusaIntegrationTestRunner({
         status: "published",
         category_ids: [commercial.id],
       })
+      await linkProductToSalesChannel(product.id)
 
       return {
         categories,
@@ -149,6 +167,7 @@ medusaIntegrationTestRunner({
     it("responde 404 sin ficha y no la crea implícitamente", async () => {
       const productService = getContainer().resolve(Modules.PRODUCT)
       const product = await productService.createProducts({ title: "Producto sin ficha" })
+      await linkProductToSalesChannel(product.id)
 
       const missing = await adminGet(`/admin/jovy/products/${product.id}/editorial`)
       expect(missing.status).toBe(404)
@@ -273,6 +292,7 @@ medusaIntegrationTestRunner({
         title: "Producto sin imagen",
         category_ids: [setup.commercialCategoryId],
       })
+      await linkProductToSalesChannel(withoutImage.id)
 
       const blocked = await adminSend("put", `/admin/jovy/products/${withoutImage.id}/editorial`, publishedPayload)
       expect(blocked.status).toBe(400)
@@ -374,6 +394,7 @@ medusaIntegrationTestRunner({
           status: "draft",
           category_ids: [setup.commercialCategoryId],
         })
+      await linkProductToSalesChannel(draftProduct.id)
 
       await adminSend("put", `/admin/jovy/products/${setup.product.id}/editorial`, publishedPayload)
       await adminSend("put", `/admin/jovy/products/${draftProduct.id}/editorial`, publishedPayload)
@@ -475,7 +496,10 @@ medusaIntegrationTestRunner({
       expect(restoredByProduct.data.products[0]).toMatchObject({ product_id: product.id, deleted: false })
 
       const productService = getContainer().resolve(Modules.PRODUCT)
-      const withoutEditorial = await productService.createProducts({ title: "Producto restaurado sin ficha" })
+      const withoutEditorial = await productService.createProducts({
+        title: "Producto restaurado sin ficha",
+      })
+      await linkProductToSalesChannel(withoutEditorial.id)
       const missingEditorial = await adminSend("post", `/admin/jovy/products/${withoutEditorial.id}/editorial/restore`)
       expect(missingEditorial.status).toBe(404)
       expect(missingEditorial.data.message).toBe("El producto no tiene ficha editorial")
@@ -510,6 +534,7 @@ medusaIntegrationTestRunner({
           status: "published",
           category_ids: [setup.commercialCategoryId],
         })
+      await linkProductToSalesChannel(sameCategoryProduct.id)
 
       await adminSend("put", `/admin/jovy/products/${setup.product.id}/editorial`, {
         sort_order: 1,

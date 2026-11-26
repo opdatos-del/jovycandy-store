@@ -47,10 +47,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   const collection = viewableProducts
 
+  const region = await getMexicoRegion().catch(() => null)
+  const [commerce, commerceProducts] = await Promise.all([
+    region
+      ? getCommerceProduct(product.handle, region.id).catch(() => null)
+      : Promise.resolve(null),
+    region ? listCommerceProducts(region.id).catch(() => []) : Promise.resolve([]),
+  ])
   const categoryName =
     content.categories.find(
-      (category) => category.active && product.categoryKeys.includes(category.key),
-    )?.name ?? null
+      (category) =>
+        category.active &&
+        (product.categoryKeys.includes(category.key) ||
+          (category.medusaCategoryId &&
+            commerce?.categories.some((item) => item.id === category.medusaCategoryId))),
+    )?.name ??
+    commerce?.categories[0]?.name ??
+    null
   const relatedByFamily = collection.filter(
     (item) =>
       item.id !== product.id &&
@@ -62,13 +75,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : collection.filter((item) => item.id !== product.id)
   ).slice(0, 4)
 
-  const region = await getMexicoRegion().catch(() => null)
-  const [commerce, commerceProducts] = await Promise.all([
-    region
-      ? getCommerceProduct(product.handle, region.id).catch(() => null)
-      : Promise.resolve(null),
-    region ? listCommerceProducts(region.id).catch(() => []) : Promise.resolve([]),
-  ])
   const commerceByHandle = new Map(
     commerceProducts.map((item) => [item.handle, item]),
   )

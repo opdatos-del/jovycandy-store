@@ -83,9 +83,19 @@ export function CatalogCard({
             </span>
           ) : null}
           {price ? (
-            <span className="catalog-card__price">
-              {price.count > 1 ? `${dictionary.catalog.fromPrice} ` : ""}
-              {formatMoney(price.amount, price.currencyCode, locale)}
+            <span className={`catalog-card__price${price.onSale ? " is-sale" : ""}`}>
+              {price.onSale && price.originalAmount !== null ? (
+                <s className="catalog-card__price-original">
+                  {formatMoney(price.originalAmount, price.currencyCode, locale)}
+                </s>
+              ) : null}
+              <span>
+                {price.count > 1 ? `${dictionary.catalog.fromPrice} ` : ""}
+                {formatMoney(price.amount, price.currencyCode, locale)}
+              </span>
+              {price.onSale ? (
+                <span className="catalog-card__sale">{dictionary.catalog.onSale}</span>
+              ) : null}
             </span>
           ) : (
             <span className="catalog-card__price catalog-card__price--unavailable">

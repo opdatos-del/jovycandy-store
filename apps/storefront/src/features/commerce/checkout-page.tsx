@@ -9,6 +9,7 @@ import type { Dictionary, Locale } from "@/lib/i18n"
 import type { ShippingOption } from "@/lib/medusa/store"
 
 import { useCommerce } from "./cart-provider"
+import { CouponForm } from "./coupon-form"
 import { useToast } from "./toast-provider"
 
 type Step = "address" | "shipping" | "payment" | "review"
@@ -349,11 +350,20 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
           <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
             {copy.orderSummary}
           </h2>
+          <div className="mt-4">
+            <CouponForm dictionary={dictionary} compact />
+          </div>
           <dl className="mt-4 grid gap-2 text-sm">
             <div className="flex justify-between gap-4 text-[#5b6f82]">
               <dt>{copy.subtotal}</dt>
               <dd>{formatMoney(cart.subtotal, cart.currencyCode, locale)}</dd>
             </div>
+            {cart.discountTotal ? (
+              <div className="flex justify-between gap-4 text-[#007f7b]">
+                <dt>{copy.discount}</dt>
+                <dd>-{formatMoney(cart.discountTotal, cart.currencyCode, locale)}</dd>
+              </div>
+            ) : null}
             {cart.shippingTotal > 0 ? (
               <div className="flex justify-between gap-4 text-[#5b6f82]">
                 <dt>{copy.shipping}</dt>

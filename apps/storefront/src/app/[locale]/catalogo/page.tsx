@@ -1,11 +1,15 @@
 ﻿import { notFound } from "next/navigation"
 
-import { CatalogPage } from "@/features/catalog/catalog-page"
+import { CatalogPage, type CatalogCategory } from "@/features/catalog/catalog-page"
 import { CatalogError } from "@/features/catalog/catalog-error"
 import type { CatalogProduct, ViewableProduct } from "@/features/catalog/product-card"
 import { getHomeContent } from "@/lib/cms/client"
 import { getDictionary, isLocale } from "@/lib/i18n"
-import { getMexicoRegion, listCommerceProducts } from "@/lib/medusa/store"
+import {
+  getMexicoRegion,
+  listCommerceCategories,
+  listCommerceProducts,
+} from "@/lib/medusa/store"
 
 import "@/styles/catalog/catalog.css"
 
@@ -22,37 +26,75 @@ export default async function CataloguePage({ params, searchParams }: CatalogueP
   const content = await getHomeContent(locale)
   if (!content.productsAvailable) return <CatalogError />
 
-  const categories = content.categories.filter((category) => category.active)
-  const selected = categories.find((category) => category.key === categoria)
-  if (categoria && !selected) notFound()
+  const region = await getMexicoRegion().catch(() => null)
+  const [commerceProducts, nativeCategories] = await Promise.all([
+    region ? listCommerceProducts(region.id).catch(() => []) : Promise.resolve([]),
+    listCommerceCategories().catch(() => []),
+  ])
+  const commerceByHandle = new Map(commerceProducts.map((product) => [product.handle, product]))
 
   // Todos los productos publicados del canal son parte del mismo catálogo.
   const collection: ViewableProduct[] = content.products.filter(
     (product): product is ViewableProduct => Boolean(product.handle),
   )
-  const products = selected
-    ? collection.filter((product) => product.categoryKeys.includes(selected.key))
-    : collection
-  const categoryCounts = Object.fromEntries(
-    categories.map((category) => [
-      category.key,
-      collection.filter((product) => product.categoryKeys.includes(category.key)).length,
-    ]),
-  )
-
-  const region = await getMexicoRegion().catch(() => null)
-  const commerceProducts = region ? await listCommerceProducts(region.id).catch(() => []) : []
-  const commerceByHandle = new Map(commerceProducts.map((product) => [product.handle, product]))
-  const catalogProducts: CatalogProduct[] = products.map((product) => ({
+  const catalogProducts: CatalogProduct[] = collection.map((product) => ({
     ...product,
     commerce: commerceByHandle.get(product.handle) ?? null,
   }))
+
+  const presentedCategories = content.categories
+    .filter((category) => category.active)
+    .map<CatalogCategory>((category) => ({
+      key: category.key,
+      name: category.name,
+      description: category.description,
+      medusaCategoryId: category.medusaCategoryId ?? null,
+    }))
+
+  const mappedCategoryIds = new Set(
+    presentedCategories
+      .map((category) => category.medusaCategoryId)
+      .filter((id): id is string => Boolean(id)),
+  )
+  const additionalCategories: CatalogCategory[] = nativeCategories
+    .filter((category) => !mappedCategoryIds.has(category.id))
+    .map((category) => ({
+      key: `medusa:${category.handle}`,
+      name: category.name,
+      description: null,
+      medusaCategoryId: category.id,
+    }))
+
+  const categories = [...presentedCategories, ...additionalCategories]
+  const selected = categories.find((category) => category.key === categoria)
+  if (categoria && !selected) notFound()
+
+  const belongsToCategory = (product: CatalogProduct, category: CatalogCategory) => {
+    if (category.medusaCategoryId) {
+      return Boolean(
+        product.commerce?.categories.some(
+          (item) => item.id === category.medusaCategoryId,
+        ),
+      )
+    }
+    return product.categoryKeys.includes(category.key)
+  }
+
+  const products = selected
+    ? catalogProducts.filter((product) => belongsToCategory(product, selected))
+    : catalogProducts
+  const categoryCounts = Object.fromEntries(
+    categories.map((category) => [
+      category.key,
+      catalogProducts.filter((product) => belongsToCategory(product, category)).length,
+    ]),
+  )
 
   return (
     <CatalogPage
       locale={locale}
       dictionary={dictionary}
-      products={catalogProducts}
+      products={products}
       categories={categories}
       categoryCounts={categoryCounts}
       totalProducts={collection.length}

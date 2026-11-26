@@ -7,10 +7,14 @@ solo para reproducir la migración inicial.
 
 ## Fuente
 
-- Editorial: `/store/jovy/products` (Jovy CMS).
+- Catálogo: `/store/jovy/products` devuelve los productos publicados del canal y
+  les superpone la ficha editorial cuando existe. Un producto creado en Admin
+  aparece aunque no tenga ficha.
 - Comercial: `/store/products?region_id=...` (Medusa Store API).
 - Región: México (`mxn`), creada/reparada por `seed:commerce`.
-- Precio: `variants.calculated_price.calculated_amount`.
+- Precio: `variants.calculated_price.calculated_amount` y
+  `original_amount`; `price_list_type = "sale"` activa el precio de oferta.
+- Categorías y colecciones: Product Module nativo de Medusa.
 - Inventario: Medusa Inventory Module, ubicación `Jovy México Laboratorio`.
 
 ## Mapper
@@ -19,12 +23,16 @@ solo para reproducir la migración inicial.
 
 - `id`, `external_id`, `handle`, título, descripción y miniatura;
 - imágenes y especificaciones (`jovy_specs` o referencia histórica de solo lectura);
-- variantes con id, SKU, `weight` de Medusa, precio calculado y moneda;
+- variantes con id, SKU, `weight` de Medusa, precio calculado, precio original,
+  indicador de oferta y moneda;
+- categorías y colección nativas;
 - `manage_inventory`, `allow_backorder` e `inventory_quantity`;
 - metadata visual de tarjetas.
 
 El catálogo usa el precio mínimo y lo marca como “Desde” cuando hay varias
 presentaciones con precio. La ficha usa el precio de la variante seleccionada.
+Cuando una Price List `sale` está vigente se muestra el precio actual y el
+original tachado; al expirar, Medusa vuelve al precio base.
 
 ## Reglas
 

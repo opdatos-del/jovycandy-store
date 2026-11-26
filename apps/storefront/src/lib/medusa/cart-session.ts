@@ -114,6 +114,9 @@ export async function readCompletedOrderCookie(): Promise<CompletedOrder | null>
       displayId?: number | null
       email?: string | null
       currencyCode?: string
+      subtotal?: number
+      shippingTotal?: number
+      discountTotal?: number
       total?: number
       status?: string
       createdAt?: string | null
@@ -126,6 +129,9 @@ export async function readCompletedOrderCookie(): Promise<CompletedOrder | null>
       displayId: parsed.displayId ?? null,
       email: parsed.email ?? null,
       currencyCode: parsed.currencyCode ?? "mxn",
+      subtotal: parsed.subtotal ?? 0,
+      shippingTotal: parsed.shippingTotal ?? 0,
+      discountTotal: parsed.discountTotal ?? 0,
       total: parsed.total ?? 0,
       status: parsed.status ?? "pending",
       createdAt: parsed.createdAt ?? null,
