@@ -11,18 +11,24 @@ clúster PostgreSQL 18.6 nuevo, exclusivo y descartable.
 Desde `apps/backend`:
 
 ```powershell
+# Cualquier suite HTTP explícita, serial, en un clúster nuevo
+pnpm test:integration:http:ephemeral -- integration-tests/http/official-catalog-seed.spec.ts
+
+# Atajo conservado para la primera suite aprobada
 pnpm test:integration:http:contacts
 ```
 
-Por ahora ejecuta únicamente
-`integration-tests/http/contacts-rate-limit.spec.ts`, en modo serial. No cambia
-los nombres fijos de las demás suites ni ejecuta todas las pruebas HTTP.
+El launcher recibe una sola suite HTTP explícita y la ejecuta en modo serial. No
+cambia los nombres fijos de bases del runner ni ejecuta implícitamente todas las
+pruebas HTTP.
 
 `test:integration:http` y `test:integration:modules` siguen siendo los comandos
 de GitHub Actions: el workflow declara explícitamente
-`JOVY_CI_POSTGRES_SERVICE=1` junto al servicio PostgreSQL efímero. Una ejecución
-local sin launcher se rechaza antes de que Jest cargue las suites; `CI=true` por
-sí solo no autoriza ninguna conexión.
+`JOVY_CI_POSTGRES_SERVICE=1` y la base esperada por suite junto al servicio
+PostgreSQL. Jest exige siempre un `TEST_TYPE` reconocido: `unit`,
+`integration:http` o `integration:modules`. Una configuración implícita, un
+`TEST_TYPE` desconocido, `CI=true` aislado o una integración local sin launcher
+se rechazan antes de descubrir suites.
 
 ## Flujo del launcher
 
@@ -46,6 +52,10 @@ sí solo no autoriza ninguna conexión.
    `DB_USERNAME`, `DB_PASSWORD` y `DB_WAITINGROOM_DATABASE` coherentes. Elimina
    variables heredadas `PG*` y `DB_*`; `jest.config.js` vuelve a restaurar esos
    valores después de cargar `.env`, para impedir sustituciones silenciosas.
+7. Para CI, el `globalSetup` consulta el servicio PostgreSQL real antes de
+   cargar suites: exige loopback, usuario `postgres`, base esperada por
+   `TEST_TYPE`, puerto `5432` y PostgreSQL 16. El marcador de CI y variables
+   coherentes por sí solos no autorizan una ejecución.
 
 El uso de `localhost` es intencional: en Medusa 2.22.6,
 `configLoaderOverride` activa SSL cuando la URL del cliente no contiene esa
@@ -62,6 +72,9 @@ cadena. No se desactiva TLS de forma global ni se usa
 - La limpieza exige volver a comprobar propiedad y PID. Tras un Jest exitoso,
   detiene solo ese `pg_ctl`, verifica que dejó de ejecutarse y elimina únicamente
   la raíz del UUID actual.
+- Antes de detener PostgreSQL consulta **todas** las bases no predeterminadas
+  del clúster. Cualquier base distinta de `postgres`, `template0` o `template1`
+  hace fallar la ejecución y conserva su directorio para inspección.
 - Si el launcher o Jest fallan, detiene el servidor conocido cuando puede
   comprobarlo y conserva el directorio para inspección. Nunca borra un
   directorio previo o desconocido.
@@ -72,30 +85,30 @@ cadena. No se desactiva TLS de forma global ni se usa
 
 | Comprobación | Resultado |
 | --- | --- |
-| Unitarias de launcher/preflight | 7/7 correctas (`pnpm test:integration:launcher`) |
-| Negativa local sin launcher | Rechazada antes de cargar Jest; sin conexión a `5432`/`55432` |
+| Unitarias de launcher/preflight/CI | 12/12 correctas (`pnpm test:integration:launcher`) |
+| Negativas de Jest | `TEST_TYPE` ausente y `integration:http` sin launcher rechazados antes de descubrir suites |
 | Clúster exclusivo y verificación Medusa | Correcta mediante cliente `@medusajs/framework/pg` |
-| Suite HTTP serial | `contacts-rate-limit.spec.ts`: 1 suite, 1 prueba correcta, 59.865 s |
-| Limpieza del runner | Base y plantilla eliminadas por Medusa |
+| Suite HTTP serial | `contacts-rate-limit.spec.ts`: 1 suite, 1 prueba correcta, 27.197 s |
+| Seed oficial HTTP serial | `official-catalog-seed.spec.ts`: 1 suite, 3 pruebas correctas, 42.552 s |
+| Limpieza del runner | Base, plantilla y cualquier otra base no predeterminada ausentes |
 | Limpieza PostgreSQL | `pg_ctl stop` correcto; directorio de ejecución exitoso eliminado |
 
 Evidencia de ejecución exitosa:
 
 ```text
-run id:       706f4239-fd26-4410-b52d-02ff876b83d9
-port:         55240
-user/cluster: jovy_it_706f4239fd264410b52d
-postgres PID: 15844
-database:     medusa-jovy-http-contacts-rate-limit
-template:     medusa-jovy-http-contacts-rate-limit-template
-report:       %LOCALAPPDATA%\JovyCandy\integration-runs\reports\
-              706f4239-fd26-4410-b52d-02ff876b83d9.json
+contacts run id: b211c631-254a-49d8-9efa-a097a824fd91
+contacts port:   57671
+catalog run id:  371c75fc-94a4-4945-ba21-fb3ed3527a9f
+catalog port:    57144
+reports:         %LOCALAPPDATA%\JovyCandy\integration-runs\reports\
+                 <run-id>.json
 ```
 
-El directorio de ese UUID ya no existe. Las ejecuciones fallidas de desarrollo
-del launcher quedaron detenidas y conservadas bajo `integration-runs` para no
-eliminar evidencia automáticamente; no corresponden a los puertos `5432` ni
-`55432`.
+Los dos directorios exitosos ya no existen; sus informes indican salida `0`,
+sin bases residuales y `stopped-and-removed`. Las ejecuciones fallidas de
+desarrollo del launcher quedaron detenidas y conservadas bajo `integration-runs`
+para no eliminar evidencia automáticamente; no corresponden a los puertos
+`5432` ni `55432`.
 
 ## Antecedente histórico
 

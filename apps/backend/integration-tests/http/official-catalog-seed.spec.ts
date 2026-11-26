@@ -7,6 +7,7 @@ import {
   ProductStatus,
 } from "@medusajs/framework/utils"
 import {
+  createInventoryItemsWorkflow,
   createProductsWorkflow,
   createReservationsWorkflow,
   createShippingProfilesWorkflow,
@@ -28,6 +29,7 @@ jest.mock("@jovy/data/catalog/official-mx.json", () =>
 )
 
 jest.setTimeout(240_000)
+const originalFixture = structuredClone(manifest)
 
 medusaIntegrationTestRunner({
   cwd: path.join(__dirname, "..", ".."),
@@ -107,6 +109,10 @@ medusaIntegrationTestRunner({
       } else {
         process.env.CONFIRM_RESTORE_LAB_STOCK = originalConfirmation
       }
+    })
+
+    afterEach(() => {
+      Object.assign(manifest as any, structuredClone(originalFixture))
     })
 
     it("abre 50 unidades, preserva ajustes y serializa ejecuciones concurrentes", async () => {
@@ -231,7 +237,7 @@ medusaIntegrationTestRunner({
       await runSeed()
       const corrected = await officialProduct()
       expect(corrected.shipping_profile).toEqual(
-        expect.objectContaining({ id: shippingProfileId }),
+        expect.objectContaining({ id: wrongProfileId }),
       )
       const { data: profileLinks } = await query().graph({
         entity: "product_shipping_profile",
@@ -239,7 +245,7 @@ medusaIntegrationTestRunner({
         filters: { product_id: created.id },
       })
       expect(profileLinks).toEqual([
-        expect.objectContaining({ shipping_profile_id: shippingProfileId }),
+        expect.objectContaining({ shipping_profile_id: wrongProfileId }),
       ])
 
       await upsertVariantPricesWorkflow(container).run({
@@ -426,7 +432,7 @@ medusaIntegrationTestRunner({
       const renamed = await officialProduct()
       expect(renamed.id).toBe(previousId)
       expect(renamed.handle).toBe(previousHandle)
-      expect(renamed.title).toBe("Producto oficial renombrado")
+      expect(renamed.title).toBe("Test Product")
       expect(renamed.variants).toHaveLength(3)
 
       const usdVariant = renamed.variants.find(
@@ -466,6 +472,81 @@ medusaIntegrationTestRunner({
       })
       expect(updatedLinks).toHaveLength(1)
       expect(String(updatedLinks[0].price_set_id)).toBe(priceSetId)
+    })
+
+    it("no marca catálogo completo si una reconciliación posterior falla", async () => {
+      const container = getContainer()
+      await seedCommerceLab({ container, args: [] } as ExecArgs)
+      await runSeed()
+
+      const created = await officialProduct()
+      const variant = created.variants[0]
+      const preservedMetadata = { ...created.metadata }
+      preservedMetadata.jovy_official_catalog_complete = false
+      preservedMetadata.jovy_official_catalog_size = 0
+      await updateProductsWorkflow(container).run({
+        input: { products: [{ id: created.id, metadata: preservedMetadata }] },
+      })
+
+      const { result: conflictingItems } = await createInventoryItemsWorkflow(
+        container,
+      ).run({
+        input: {
+          items: [{ sku: "JOVY-MX-CONFLICTING-ITEM" }],
+        },
+      })
+      await dismissLinksWorkflow(container).run({
+        input: [
+          {
+            [Modules.PRODUCT]: { variant_id: variant.id },
+            [Modules.INVENTORY]: {
+              inventory_item_id: variant.inventory_items[0].inventory_item_id,
+            },
+          },
+        ],
+      })
+      await createLinksWorkflow(container).run({
+        input: [
+          {
+            [Modules.PRODUCT]: { variant_id: variant.id },
+            [Modules.INVENTORY]: {
+              inventory_item_id: conflictingItems[0].id,
+            },
+          },
+        ],
+      })
+
+      const fixture = manifest as any
+      fixture.products.push({
+        ...structuredClone(fixture.products[0]),
+        source_id: 9003,
+        source_slug: "partial-failure-product",
+        source_updated_at: "2026-11-26T01:00:00.000Z",
+        group_key: "test-family:partial-failure-product",
+        name: "Partial Failure Product",
+        gramaje: "500 g",
+        weight_grams: 500,
+      })
+      fixture.summary.published_products = 3
+      fixture.summary.medusa_products = 2
+      fixture.summary.variants = 3
+      fixture.families[0].product_count = 2
+      fixture.families[0].variant_count = 3
+
+      await expect(runSeed()).rejects.toThrow("apunta a otro inventory item")
+
+      const { data: officialProducts } = await query().graph({
+        entity: "product",
+        fields: ["id", "metadata"],
+        filters: { external_id: { $like: "jovy-mx:%" } },
+        pagination: { take: 10, skip: 0 },
+      })
+      expect(officialProducts).toHaveLength(2)
+      expect(
+        officialProducts.some(
+          (product) => product.metadata?.jovy_official_catalog_complete === true,
+        ),
+      ).toBe(false)
     })
   },
 })

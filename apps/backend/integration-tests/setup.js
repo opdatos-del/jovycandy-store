@@ -1,4 +1,4 @@
-if (process.env.TEST_TYPE?.startsWith("integration:")) {
+if (process.env.TEST_TYPE.startsWith("integration:")) {
   require("./ephemeral-postgres.cjs").assertLocalIntegrationEnvironment(process.env)
 }
 
@@ -12,7 +12,7 @@ MetadataStorage.clear()
  * de importar @medusajs/test-utils.
  */
 function deriveDatabaseCredentials() {
-  if (process.env.TEST_TYPE?.startsWith("integration:")) return
+  if (process.env.TEST_TYPE.startsWith("integration:")) return
   if (process.env.DB_HOST || process.env.DB_USERNAME) return
   if (!process.env.DATABASE_URL) return
   try {

@@ -10,7 +10,13 @@ const FORBIDDEN_PORTS = new Set([5432, 55432])
 const RUNS_DIRECTORY = path.join("JovyCandy", "integration-runs")
 const MARKER_FILE = "run.json"
 const CI_SERVICE_MARKER = "JOVY_CI_POSTGRES_SERVICE"
+const CI_SERVICE_DATABASE_MARKER = "JOVY_CI_POSTGRES_DATABASE"
 const EPHEMERAL_MARKER = "JOVY_EPHEMERAL_POSTGRES"
+const TEST_TYPES = new Set(["unit", "integration:http", "integration:modules"])
+const CI_DATABASE_BY_TEST_TYPE = {
+  "integration:http": "medusa_ci_http",
+  "integration:modules": "medusa_ci_modules",
+}
 const DATABASE_VARIABLES = [
   "DATABASE_URL",
   "DATABASE_NAME",
@@ -271,19 +277,67 @@ function environmentFromMarker(env = process.env) {
   }
 }
 
-function assertLocalIntegrationEnvironment(env = process.env) {
+function assertTestType(value) {
+  if (!TEST_TYPES.has(value)) {
+    throw new Error(
+      "TEST_TYPE debe ser unit, integration:http o integration:modules; Jest no ejecuta una configuración implícita",
+    )
+  }
+  return value
+}
+
+function validateCiServiceEnvironment(env = process.env, { platform = process.platform } = {}) {
+  const testType = assertTestType(env.TEST_TYPE)
+  const expectedDatabase = CI_DATABASE_BY_TEST_TYPE[testType]
+  if (!expectedDatabase) {
+    throw new Error("El servicio PostgreSQL CI solo admite suites de integración")
+  }
+  if (
+    env[CI_SERVICE_MARKER] !== "1" ||
+    env.CI !== "true" ||
+    platform === "win32"
+  ) {
+    throw new Error("El servicio PostgreSQL CI no está autorizado")
+  }
+  if (
+    env[CI_SERVICE_DATABASE_MARKER] !== expectedDatabase ||
+    env.DB_HOST !== LOOPBACK_HOST ||
+    env.DB_PORT !== "5432" ||
+    env.DB_USERNAME !== "postgres" ||
+    env.DB_PASSWORD !== "postgres"
+  ) {
+    throw new Error("Las variables del servicio PostgreSQL CI no corresponden a la suite")
+  }
+
+  let url
+  try {
+    url = new URL(env.DATABASE_URL)
+  } catch {
+    throw new Error("DATABASE_URL del servicio PostgreSQL CI es inválida")
+  }
+  if (
+    !["postgres:", "postgresql:"].includes(url.protocol) ||
+    url.hostname !== LOOPBACK_HOST ||
+    url.port !== "5432" ||
+    decodeURIComponent(url.username) !== "postgres" ||
+    decodeURIComponent(url.password) !== "postgres" ||
+    url.pathname !== `/${expectedDatabase}` ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error("DATABASE_URL del servicio PostgreSQL CI no corresponde a la suite")
+  }
+
+  return { mode: "ci-service", database: expectedDatabase, port: 5432, user: "postgres" }
+}
+
+function assertLocalIntegrationEnvironment(env = process.env, options = {}) {
   if (env[EPHEMERAL_MARKER] === "1") {
     return validateEnvironment(env, environmentFromMarker(env))
   }
-  if (
-    env[CI_SERVICE_MARKER] === "1" &&
-    env.CI === "true" &&
-    process.platform !== "win32"
-  ) {
-    return { mode: "ci-service" }
-  }
+  if (env[CI_SERVICE_MARKER] === "1") return validateCiServiceEnvironment(env, options)
   throw new Error(
-    "Las pruebas de integración locales requieren el launcher PostgreSQL efímero. Use test:integration:http:contacts.",
+    "Las pruebas de integración locales requieren el launcher PostgreSQL efímero. Use test:integration:http:ephemeral -- <suite>.",
   )
 }
 
@@ -324,6 +378,8 @@ function redactSecrets(value) {
 }
 
 module.exports = {
+  CI_DATABASE_BY_TEST_TYPE,
+  CI_SERVICE_DATABASE_MARKER,
   CI_SERVICE_MARKER,
   DATABASE_VARIABLES,
   EPHEMERAL_MARKER,
@@ -334,6 +390,7 @@ module.exports = {
   assertRunId,
   assertRunRoot,
   assertSafePort,
+  assertTestType,
   buildLaunchEnvironment,
   connectionUrl,
   createRunDirectory,
@@ -344,6 +401,7 @@ module.exports = {
   redactSecrets,
   suiteDatabaseName,
   validateClusterIdentity,
+  validateCiServiceEnvironment,
   validateEnvironment,
   writeRunMarker,
 }

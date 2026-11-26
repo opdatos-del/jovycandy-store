@@ -1,6 +1,10 @@
-const { assertLocalIntegrationEnvironment } = require("./integration-tests/ephemeral-postgres.cjs");
+const {
+  assertLocalIntegrationEnvironment,
+  assertTestType,
+} = require("./integration-tests/ephemeral-postgres.cjs");
 
-const isIntegration = process.env.TEST_TYPE?.startsWith("integration:");
+const testType = assertTestType(process.env.TEST_TYPE);
+const isIntegration = testType.startsWith("integration:");
 const launcherConnection = {};
 
 if (isIntegration) {
@@ -47,11 +51,15 @@ module.exports = {
   setupFiles: ["./integration-tests/setup.js"],
 };
 
-if (process.env.TEST_TYPE === "integration:http") {
+if (isIntegration) {
+  module.exports.globalSetup = "./integration-tests/verify-integration-postgres.cjs";
+}
+
+if (testType === "integration:http") {
   module.exports.testMatch = ["**/integration-tests/http/*.spec.[jt]s"];
-} else if (process.env.TEST_TYPE === "integration:modules") {
+} else if (testType === "integration:modules") {
   module.exports.testMatch = ["**/src/modules/*/__tests__/**/*.[jt]s"];
-} else if (process.env.TEST_TYPE === "unit") {
+} else {
   // Unit tests stay pure: `*.integration.test.ts` boots modules against a real
   // PostgreSQL database made by @medusajs/test-utils, so it only runs under
   // `test:integration:modules`.

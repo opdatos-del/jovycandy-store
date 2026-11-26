@@ -162,7 +162,7 @@ function queryResources(launchEnvironment) {
   const query = [
     "SELECT datname",
     "FROM pg_database",
-    "WHERE datname IN ('medusa-jovy-http-contacts-rate-limit', 'medusa-jovy-http-contacts-rate-limit-template')",
+    "WHERE datname NOT IN ('postgres', 'template0', 'template1')",
     "ORDER BY datname",
   ].join(" ")
   const result = run(process.execPath, [
@@ -178,6 +178,13 @@ function queryResources(launchEnvironment) {
     return JSON.parse(result.stdout)
   } catch {
     fail("Respuesta de inspección de recursos inválida")
+  }
+}
+
+function assertNoResidualDatabases(databases) {
+  if (!Array.isArray(databases)) fail("La inspección de recursos PostgreSQL no devolvió una lista")
+  if (databases.length) {
+    fail(`El runner dejó bases de datos residuales: ${databases.join(", ")}`)
   }
 }
 
@@ -231,9 +238,22 @@ function parseTestCommand(argv) {
   return command
 }
 
+function assertSingleHttpSuite(command) {
+  const suites = command.filter((argument) =>
+    /^integration-tests\/http\/[^/]+\.spec\.[jt]s$/i.test(
+      String(argument).replace(/\\/g, "/"),
+    ),
+  )
+  if (suites.length !== 1) {
+    fail("El launcher requiere exactamente una suite HTTP explícita")
+  }
+  return suites[0]
+}
+
 async function main() {
   assertWindowsPostgres()
   const command = parseTestCommand(process.argv.slice(2))
+  assertSingleHttpSuite(command)
   const identity = createRunIdentity()
   const root = createRunDirectory(process.env.LOCALAPPDATA, identity.runId)
   const metadata = {
@@ -264,6 +284,7 @@ async function main() {
 
     const resourcesAfterJest = queryResources(launchEnvironment)
     const passed = jestResult.status === 0
+    assertNoResidualDatabases(resourcesAfterJest)
     stopCluster(metadata)
     stopped = true
     saveEvidence(metadata, {
@@ -313,4 +334,6 @@ module.exports = {
   createPassword,
   findAvailablePort,
   parseTestCommand,
+  assertNoResidualDatabases,
+  assertSingleHttpSuite,
 }

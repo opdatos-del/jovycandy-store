@@ -1,7 +1,7 @@
 # Catálogo oficial de México
 
-**Estado:** IMPLEMENTADO Y VALIDADO EN LABORATORIO LOCAL.
-**Corte:** 2026-11-25.
+**Estado:** IMPLEMENTADO Y VALIDADO EN PostgreSQL efímero local.
+**Corte:** 2026-11-26.
 **Alcance:** snapshot verificable del sitio público mexicano, catálogo Medusa,
 precios sintéticos de laboratorio, inventario inicial y experiencia de compra.
 No representa una lista comercial autorizada ni inventario productivo.
@@ -44,11 +44,13 @@ nombre oficial, reutiliza el producto y el handle existentes; no crea un
 producto huérfano ni cambia una URL persistida. Un conflicto entre dos productos
 para los mismos SKU falla de forma explícita.
 
-Campos propiedad de la fuente: título, descripción, imágenes, categoría, peso,
-estado, variantes y especificaciones. Se sincronizan cuando cambia
-`source_updated_at`. Los precios MXN existentes, el stock, las reservas y la
-metadata manual se preservan. Categorías y familias existentes no se
-sobrescriben: el seed solo crea las que faltan.
+El seed crea título, descripción, imágenes, categoría, peso, estado, variantes
+y especificaciones en la primera carga. En ejecuciones posteriores conserva
+esas ediciones administrativas, incluso si cambia `source_updated_at`; actualiza
+solo metadata técnica no conflictiva, medios registrados, enlaces ausentes y
+precios MXN faltantes. Los precios MXN existentes, stock, reservas y metadata
+manual se preservan. Categorías, familias y perfiles de envío ya vinculados no
+se sobrescriben: el seed solo crea o completa lo que falta.
 
 ## 3. Ejecución
 
@@ -143,7 +145,10 @@ debe ejecutar el seed histórico y `seed:card-hover`.
 
 - Unitarias del manifiesto, agrupación, precios, identidades y metadata.
 - Integración HTTP contra PostgreSQL descartable:
-  `integration-tests/http/official-catalog-seed.spec.ts`.
+  `integration-tests/http/official-catalog-seed.spec.ts`. Valida primera carga,
+  segunda ejecución, 50 unidades, reservas, identidades, duplicados,
+  presentaciones, precio MXN, enlaces ausentes y ausencia de marcador completo
+  ante una falla posterior a escrituras parciales.
 - Escenarios cubiertos: apertura 50, idempotencia, dos seeds concurrentes,
   precio/edit manual, familia editada, reserva y reposición, presentación nueva,
   renombre oficial, reparación de enlaces de inventario/canal/perfil y MXN sobre
@@ -152,6 +157,19 @@ debe ejecutar el seed histórico y `seed:card-hover`.
   descripción, relacionados, límite de stock, compra y ES/EN.
 - Las pruebas existentes de reservas, cancelación, `CATALOG_ONLY` y checkout se
   mantienen en sus suites originales.
+
+### Evidencia 2026-11-26
+
+`official-catalog-seed.spec.ts` pasó sobre el clúster efímero de la ejecución
+`371c75fc-94a4-4945-ba21-fb3ed3527a9f` (puerto `57144`): 3 pruebas en 42.552 s,
+salida `0`, sin bases residuales y con el directorio de ejecución eliminado.
+No se accedió a PostgreSQL `5432` ni `55432`.
+
+La suite confirma que una segunda ejecución conserva título y perfil de envío
+editados en Admin, repara enlaces ausentes, no duplica identidades/precios y no
+marca el catálogo como completo si una reconciliación posterior deja escrituras
+parciales. El manifiesto versionado se valida unitariamente con 35 productos,
+61 variantes y 173 medios verificados.
 
 ## 9. Límites
 

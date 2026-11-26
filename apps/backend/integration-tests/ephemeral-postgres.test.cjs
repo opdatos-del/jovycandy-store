@@ -12,7 +12,12 @@ const {
   getRunRoot,
   redactSecrets,
 } = require("./ephemeral-postgres.cjs")
-const { createPassword, parseTestCommand } = require("./run-ephemeral-postgres.cjs")
+const {
+  assertNoResidualDatabases,
+  assertSingleHttpSuite,
+  createPassword,
+  parseTestCommand,
+} = require("./run-ephemeral-postgres.cjs")
 
 test("crea un directorio nuevo y nunca reutiliza una ejecución anterior", (t) => {
   const localAppData = fs.mkdtempSync(path.join(os.tmpdir(), "jovycandy-it-run-"))
@@ -26,9 +31,31 @@ test("crea un directorio nuevo y nunca reutiliza una ejecución anterior", (t) =
   assert.throws(() => assertRunRoot(path.join(localAppData, "outside"), localAppData, runId))
 })
 
+test("falla si el runner deja cualquier base no predeterminada", () => {
+  assert.doesNotThrow(() => assertNoResidualDatabases([]))
+  assert.throws(() => assertNoResidualDatabases(["medusa-jovy-http-contacts-rate-limit"]))
+})
+
 test("exige un comando explícito y no expone secretos al registrar fallos", () => {
   assert.deepEqual(parseTestCommand(["--", "pnpm.cmd", "exec", "jest"]), ["pnpm.cmd", "exec", "jest"])
   assert.throws(() => parseTestCommand([]))
+  assert.equal(
+    assertSingleHttpSuite([
+      "node",
+      "./node_modules/jest/bin/jest.js",
+      "integration-tests/http/contacts-rate-limit.spec.ts",
+      "--runInBand",
+    ]),
+    "integration-tests/http/contacts-rate-limit.spec.ts",
+  )
+  assert.throws(() => assertSingleHttpSuite(["node", "./node_modules/jest/bin/jest.js"]))
+  assert.throws(() =>
+    assertSingleHttpSuite([
+      "node",
+      "integration-tests/http/contacts-rate-limit.spec.ts",
+      "integration-tests/http/official-catalog-seed.spec.ts",
+    ]),
+  )
 
   const password = createPassword()
   assert.match(password, /^[A-Za-z0-9_-]+$/)
