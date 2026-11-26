@@ -10,7 +10,6 @@ import {
   createProductsWorkflow,
   createShippingOptionsWorkflow,
   createStockLocationsWorkflow,
-  dismissLinksWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
   setProductProductOptionsWorkflow,
   updateProductsWorkflow,
@@ -27,6 +26,7 @@ import {
 
 import manifest from "@jovy/data/catalog/official-mx.json"
 import { JOVY_SEED_CATEGORIES } from "@jovy/lib/jovy/catalog-seed"
+import { paginateAll } from "@jovy/lib/jovy/paginate-all"
 import {
   buildOfficialProductPlans,
   officialCatalogSchema,
@@ -35,6 +35,7 @@ import {
   type OfficialProductPlan,
 } from "@jovy/lib/jovy/official-catalog"
 import {
+  findOfficialIdentityConflict,
   inheritRingsVisualMetadata,
   mergeOfficialProductMetadata,
 } from "@jovy/lib/jovy/official-catalog-seed"
@@ -54,7 +55,7 @@ type QueryGraph = {
     entity: string
     fields: string[]
     filters?: Record<string, unknown>
-    pagination?: { take: number; skip: number }
+    pagination?: { take: number; skip: number; order?: Record<string, "ASC" | "DESC"> }
   }) => Promise<{ data: Array<Record<string, any>> }>
 }
 
@@ -190,6 +191,8 @@ type Preview = {
   productsToUpdate: number
   variantsToCreate: number
   variantsToUpdate: number
+  sourceChangesRequiringApproval: string[]
+  variantConflicts: string[]
   pricesToCreate: number
   inventoryItemsToCreate: number
   inventoryLevelsToCreate: number
@@ -291,11 +294,11 @@ async function resolveInfrastructure(
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "No hay shipping profile disponible")
   }
 
-  const { data: categoryRows } = await query.graph({
+  const categoryRows = await paginateAll(async (take, skip) => (await query.graph({
     entity: "product_category",
     fields: ["id", "handle"],
-    pagination: { take: 1000, skip: 0 },
-  })
+    pagination: { take, skip, order: { id: "ASC" } },
+  })).data)
   const categoryIdByHandle = new Map(
     categoryRows
       .filter((row) => row.handle && row.id)
@@ -336,7 +339,9 @@ async function resolveInfrastructure(
   }
 
   if (apply) {
-    const catalogueRows = await catalogue.listCatalogueCategories({})
+    const catalogueRows = await paginateAll((take, skip) =>
+      catalogue.listCatalogueCategories({}, { take, skip, order: { id: "ASC" } }),
+    )
     const existingKeys = new Set(catalogueRows.map((row) => row.key))
     const missingKeys = new Set(
       catalog.categories
@@ -346,7 +351,9 @@ async function resolveInfrastructure(
     if (missingKeys.size) {
       await seedCatalogueCategoriesWorkflow(container).run({ input: {} })
     }
-    const refreshedRows = await catalogue.listCatalogueCategories({})
+    const refreshedRows = await paginateAll((take, skip) =>
+      catalogue.listCatalogueCategories({}, { take, skip, order: { id: "ASC" } }),
+    )
     const catalogueIdByKey = new Map(refreshedRows.map((row) => [row.key, row.id]))
 
     for (const sourceCategory of catalog.categories) {
@@ -370,7 +377,9 @@ async function resolveInfrastructure(
     }
   }
 
-  const existingFamilies = await catalogue.listProductFamilies({})
+  const existingFamilies = await paginateAll((take, skip) =>
+    catalogue.listProductFamilies({}, { take, skip, order: { id: "ASC" } }),
+  )
   const familyBySlug = new Map(existingFamilies.map((family) => [family.slug, family]))
   const familyIdBySource = new Map<string, string>()
   let familiesCreated = 0
@@ -400,7 +409,7 @@ async function resolveInfrastructure(
     }
   }
 
-  const { data: stockLocations } = await query.graph({
+  const stockLocations = await paginateAll(async (take, skip) => (await query.graph({
     entity: "stock_location",
     fields: [
       "id",
@@ -410,8 +419,8 @@ async function resolveInfrastructure(
       "fulfillment_providers.id",
       "fulfillment_sets.id",
     ],
-    pagination: { take: 1000, skip: 0 },
-  })
+    pagination: { take, skip, order: { id: "ASC" } },
+  })).data)
   let stockLocation = stockLocations.find(
     (row) =>
       row.metadata?.[LAB_LOCATION_METADATA_KEY] === true ||
@@ -477,7 +486,9 @@ async function resolveInfrastructure(
       })
     }
 
-    const fulfillmentSets = await fulfillment.listFulfillmentSets({}, { take: 1000 })
+    const fulfillmentSets = await paginateAll((take, skip) =>
+      fulfillment.listFulfillmentSets({}, { take, skip, order: { id: "ASC" } }),
+    )
     let fulfillmentSet = fulfillmentSets.find(
       (set) =>
         set.metadata?.[LAB_FULFILLMENT_METADATA_KEY] === true ||
@@ -737,11 +748,11 @@ async function prepareInventory(
   apply: boolean,
 ): Promise<InventoryPlan> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY) as QueryGraph
-  const { data } = await query.graph({
+  const data = await paginateAll(async (take, skip) => (await query.graph({
     entity: "inventory_item",
     fields: ["id", "sku", "location_levels.location_id", "location_levels.stocked_quantity"],
-    pagination: { take: 1000, skip: 0 },
-  })
+    pagination: { take, skip, order: { id: "ASC" } },
+  })).data)
   const rows = data as unknown as InventoryItemRow[]
   const itemBySku = new Map(
     rows.filter((row) => row.sku).map((row) => [String(row.sku), row]),
@@ -872,8 +883,8 @@ function planMediaUrls(plan: OfficialProductPlan, media: MediaPlan): string[] {
 
 async function loadProducts(container: ExecArgs["container"]): Promise<ProductRow[]> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY) as QueryGraph
-  const [{ data }, { data: priceLinks }] = await Promise.all([
-    query.graph({
+  const [data, priceLinks] = await Promise.all([
+    paginateAll(async (take, skip) => (await query.graph({
       entity: "product",
       fields: [
         "id",
@@ -904,13 +915,13 @@ async function loadProducts(container: ExecArgs["container"]): Promise<ProductRo
         "variants.prices.amount",
         "variants.inventory_items.inventory_item_id",
       ],
-      pagination: { take: 1000, skip: 0 },
-    }),
-    query.graph({
+      pagination: { take, skip, order: { id: "ASC" } },
+    })).data),
+    paginateAll(async (take, skip) => (await query.graph({
       entity: "product_variant_price_set",
       fields: ["variant_id", "price_set_id"],
-      pagination: { take: 5000, skip: 0 },
-    }),
+      pagination: { take, skip, order: { variant_id: "ASC", price_set_id: "ASC" } },
+    })).data),
   ])
   const priceSetByVariant = new Map(
     priceLinks.map((link) => [String(link.variant_id), String(link.price_set_id)]),
@@ -992,15 +1003,10 @@ function resolveOfficialProductIdentities(
   return resolved
 }
 
-function sourceChanged(product: ProductRow, plan: OfficialProductPlan): boolean {
-  return product.metadata?.jovy_official_updated_at !== plan.sourceUpdatedAt
-}
-
 async function reconcileOfficialProducts(
   container: ExecArgs["container"],
   plans: OfficialProductPlan[],
   products: ProductRow[],
-  infrastructure: Infrastructure,
   media: MediaPlan,
 ): Promise<number> {
   const byExternalId = new Map(
@@ -1015,30 +1021,12 @@ async function reconcileOfficialProducts(
     if (!product) continue
 
     const metadata = productMetadata(plan, media, products, product.metadata)
-    const shouldSyncSource =
-      sourceChanged(product, plan) ||
-      product.metadata?.jovy_official_managed !== true
-    if (!shouldSyncSource && isDeepStrictEqual(metadata, product.metadata ?? {})) {
+    if (isDeepStrictEqual(metadata, product.metadata ?? {})) {
       continue
     }
 
-    const categoryId = infrastructure.categoryIdByKey.get(plan.categoryKey)
-    const imageUrls = planMediaUrls(plan, media)
-    updates.push({
-      id: product.id,
-      ...(shouldSyncSource
-        ? {
-            title: plan.title,
-            description: plan.description,
-            status: ProductStatus.PUBLISHED,
-            thumbnail: imageUrls[0] ?? null,
-            images: imageUrls.map((url) => ({ url })),
-            weight: plan.variants[0]?.grams ?? null,
-            category_ids: categoryId ? [categoryId] : undefined,
-          }
-        : {}),
-      metadata,
-    })
+    // Los campos del producto existente requieren aprobación explícita.
+    updates.push({ id: product.id, metadata })
   }
 
   if (updates.length) {
@@ -1061,7 +1049,6 @@ async function reconcileOfficialProductLinks(
       .map((product) => [String(product.external_id), product]),
   )
   const links: Array<Record<string, Record<string, string>>> = []
-  const dismissals: Array<Record<string, Record<string, string>>> = []
 
   for (const plan of plans) {
     const product = byExternalId.get(plan.externalId)
@@ -1080,15 +1067,7 @@ async function reconcileOfficialProductLinks(
       })
     }
 
-    if (product.shipping_profile?.id !== infrastructure.shippingProfileId) {
-      if (product.shipping_profile?.id) {
-        dismissals.push({
-          [Modules.PRODUCT]: { product_id: product.id },
-          [Modules.FULFILLMENT]: {
-            shipping_profile_id: String(product.shipping_profile.id),
-          },
-        })
-      }
+    if (!product.shipping_profile?.id) {
       links.push({
         [Modules.PRODUCT]: { product_id: product.id },
         [Modules.FULFILLMENT]: {
@@ -1098,9 +1077,6 @@ async function reconcileOfficialProductLinks(
     }
   }
 
-  if (dismissals.length) {
-    await dismissLinksWorkflow(container).run({ input: dismissals })
-  }
   if (links.length) {
     await createLinksWorkflow(container).run({ input: links })
   }
@@ -1122,7 +1098,8 @@ function buildPreview(
   let productsToCreate = 0
   let productsToUpdate = 0
   let variantsToCreate = 0
-  let variantsToUpdate = 0
+  const sourceChangesRequiringApproval: string[] = []
+  const variantConflicts: string[] = []
   let pricesToCreate = 0
 
   for (const plan of plans) {
@@ -1141,10 +1118,10 @@ function buildPreview(
       products,
       product.metadata,
     )
-    if (
-      sourceUpdatedAt !== plan.sourceUpdatedAt ||
-      !isDeepStrictEqual(expectedMetadata, product.metadata ?? {})
-    ) {
+    if (sourceUpdatedAt !== plan.sourceUpdatedAt) {
+      sourceChangesRequiringApproval.push(plan.externalId)
+    }
+    if (!isDeepStrictEqual(expectedMetadata, product.metadata ?? {})) {
       productsToUpdate += 1
     }
 
@@ -1166,7 +1143,7 @@ function buildPreview(
         existing.allow_backorder !== false ||
         Number(existing.metadata?.jovy_official_grams) !== variant.grams
       ) {
-        variantsToUpdate += 1
+        variantConflicts.push(variant.sku)
       }
 
       if (
@@ -1187,7 +1164,9 @@ function buildPreview(
     productsToCreate,
     productsToUpdate,
     variantsToCreate,
-    variantsToUpdate,
+    variantsToUpdate: 0,
+    sourceChangesRequiringApproval,
+    variantConflicts,
     pricesToCreate,
     inventoryItemsToCreate: inventory.itemsToCreate,
     inventoryLevelsToCreate: inventory.levelsToCreate,
@@ -1293,14 +1272,13 @@ async function reconcileVariants(
   plans: OfficialProductPlan[],
   products: ProductRow[],
   inventory: InventoryPlan,
-): Promise<{ created: number; updated: number; priced: number }> {
+): Promise<{ created: number; priced: number }> {
   const byExternalId = new Map(
     products
       .filter((product) => product.external_id)
       .map((product) => [String(product.external_id), product]),
   )
   let created = 0
-  let updated = 0
   let priced = 0
 
   for (const plan of plans) {
@@ -1325,7 +1303,7 @@ async function reconcileVariants(
     const optionValues = new Set(
       (option.values ?? []).map((value) => value.value),
     )
-    const valuesToAdd = plan.variants
+    const valuesToAdd = missing
       .map((variant) => variant.title)
       .filter((title) => !optionValues.has(title))
     if (valuesToAdd.length) {
@@ -1380,6 +1358,9 @@ async function reconcileVariants(
           manage_inventory: true,
           allow_backorder: false,
           metadata: { jovy_official_grams: plan.variants.find((item) => item.sku === variant.sku)?.grams },
+          inventory_items: inventory.itemIdBySku.has(variant.sku)
+            ? [{ inventory_item_id: inventory.itemIdBySku.get(variant.sku)! }]
+            : [],
           prices: [{ currency_code: "mxn" }],
         })
       }
@@ -1387,14 +1368,6 @@ async function reconcileVariants(
       priced += result.length
     }
 
-    const productSourceChanged = sourceChanged(product, plan)
-    const updates: Array<{
-      id: string
-      title?: string
-      manage_inventory: boolean
-      allow_backorder: boolean
-      metadata: Record<string, unknown>
-    }> = []
     const unpricedExisting: Array<{
       variant_id: string
       product_id: string
@@ -1441,28 +1414,6 @@ async function reconcileVariants(
       }
 
       if (
-        existing.manage_inventory !== true ||
-        existing.allow_backorder !== false ||
-        Number(existing.metadata?.jovy_official_grams) !== variant.grams ||
-        (productSourceChanged && existing.title !== variant.title)
-      ) {
-        updates.push({
-          id: existing.id,
-          ...(productSourceChanged && existing.title !== variant.title
-            ? { title: variant.title }
-            : {}),
-          manage_inventory: true,
-          allow_backorder: false,
-          metadata: {
-            ...(existing.metadata ?? {}),
-            jovy_official_managed: true,
-            jovy_official_source_id: variant.sourceId,
-            jovy_official_grams: variant.grams,
-          },
-        })
-      }
-
-      if (
         !(existing.prices ?? []).some(
           (price) => price.currency_code?.toLowerCase() === "mxn",
         )
@@ -1492,15 +1443,6 @@ async function reconcileVariants(
       }
     }
 
-    if (updates.length) {
-      await updateProductsWorkflow(container).run({
-        input: {
-          products: [{ id: product.id, variants: updates }],
-        },
-      })
-      updated += updates.length
-    }
-
     if (unpricedExisting.length) {
       await upsertVariantPricesWorkflow(container).run({
         input: {
@@ -1519,7 +1461,7 @@ async function reconcileVariants(
     }
   }
 
-  return { created, updated, priced }
+  return { created, priced }
 }
 
 async function markOfficialCatalogComplete(
@@ -1573,11 +1515,11 @@ async function linkFamiliesAndEditorials(
       .filter((product) => product.external_id)
       .map((product) => [String(product.external_id), product]),
   )
-  const { data: families } = await query.graph({
+  const families = await paginateAll(async (take, skip) => (await query.graph({
     entity: "jovy_product_family",
     fields: ["id", "products.id"],
-    pagination: { take: 1000, skip: 0 },
-  })
+    pagination: { take, skip, order: { id: "ASC" } },
+  })).data)
   const linked = new Set<string>()
   for (const family of families) {
     for (const product of family.products ?? []) {
@@ -1651,6 +1593,12 @@ export default async function seedOfficialCatalog({ container, args }: ExecArgs)
 
   const run = async () => {
     const locking = container.resolve(Modules.LOCKING) as LockingService
+    const products = await loadProducts(container)
+    const conflict = findOfficialIdentityConflict(sourcePlans, products)
+    if (conflict) {
+      throw new MedusaError(MedusaError.Types.CONFLICT, conflict)
+    }
+    const plans = resolveOfficialProductIdentities(sourcePlans, products)
     const infrastructure = apply
       ? await locking.execute(
           "jovy:seed:commerce-infrastructure",
@@ -1658,8 +1606,6 @@ export default async function seedOfficialCatalog({ container, args }: ExecArgs)
           { timeout: 300, expire: 600 },
         )
       : await resolveInfrastructure(container, catalog, apply)
-    const products = await loadProducts(container)
-    const plans = resolveOfficialProductIdentities(sourcePlans, products)
     const media = await prepareMedia(container, plans, products, apply)
     const inventory = await prepareInventory(
       container,
@@ -1699,7 +1645,6 @@ export default async function seedOfficialCatalog({ container, args }: ExecArgs)
       container,
       plans,
       refreshedProducts,
-      infrastructure,
       media,
     )
     const productLinks = await reconcileOfficialProductLinks(

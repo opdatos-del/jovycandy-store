@@ -17,6 +17,35 @@ const RINGS_VISUAL_KEYS = [
   "card_visual_version",
 ] as const
 
+type IdentityProduct = {
+  id: string
+  external_id?: string | null
+  variants?: Array<{ id: string; sku?: string | null }> | null
+}
+
+/** Rechaza identidades oficiales ambiguas antes de realizar escrituras. */
+export function findOfficialIdentityConflict(
+  plans: OfficialProductPlan[],
+  products: IdentityProduct[],
+): string | null {
+  const officialIds = new Set(plans.map((plan) => plan.externalId))
+  const officialSkus = new Set(plans.flatMap((plan) => plan.variants.map((variant) => variant.sku)))
+  const ids = new Set<string>()
+  const skus = new Set<string>()
+  for (const product of products) {
+    if (product.external_id && officialIds.has(product.external_id)) {
+      if (ids.has(product.external_id)) return `external_id duplicado: ${product.external_id}`
+      ids.add(product.external_id)
+    }
+    for (const variant of product.variants ?? []) {
+      if (!variant.sku || !officialSkus.has(variant.sku)) continue
+      if (skus.has(variant.sku)) return `SKU duplicado: ${variant.sku}`
+      skus.add(variant.sku)
+    }
+  }
+  return null
+}
+
 type MetadataSource = {
   handle?: string | null
   metadata?: Record<string, unknown> | null
@@ -87,13 +116,24 @@ export function mergeOfficialProductMetadata(
     jovy_official_managed: true,
     jovy_official_external_id: plan.externalId,
     jovy_official_family_id: plan.familyId,
-    jovy_official_updated_at: plan.sourceUpdatedAt,
-    jovy_official_specs: plan.specs,
+    ...(!existing
+      ? {
+          jovy_official_updated_at: plan.sourceUpdatedAt,
+          jovy_official_specs: plan.specs,
+        }
+      : {}),
     jovy_synthetic_prices: true,
     jovy_media_registry: {
       ...previousRegistry,
       ...mediaRegistry,
     },
-    jovy_media_local_registry: localRegistry,
+    jovy_media_local_registry: {
+      ...(existing?.jovy_media_local_registry &&
+      typeof existing.jovy_media_local_registry === "object" &&
+      !Array.isArray(existing.jovy_media_local_registry)
+        ? existing.jovy_media_local_registry
+        : {}),
+      ...localRegistry,
+    },
   }
 }

@@ -5,6 +5,7 @@ import {
   officialCatalogSchema,
 } from "@jovy/lib/jovy/official-catalog"
 import {
+  findOfficialIdentityConflict,
   inheritRingsVisualMetadata,
   mergeOfficialProductMetadata,
   RINGS_VISUAL_SOURCE_HANDLE,
@@ -18,6 +19,15 @@ describe("metadata del seed oficial", () => {
   const ringsWatermelon = plans.find(
     (plan) => plan.externalId === "jovy-mx:rings:rings-sandia",
   )!
+
+  it("detecta external_id o SKU oficial duplicados antes de escribir", () => {
+    const sku = ringsApple.variants[0].sku
+    const first = { id: "p1", external_id: ringsApple.externalId, variants: [{ id: "v1", sku }] }
+    expect(findOfficialIdentityConflict([ringsApple], [first])).toBeNull()
+    expect(findOfficialIdentityConflict([ringsApple], [first, { id: "p2", external_id: ringsApple.externalId }])).toContain("external_id duplicado")
+    expect(findOfficialIdentityConflict([ringsApple], [first, { id: "p2", variants: [{ id: "v2", sku }] }])).toContain("SKU duplicado")
+    expect(findOfficialIdentityConflict([ringsApple], [{ ...first, variants: [{ id: "v1", sku }, { id: "v2", sku }] }])).toContain("SKU duplicado")
+  })
 
   it("hereda la capa layered histórica solo en Rings Manzana", () => {
     const inherited = inheritRingsVisualMetadata(ringsApple, [
@@ -41,6 +51,19 @@ describe("metadata del seed oficial", () => {
       card_visual_version: 1,
     })
     expect(inheritRingsVisualMetadata(ringsWatermelon, [])).toEqual({})
+  })
+
+  it("conserva la fecha y especificaciones existentes cuando cambia la fuente", () => {
+    const previous = {
+      jovy_official_updated_at: "fecha-anterior",
+      jovy_official_specs: { manual: "conservar" },
+      manual_note: "editado en Admin",
+    }
+    const result = mergeOfficialProductMetadata(ringsApple, {}, previous)
+
+    expect(result.jovy_official_updated_at).toBe(previous.jovy_official_updated_at)
+    expect(result.jovy_official_specs).toEqual(previous.jovy_official_specs)
+    expect(result.manual_note).toBe(previous.manual_note)
   })
 
   it("aplica la herencia al crear pero conserva ediciones manuales al repetir", () => {
