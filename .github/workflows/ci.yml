@@ -105,6 +105,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      JOVY_CI_POSTGRES_SERVICE: "1"
       DB_HOST: localhost
       DB_PORT: "5432"
       DB_USERNAME: postgres
@@ -146,6 +147,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      JOVY_CI_POSTGRES_SERVICE: "1"
       DB_HOST: localhost
       DB_PORT: "5432"
       DB_USERNAME: postgres

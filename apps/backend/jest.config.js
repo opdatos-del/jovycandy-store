@@ -1,7 +1,32 @@
+const { assertLocalIntegrationEnvironment } = require("./integration-tests/ephemeral-postgres.cjs");
+
+const isIntegration = process.env.TEST_TYPE?.startsWith("integration:");
+const launcherConnection = {};
+
+if (isIntegration) {
+  assertLocalIntegrationEnvironment(process.env);
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.startsWith("DB_") || key.startsWith("PG") || key.startsWith("DATABASE_") || key.startsWith("JOVY_EPHEMERAL_POSTGRES_")) {
+      launcherConnection[key] = value;
+    }
+  }
+}
+
 const { loadEnv } = require("@medusajs/utils");
 loadEnv("test", process.cwd());
 
+if (isIntegration) {
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("DB_") || key.startsWith("PG") || key.startsWith("DATABASE_") || key.startsWith("JOVY_EPHEMERAL_POSTGRES_")) {
+      delete process.env[key];
+    }
+  }
+  Object.assign(process.env, launcherConnection);
+  assertLocalIntegrationEnvironment(process.env);
+}
+
 module.exports = {
+  preset: "@medusajs/test-utils",
   transform: {
     "^.+\\.[jt]s$": [
       "@swc/jest",

@@ -1,14 +1,18 @@
+if (process.env.TEST_TYPE?.startsWith("integration:")) {
+  require("./ephemeral-postgres.cjs").assertLocalIntegrationEnvironment(process.env)
+}
+
 const { MetadataStorage } = require("@medusajs/framework/mikro-orm/core")
 
 MetadataStorage.clear()
 
 /**
- * `@medusajs/test-utils` connects with DB_HOST/DB_PORT/DB_USERNAME/DB_PASSWORD and
- * creates a throwaway database per suite, so the development database is never
- * touched. When those variables are missing, reuse the local DATABASE_URL
- * credentials instead of committing a password in a test file.
+ * El launcher efímero fija DB_* y DATABASE_URL antes de cargar Jest. Nunca se
+ * derivan credenciales locales para integración: sin launcher, Jest falla antes
+ * de importar @medusajs/test-utils.
  */
 function deriveDatabaseCredentials() {
+  if (process.env.TEST_TYPE?.startsWith("integration:")) return
   if (process.env.DB_HOST || process.env.DB_USERNAME) return
   if (!process.env.DATABASE_URL) return
   try {
