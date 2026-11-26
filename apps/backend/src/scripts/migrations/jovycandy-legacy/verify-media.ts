@@ -31,7 +31,7 @@ async function mapLimited<T, R>(
 async function main() {
   const manifest = JSON.parse(
     await readFile(
-      path.join(process.cwd(), "src", "data", "catalog", "official-mx.json"),
+      path.join(path.dirname(process.argv[1]), "manifest.json"),
       "utf8",
     ),
   )
@@ -75,7 +75,7 @@ async function main() {
       `Falló verificación remota de ${failures.length}/${assets.length} medios:\n${failures.join("\n")}`,
     )
   }
-  console.log(`Medios oficiales verificados: ${assets.length}`)
+  console.log(`Medios históricos verificados: ${assets.length}`)
 }
 
 void main()

@@ -3,7 +3,6 @@ import { useJovyPermissions } from "@admin/shared/hooks/use-jovy-permissions"
 import { useCatalogue } from "../hooks/use-catalogue"
 import { CatalogueCategoryCard } from "./category-card"
 import { CatalogueCategoryForm } from "./category-form"
-import { OfficialCatalogPreview } from "./official-catalog-preview"
 
 /**
  * Pantalla de Categorías del catálogo: seis tarjetas de presentación con clave
@@ -136,7 +135,6 @@ export const CataloguePage = () => {
           </div>
         </>
       )}
-      <OfficialCatalogPreview />
     </div>
   )
 }

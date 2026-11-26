@@ -99,7 +99,6 @@ export type CommerceVariant = {
 export type CommerceProduct = {
   id: string
   externalId: string | null
-  officialManaged: boolean
   handle: string
   title: string
   description: string | null
@@ -114,6 +113,7 @@ type RawVariant = {
   id?: string
   title?: string | null
   sku?: string | null
+  weight?: number | null
   metadata?: Record<string, unknown> | null
   manage_inventory?: boolean | null
   allow_backorder?: boolean | null
@@ -137,7 +137,7 @@ type RawProduct = {
 }
 
 const PRODUCT_FIELDS =
-  "id,external_id,title,description,handle,thumbnail,images.url,metadata,variants.id,variants.title,variants.sku,variants.metadata,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price"
+  "id,external_id,title,description,handle,thumbnail,images.url,metadata,variants.id,variants.title,variants.sku,variants.weight,variants.metadata,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price"
 
 function normalizeSpecs(value: unknown): Array<{ label: string; value: string }> {
   if (!Array.isArray(value)) return []
@@ -167,10 +167,7 @@ function normalizeProduct(raw: RawProduct): CommerceProduct | null {
         id: variant.id,
         title: variant.title ?? "",
         sku: variant.sku ?? null,
-        grams:
-          typeof variant.metadata?.jovy_official_grams === "number"
-            ? variant.metadata.jovy_official_grams
-            : null,
+        grams: typeof variant.weight === "number" ? variant.weight : null,
         manageInventory: Boolean(variant.manage_inventory),
         allowBackorder: Boolean(variant.allow_backorder),
         inventoryQuantity:
@@ -195,15 +192,18 @@ function normalizeProduct(raw: RawProduct): CommerceProduct | null {
   return {
     id: raw.id,
     externalId: raw.external_id ?? null,
-    officialManaged:
-      raw.metadata?.jovy_official_managed === true ||
-      String(raw.external_id ?? "").startsWith("jovy-mx:"),
     handle: raw.handle,
     title: raw.title,
     description: raw.description ?? null,
     thumbnail: raw.thumbnail ?? null,
     images,
-    specs: normalizeSpecs(raw.metadata?.jovy_official_specs),
+    // Compatibilidad temporal de lectura con productos importados antes del
+    // cambio de nombre. La importación nueva escribe `jovy_legacy_specs`.
+    specs: normalizeSpecs(
+      raw.metadata?.jovy_specs ??
+        raw.metadata?.jovy_legacy_specs ??
+        raw.metadata?.jovy_official_specs,
+    ),
     variants,
     cardVisual: parseCardVisualOverrides(raw.metadata),
   }

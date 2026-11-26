@@ -1,11 +1,11 @@
 import { stat } from "node:fs/promises"
 import path from "node:path"
 
-export type OfficialMediaState =
+export type LegacyMediaState =
   | "local-valid"
   | "local-missing"
   | "remote-valid"
-  | "official-fallback"
+  | "source-fallback"
 
 /** Convierte únicamente URLs bajo `/static/` a rutas seguras del provider local. */
 export function staticMediaPath(
@@ -47,11 +47,11 @@ export async function localMediaFileExists(
   }
 }
 
-export function classifyStoredOfficialMedia(
+export function classifyStoredLegacyMedia(
   url: string | undefined,
   isAvailable: boolean,
-): OfficialMediaState {
-  if (!url) return "official-fallback"
+): LegacyMediaState {
+  if (!url) return "source-fallback"
   if (staticMediaPath(url)) return isAvailable ? "local-valid" : "local-missing"
-  return isAvailable ? "remote-valid" : "official-fallback"
+  return isAvailable ? "remote-valid" : "source-fallback"
 }

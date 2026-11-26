@@ -3,12 +3,12 @@ import os from "node:os"
 import path from "node:path"
 
 import {
-  classifyStoredOfficialMedia,
+  classifyStoredLegacyMedia,
   localMediaFileExists,
   staticMediaPath,
-} from "../official-catalog-media"
+} from "../legacy-import-media"
 
-describe("medios del catálogo oficial", () => {
+describe("medios del importador histórico", () => {
   it("acepta sólo rutas existentes bajo static y rechaza traversal", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "jovy-media-"))
     const image = path.join(directory, "catalog", "packshot.webp")
@@ -29,11 +29,11 @@ describe("medios del catálogo oficial", () => {
     await expect(
       localMediaFileExists("/static/../secret.webp", directory),
     ).resolves.toBe(false)
-    expect(classifyStoredOfficialMedia("/static/catalog/missing.webp", false)).toBe(
+    expect(classifyStoredLegacyMedia("/static/catalog/missing.webp", false)).toBe(
       "local-missing",
     )
-    expect(classifyStoredOfficialMedia("https://files.test/image.webp", false)).toBe(
-      "official-fallback",
+    expect(classifyStoredLegacyMedia("https://files.test/image.webp", false)).toBe(
+      "source-fallback",
     )
   })
 })

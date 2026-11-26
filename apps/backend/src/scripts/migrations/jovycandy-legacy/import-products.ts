@@ -1,20 +1,15 @@
 import { createHash } from "node:crypto"
-import { isDeepStrictEqual } from "node:util"
 
 import {
   createInventoryItemsWorkflow,
   createInventoryLevelsWorkflow,
   createLinksWorkflow,
   createProductCategoriesWorkflow,
-  createProductVariantsWorkflow,
   createProductsWorkflow,
   createShippingOptionsWorkflow,
   createStockLocationsWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
-  setProductProductOptionsWorkflow,
-  updateProductsWorkflow,
   updateStockLocationsWorkflow,
-  upsertVariantPricesWorkflow,
 } from "@medusajs/medusa/core-flows"
 import type { ExecArgs } from "@medusajs/framework/types"
 import {
@@ -24,32 +19,26 @@ import {
   ProductStatus,
 } from "@medusajs/framework/utils"
 
-import manifest from "@jovy/data/catalog/official-mx.json"
+import manifest from "@jovy/scripts/migrations/jovycandy-legacy/manifest.json"
 import { JOVY_SEED_CATEGORIES } from "@jovy/lib/jovy/catalog-seed"
 import { paginateAll } from "@jovy/lib/jovy/paginate-all"
 import {
-  buildOfficialProductPlans,
-  officialCatalogSchema,
-  validateOfficialCatalog,
-  type OfficialCatalogManifest,
-  type OfficialProductPlan,
-} from "@jovy/lib/jovy/official-catalog"
+  buildLegacyProductPlans,
+  legacyCatalogSchema,
+  validateLegacyCatalog,
+  type LegacyCatalogManifest,
+  type LegacyProductPlan,
+} from "@jovy/lib/jovy/legacy-catalog"
 import {
-  findOfficialIdentityConflict,
-  inheritRingsVisualMetadata,
-  mergeOfficialProductMetadata,
-} from "@jovy/lib/jovy/official-catalog-seed"
+  buildLegacyProductMetadata,
+  findLegacyIdentityConflict,
+} from "@jovy/lib/jovy/legacy-import"
 import {
-  inspectOfficialCatalogIntegrity,
-  isOfficialCatalogCompletionCurrent,
-  officialCatalogManifestFingerprint,
-} from "@jovy/lib/jovy/official-catalog-integrity"
-import {
-  classifyStoredOfficialMedia,
+  classifyStoredLegacyMedia,
   localMediaFileExists,
   staticMediaPath,
-  type OfficialMediaState,
-} from "@jovy/lib/jovy/official-catalog-media"
+  type LegacyMediaState,
+} from "@jovy/lib/jovy/legacy-import-media"
 import { JOVY_CATALOGUE_MODULE } from "@jovy/modules/jovy-catalogue"
 import { JOVY_PRODUCT_EDITORIAL_MODULE } from "@jovy/modules/jovy-product-editorial"
 import { saveCatalogueCategoryWorkflow } from "@jovy/workflows/jovy-catalogue/category"
@@ -142,6 +131,7 @@ type ProductRow = {
     id: string
     sku?: string | null
     title?: string | null
+    weight?: number | null
     price_set_id?: string | null
     manage_inventory?: boolean
     allow_backorder?: boolean
@@ -193,26 +183,22 @@ type MediaPlan = {
   urlByHash: Map<string, string>
   localUrlByHash: Map<string, string>
   assetsToUpload: number
-  stateByHash: Map<string, OfficialMediaState>
+  stateByHash: Map<string, LegacyMediaState>
 }
 
 type Preview = {
   mode: "preview" | "apply"
-  source: OfficialCatalogManifest["summary"]
+  source: LegacyCatalogManifest["summary"]
+  productsExisting: number
   productsToCreate: number
-  productsToUpdate: number
   variantsToCreate: number
-  variantsToUpdate: number
-  sourceChangesRequiringApproval: string[]
-  variantConflicts: string[]
   pricesToCreate: number
   inventoryItemsToCreate: number
   inventoryLevelsToCreate: number
   familiesToCreate: number
   mediaToUpload: number
   localMediaMissing: number
-  officialMediaFallbacks: number
-  historicalProductsPreserved: number
+  mediaFallbacks: number
 }
 
 function unique<T>(values: T[]): T[] {
@@ -241,7 +227,7 @@ async function mapLimited<T, R>(
 
 async function resolveInfrastructure(
   container: ExecArgs["container"],
-  catalog: OfficialCatalogManifest,
+  catalog: LegacyCatalogManifest,
   apply: boolean,
 ): Promise<Infrastructure> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY) as QueryGraph
@@ -259,7 +245,7 @@ async function resolveInfrastructure(
   if (!currencies.includes("mxn")) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      "La tienda no incluye MXN. Ejecuta seed:commerce antes del catálogo oficial.",
+      "La tienda no incluye MXN. Ejecuta seed:commerce antes de importar el catálogo histórico.",
     )
   }
 
@@ -409,7 +395,7 @@ async function resolveInfrastructure(
         input: {
           name: family.name,
           slug,
-          description: `Familia oficial ${family.name}.`,
+          description: `Familia importada ${family.name}.`,
           medusa_category_id: categoryId,
           card_preset: (family.slug === "rings" ? "jovy-gummies" : null) as never,
           sort_order: index,
@@ -688,11 +674,11 @@ async function uploadMedia(
 
 async function prepareMedia(
   container: ExecArgs["container"],
-  plans: OfficialProductPlan[],
+  plans: LegacyProductPlan[],
   existingProducts: ProductRow[],
   apply: boolean,
 ): Promise<MediaPlan> {
-  const assetByKey = new Map<string, OfficialProductPlan["media"][number]>()
+  const assetByKey = new Map<string, LegacyProductPlan["media"][number]>()
   for (const plan of plans) {
     for (const asset of plan.media) {
       const used =
@@ -706,16 +692,16 @@ async function prepareMedia(
   const registry = localMediaRegistryFromProducts(existingProducts)
   const urlByHash = new Map<string, string>()
   const localUrlByHash = new Map<string, string>()
-  const stateByHash = new Map<string, OfficialMediaState>()
+  const stateByHash = new Map<string, LegacyMediaState>()
   let assetsToUpload = 0
-  const manifestOnly = process.env.OFFICIAL_SEED_MEDIA_MODE === "manifest"
+  const manifestOnly = process.env.LEGACY_IMPORT_MEDIA_MODE === "manifest"
 
   const inspected = manifestOnly
     ? assets.map((asset) => ({
         asset,
         existing: registry.get(asset.sha256!),
         available: false,
-        state: "official-fallback" as OfficialMediaState,
+        state: "source-fallback" as LegacyMediaState,
       }))
     : await mapLimited(assets, MEDIA_CONCURRENCY, async (asset) => {
         const existing = registry.get(asset.sha256!)
@@ -724,7 +710,7 @@ async function prepareMedia(
           asset,
           existing,
           available,
-          state: classifyStoredOfficialMedia(existing, available),
+          state: classifyStoredLegacyMedia(existing, available),
         }
       })
 
@@ -765,9 +751,9 @@ async function prepareMedia(
     } catch (error) {
       const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
       logger.warn(
-        `[official-seed] no se pudo registrar ${asset.source_path} en File Module; se usa la URL oficial verificada (${error instanceof Error ? error.name : "error"})`,
+        `[legacy-import] no se pudo registrar ${asset.source_path} en File Module; se usa la URL de origen verificada (${error instanceof Error ? error.name : "error"})`,
       )
-      stateByHash.set(asset.sha256, "official-fallback")
+      stateByHash.set(asset.sha256, "source-fallback")
       return null
     }
   })
@@ -784,7 +770,7 @@ async function prepareMedia(
 
 async function prepareInventory(
   container: ExecArgs["container"],
-  plans: OfficialProductPlan[],
+  plans: LegacyProductPlan[],
   stockLocationId: string | null,
   apply: boolean,
 ): Promise<InventoryPlan> {
@@ -815,7 +801,7 @@ async function prepareInventory(
         items: missing.map((variant) => ({
           sku: variant.sku,
           metadata: {
-            jovy_official_source_id: variant.sourceId,
+            jovy_legacy_source_id: variant.sourceId,
             opening_quantity: OPENING_QUANTITY,
           },
           location_levels: [
@@ -881,10 +867,8 @@ async function prepareInventory(
 }
 
 function productMetadata(
-  plan: OfficialProductPlan,
+  plan: LegacyProductPlan,
   media: MediaPlan,
-  products: ProductRow[],
-  existing?: Record<string, unknown> | null,
 ): Record<string, unknown> {
   const registry: Record<string, string> = {}
   for (const asset of plan.media) {
@@ -897,16 +881,10 @@ function productMetadata(
     [...media.localUrlByHash].filter(([hash]) => Boolean(registry[hash])),
   )
 
-  return mergeOfficialProductMetadata(
-    plan,
-    registry,
-    existing,
-    inheritRingsVisualMetadata(plan, products),
-    localRegistry,
-  )
+  return buildLegacyProductMetadata(plan, registry, localRegistry)
 }
 
-function planMediaUrls(plan: OfficialProductPlan, media: MediaPlan): string[] {
+function planMediaUrls(plan: LegacyProductPlan, media: MediaPlan): string[] {
   return unique(
     plan.media
       .filter(
@@ -948,6 +926,7 @@ async function loadProducts(container: ExecArgs["container"]): Promise<ProductRo
         "variants.id",
         "variants.sku",
         "variants.title",
+        "variants.weight",
         "variants.manage_inventory",
         "variants.allow_backorder",
         "variants.metadata",
@@ -977,13 +956,13 @@ async function loadProducts(container: ExecArgs["container"]): Promise<ProductRo
 }
 
 /**
- * Mantiene la identidad creada aunque cambie el nombre oficial. Las nuevas
- * presentaciones se resuelven por SKU estable antes de crear otro producto.
+ * Mantiene la identidad creada aunque cambie el nombre en el manifiesto. Las
+ * nuevas presentaciones se resuelven por SKU estable antes de crear otro producto.
  */
-function resolveOfficialProductIdentities(
-  plans: OfficialProductPlan[],
+function resolveLegacyProductIdentities(
+  plans: LegacyProductPlan[],
   products: ProductRow[],
-): OfficialProductPlan[] {
+): LegacyProductPlan[] {
   const byExternalId = new Map(
     products
       .filter((product) => product.external_id)
@@ -1010,16 +989,17 @@ function resolveOfficialProductIdentities(
     if (!existing.external_id || !existing.handle) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `El producto con SKU oficial carece de identidad estable: ${existing.id}`,
+        `El producto migrado con SKU del manifiesto carece de identidad estable: ${existing.id}`,
       )
     }
     if (
       !String(existing.external_id).startsWith("jovy-mx:") &&
-      existing.metadata?.jovy_official_managed !== true
+      existing.metadata?.jovy_legacy_managed !== true &&
+      existing.metadata?.jovy_legacy_managed !== true
     ) {
       throw new MedusaError(
         MedusaError.Types.CONFLICT,
-        `Un producto histórico ocupa un SKU oficial: ${existing.handle}`,
+        `Un producto histórico ocupa un SKU del manifiesto: ${existing.handle}`,
       )
     }
     return {
@@ -1035,7 +1015,7 @@ function resolveOfficialProductIdentities(
     if (externalIds.has(plan.externalId) || handles.has(plan.handle)) {
       throw new MedusaError(
         MedusaError.Types.CONFLICT,
-        `Identidad oficial duplicada tras resolver: ${plan.externalId}`,
+        `Identidad de importación duplicada tras resolver: ${plan.externalId}`,
       )
     }
     externalIds.add(plan.externalId)
@@ -1044,189 +1024,41 @@ function resolveOfficialProductIdentities(
   return resolved
 }
 
-async function reconcileOfficialProducts(
-  container: ExecArgs["container"],
-  plans: OfficialProductPlan[],
-  products: ProductRow[],
-  media: MediaPlan,
-): Promise<number> {
-  const byExternalId = new Map(
-    products
-      .filter((product) => product.external_id)
-      .map((product) => [String(product.external_id), product]),
-  )
-  const updates: Array<Record<string, unknown>> = []
-
-  for (const plan of plans) {
-    const product = byExternalId.get(plan.externalId)
-    if (!product) continue
-
-    const metadata = productMetadata(plan, media, products, product.metadata)
-    if (isDeepStrictEqual(metadata, product.metadata ?? {})) {
-      continue
-    }
-
-    // Los campos del producto existente requieren aprobación explícita.
-    updates.push({ id: product.id, metadata })
-  }
-
-  if (updates.length) {
-    await updateProductsWorkflow(container).run({
-      input: { products: updates as never },
-    })
-  }
-  return updates.length
-}
-
-async function reconcileOfficialProductLinks(
-  container: ExecArgs["container"],
-  plans: OfficialProductPlan[],
-  products: ProductRow[],
-  infrastructure: Infrastructure,
-): Promise<number> {
-  const byExternalId = new Map(
-    products
-      .filter((product) => product.external_id)
-      .map((product) => [String(product.external_id), product]),
-  )
-  const links: Array<Record<string, Record<string, string>>> = []
-
-  for (const plan of plans) {
-    const product = byExternalId.get(plan.externalId)
-    if (!product) continue
-
-    if (
-      !(product.sales_channels ?? []).some(
-        (channel) => channel?.id === infrastructure.salesChannelId,
-      )
-    ) {
-      links.push({
-        [Modules.PRODUCT]: { product_id: product.id },
-        [Modules.SALES_CHANNEL]: {
-          sales_channel_id: infrastructure.salesChannelId,
-        },
-      })
-    }
-
-    if (!product.shipping_profile?.id) {
-      links.push({
-        [Modules.PRODUCT]: { product_id: product.id },
-        [Modules.FULFILLMENT]: {
-          shipping_profile_id: infrastructure.shippingProfileId,
-        },
-      })
-    }
-  }
-
-  if (links.length) {
-    await createLinksWorkflow(container).run({ input: links })
-  }
-  return links.length
-}
-
 function buildPreview(
-  plans: OfficialProductPlan[],
+  plans: LegacyProductPlan[],
   products: ProductRow[],
   inventory: InventoryPlan,
   media: MediaPlan,
   familiesCreated: number,
 ): Preview {
-  const byExternalId = new Map(
-    products
-      .filter((product) => product.external_id)
-      .map((product) => [String(product.external_id), product]),
+  const existingIds = new Set(
+    products.map((product) => String(product.external_id ?? "")).filter(Boolean),
   )
-  let productsToCreate = 0
-  let productsToUpdate = 0
-  let variantsToCreate = 0
-  const sourceChangesRequiringApproval: string[] = []
-  const variantConflicts: string[] = []
-  let pricesToCreate = 0
-
-  for (const plan of plans) {
-    const product = byExternalId.get(plan.externalId)
-    if (!product) {
-      productsToCreate += 1
-      variantsToCreate += plan.variants.length
-      pricesToCreate += plan.variants.length
-      continue
-    }
-
-    const sourceUpdatedAt = product.metadata?.jovy_official_updated_at
-    const expectedMetadata = productMetadata(
-      plan,
-      media,
-      products,
-      product.metadata,
-    )
-    if (sourceUpdatedAt !== plan.sourceUpdatedAt) {
-      sourceChangesRequiringApproval.push(plan.externalId)
-    }
-    if (!isDeepStrictEqual(expectedMetadata, product.metadata ?? {})) {
-      productsToUpdate += 1
-    }
-
-    const variantsBySku = new Map(
-      (product.variants ?? [])
-        .filter((variant) => variant.sku)
-        .map((variant) => [String(variant.sku), variant]),
-    )
-    for (const variant of plan.variants) {
-      const existing = variantsBySku.get(variant.sku)
-      if (!existing) {
-        variantsToCreate += 1
-        pricesToCreate += 1
-        continue
-      }
-
-      if (
-        existing.manage_inventory !== true ||
-        existing.allow_backorder !== false ||
-        Number(existing.metadata?.jovy_official_grams) !== variant.grams
-      ) {
-        variantConflicts.push(variant.sku)
-      }
-
-      if (
-        !(existing.prices ?? []).some(
-          (price) => price.currency_code?.toLowerCase() === "mxn",
-        )
-      ) {
-        pricesToCreate += 1
-      }
-    }
-  }
-
-  const officialIds = new Set(plans.map((plan) => plan.externalId))
+  const missing = plans.filter((plan) => !existingIds.has(plan.externalId))
+  const variantsToCreate = missing.reduce(
+    (total, plan) => total + plan.variants.length,
+    0,
+  )
   const mediaStates = [...media.stateByHash.values()]
 
   return {
     mode: "preview",
-    source: officialCatalogSchema.parse(manifest).summary,
-    productsToCreate,
-    productsToUpdate,
+    source: legacyCatalogSchema.parse(manifest).summary,
+    productsExisting: plans.length - missing.length,
+    productsToCreate: missing.length,
     variantsToCreate,
-    variantsToUpdate: 0,
-    sourceChangesRequiringApproval,
-    variantConflicts,
-    pricesToCreate,
+    pricesToCreate: variantsToCreate,
     inventoryItemsToCreate: inventory.itemsToCreate,
     inventoryLevelsToCreate: inventory.levelsToCreate,
     familiesToCreate: familiesCreated,
     mediaToUpload: media.assetsToUpload,
     localMediaMissing: mediaStates.filter((state) => state === "local-missing").length,
-    officialMediaFallbacks: mediaStates.filter(
-      (state) => state === "official-fallback",
-    ).length,
-    historicalProductsPreserved: products.filter(
-      (product) => !officialIds.has(String(product.external_id ?? "")),
-    ).length,
+    mediaFallbacks: mediaStates.filter((state) => state === "source-fallback").length,
   }
 }
-
 async function createMissingProducts(
   container: ExecArgs["container"],
-  plans: OfficialProductPlan[],
+  plans: LegacyProductPlan[],
   products: ProductRow[],
   infrastructure: Infrastructure,
   inventory: InventoryPlan,
@@ -1272,6 +1104,7 @@ async function createMissingProducts(
         variants: plan.variants.map((variant) => ({
           title: variant.title,
           sku: variant.sku,
+          weight: variant.grams,
           options: { Presentación: variant.title },
           prices: [{ amount: variant.priceMxn, currency_code: "mxn" }],
           manage_inventory: true,
@@ -1285,12 +1118,12 @@ async function createMissingProducts(
               ]
             : [],
           metadata: {
-            jovy_official_managed: true,
-            jovy_official_source_id: variant.sourceId,
-            jovy_official_grams: variant.grams,
+            jovy_legacy_managed: true,
+            jovy_legacy_source_id: variant.sourceId,
+            jovy_legacy_grams: variant.grams,
           },
         })),
-        metadata: productMetadata(plan, media, products),
+        metadata: productMetadata(plan, media),
       }
     })
 
@@ -1305,300 +1138,12 @@ async function createMissingProducts(
     }
   }
 
-  for (const plan of plans) {
-    const existing = byExternalId.get(plan.externalId)
-    if (existing) productIdByExternalId.set(plan.externalId, existing.id)
-  }
-
   return productIdByExternalId
-}
-
-async function reconcileVariants(
-  container: ExecArgs["container"],
-  plans: OfficialProductPlan[],
-  products: ProductRow[],
-  inventory: InventoryPlan,
-): Promise<{ created: number; priced: number }> {
-  const byExternalId = new Map(
-    products
-      .filter((product) => product.external_id)
-      .map((product) => [String(product.external_id), product]),
-  )
-  let created = 0
-  let priced = 0
-
-  for (const plan of plans) {
-    const product = byExternalId.get(plan.externalId)
-    if (!product) continue
-
-    const variantsBySku = new Map(
-      (product.variants ?? [])
-        .filter((variant) => variant.sku)
-        .map((variant) => [String(variant.sku), variant]),
-    )
-    const missing = plan.variants.filter(
-      (variant) => !variantsBySku.has(variant.sku),
-    )
-    const option = product.options?.find((item) => item.title === "Presentación")
-    if (!option) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        `El producto ${product.handle} no tiene opción de presentación`,
-      )
-    }
-    const optionValues = new Set(
-      (option.values ?? []).map((value) => value.value),
-    )
-    const valuesToAdd = missing
-      .map((variant) => variant.title)
-      .filter((title) => !optionValues.has(title))
-    if (valuesToAdd.length) {
-      await setProductProductOptionsWorkflow(container).run({
-        input: {
-          product_id: product.id,
-          update: [
-            {
-              product_option_id: option.id,
-              add: valuesToAdd.map((value) => ({ value })),
-            },
-          ],
-        },
-      })
-    }
-
-    if (missing.length) {
-      const { result } = (await createProductVariantsWorkflow(container).run({
-        input: {
-          product_variants: missing.map((variant) => ({
-            product_id: product.id,
-            title: variant.title,
-            sku: variant.sku,
-            options: { Presentación: variant.title },
-            prices: [{ amount: variant.priceMxn, currency_code: "mxn" }],
-            manage_inventory: true,
-            allow_backorder: false,
-            inventory_items: inventory.itemIdBySku.has(variant.sku)
-              ? [
-                  {
-                    inventory_item_id: inventory.itemIdBySku.get(variant.sku)!,
-                    required_quantity: 1,
-                  },
-                ]
-              : [],
-            metadata: {
-              jovy_official_managed: true,
-              jovy_official_source_id: variant.sourceId,
-              jovy_official_grams: variant.grams,
-            },
-          })),
-        },
-      })) as unknown as { result: Array<{ id: string; sku: string }> }
-
-      for (const variant of result) {
-        variantsBySku.set(variant.sku, {
-          id: variant.id,
-          sku: variant.sku,
-          title: variant.sku
-            ? plan.variants.find((item) => item.sku === variant.sku)?.title
-            : undefined,
-          manage_inventory: true,
-          allow_backorder: false,
-          metadata: { jovy_official_grams: plan.variants.find((item) => item.sku === variant.sku)?.grams },
-          inventory_items: inventory.itemIdBySku.has(variant.sku)
-            ? [{ inventory_item_id: inventory.itemIdBySku.get(variant.sku)! }]
-            : [],
-          prices: [{ currency_code: "mxn" }],
-        })
-      }
-      created += result.length
-      priced += result.length
-    }
-
-    const unpricedExisting: Array<{
-      variant_id: string
-      product_id: string
-      prices: Array<{
-        id?: string
-        amount: number
-        currency_code: string
-      }>
-    }> = []
-    const unpricedNewSet: typeof unpricedExisting = []
-
-    for (const variant of plan.variants) {
-      const existing = variantsBySku.get(variant.sku)
-      if (!existing) continue
-
-      const plannedInventoryItemId = inventory.itemIdBySku.get(variant.sku)
-      if (plannedInventoryItemId) {
-        const linkedInventoryItemIds = (existing.inventory_items ?? [])
-          .map((item) => item.inventory_item_id)
-          .filter((id): id is string => Boolean(id))
-        if (
-          linkedInventoryItemIds.some(
-            (id) => id !== plannedInventoryItemId,
-          )
-        ) {
-          throw new MedusaError(
-            MedusaError.Types.CONFLICT,
-            `La variante ${variant.sku} apunta a otro inventory item`,
-          )
-        }
-        if (!linkedInventoryItemIds.includes(plannedInventoryItemId)) {
-          await createLinksWorkflow(container).run({
-            input: [
-              {
-                [Modules.PRODUCT]: { variant_id: existing.id },
-                [Modules.INVENTORY]: {
-                  inventory_item_id: plannedInventoryItemId,
-                },
-                data: { required_quantity: 1 },
-              },
-            ],
-          })
-        }
-      }
-
-      if (
-        !(existing.prices ?? []).some(
-          (price) => price.currency_code?.toLowerCase() === "mxn",
-        )
-      ) {
-        const preservedPrices = (existing.prices ?? [])
-          .filter(
-            (price) =>
-              price.id &&
-              price.currency_code &&
-              price.currency_code.toLowerCase() !== "mxn" &&
-              typeof price.amount === "number",
-          )
-          .map((price) => ({
-            id: price.id!,
-            amount: price.amount!,
-            currency_code: price.currency_code!,
-          }))
-        const target = existing.price_set_id ? unpricedExisting : unpricedNewSet
-        target.push({
-          variant_id: existing.id,
-          product_id: product.id,
-          prices: [
-            ...preservedPrices,
-            { amount: variant.priceMxn, currency_code: "mxn" },
-          ],
-        })
-      }
-    }
-
-    if (unpricedExisting.length) {
-      await upsertVariantPricesWorkflow(container).run({
-        input: {
-          variantPrices: unpricedExisting,
-          previousVariantIds: unpricedExisting.map((item) => item.variant_id),
-        },
-      })
-      priced += unpricedExisting.length
-    }
-
-    if (unpricedNewSet.length) {
-      await upsertVariantPricesWorkflow(container).run({
-        input: { variantPrices: unpricedNewSet, previousVariantIds: [] },
-      })
-      priced += unpricedNewSet.length
-    }
-  }
-
-  return { created, priced }
-}
-
-async function markOfficialCatalogComplete(
-  container: ExecArgs["container"],
-  plans: OfficialProductPlan[],
-  products: ProductRow[],
-  manifestSha256: string,
-): Promise<void> {
-  const integrity = inspectOfficialCatalogIntegrity(plans, products)
-  if (integrity.issues.length) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      `No se puede marcar catálogo completo: ${integrity.issues.join("; ")}`,
-    )
-  }
-  const byExternalId = new Map(
-    products
-      .filter((product) => product.external_id)
-      .map((product) => [String(product.external_id), product]),
-  )
-  const updates = plans.flatMap((plan) => {
-    const product = byExternalId.get(plan.externalId)
-    if (!product) return []
-    if (
-      product.metadata?.jovy_official_catalog_complete === true &&
-      product.metadata?.jovy_official_catalog_size === plans.length &&
-      product.metadata?.jovy_official_catalog_manifest_sha256 === manifestSha256 &&
-      product.metadata?.jovy_official_catalog_integrity_sha256 === integrity.hash
-    ) {
-      return []
-    }
-    return [
-      {
-        id: product.id,
-        metadata: {
-          ...(product.metadata ?? {}),
-          jovy_official_catalog_complete: true,
-          jovy_official_catalog_size: plans.length,
-          jovy_official_catalog_manifest_sha256: manifestSha256,
-          jovy_official_catalog_integrity_sha256: integrity.hash,
-        },
-      },
-    ]
-  })
-
-  if (updates.length) {
-    await updateProductsWorkflow(container).run({
-      input: { products: updates },
-    })
-  }
-}
-
-/**
- * Un marcador de un manifiesto anterior nunca debe sobrevivir a una importación
- * fallida. Se invalida antes de la primera escritura funcional del nuevo run.
- */
-async function invalidateOfficialCatalogCompletion(
-  container: ExecArgs["container"],
-  plans: OfficialProductPlan[],
-  products: ProductRow[],
-  manifestSha256: string,
-): Promise<void> {
-  if (isOfficialCatalogCompletionCurrent(plans, products, manifestSha256)) return
-
-  const officialIds = new Set(plans.map((plan) => plan.externalId))
-  const updates = products
-    .filter((product) => officialIds.has(String(product.external_id ?? "")))
-    .filter(
-      (product) =>
-        product.metadata?.jovy_official_catalog_complete === true ||
-        product.metadata?.jovy_official_catalog_manifest_sha256 !== undefined ||
-        product.metadata?.jovy_official_catalog_integrity_sha256 !== undefined,
-    )
-    .map((product) => ({
-      id: product.id,
-      metadata: {
-        ...(product.metadata ?? {}),
-        jovy_official_catalog_complete: false,
-        jovy_official_catalog_size: null,
-        jovy_official_catalog_manifest_sha256: null,
-        jovy_official_catalog_integrity_sha256: null,
-      },
-    }))
-  if (updates.length) {
-    await updateProductsWorkflow(container).run({ input: { products: updates } })
-  }
 }
 
 async function linkFamiliesAndEditorials(
   container: ExecArgs["container"],
-  plans: OfficialProductPlan[],
+  plans: LegacyProductPlan[],
   products: ProductRow[],
   infrastructure: Infrastructure,
 ): Promise<{ links: number; editorials: number }> {
@@ -1663,56 +1208,51 @@ async function linkFamiliesAndEditorials(
 }
 
 /**
- * Seed oficial del catálogo mexicano.
+ * Importador manual del catálogo histórico de JovyCandy.
  *
  *   Preview (sin escrituras):
- *   $env:OFFICIAL_SEED_MODE="preview"
- *   pnpm --dir apps/backend exec medusa exec ./src/scripts/seed-official-catalog.ts
+ *   $env:LEGACY_IMPORT_MODE="preview"
+ *   pnpm --dir apps/backend run import:legacy
  *
  *   Aplicación explícita:
- *   $env:OFFICIAL_SEED_MODE="apply"
- *   pnpm --dir apps/backend exec medusa exec ./src/scripts/seed-official-catalog.ts
+ *   $env:LEGACY_IMPORT_MODE="apply"
+ *   pnpm --dir apps/backend run import:legacy
  *
- * No borra productos históricos, no repone inventario consumido y no sobrescribe
- * precios existentes. Las 50 unidades se crean únicamente con el nivel inicial.
+ * Sólo crea productos ausentes. No actualiza productos existentes, no repone
+ * inventario consumido, no recalcula precios y no se ejecuta al iniciar Medusa.
  */
-export default async function seedOfficialCatalog({ container, args }: ExecArgs) {
+export default async function importLegacyProducts({ container, args }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-  const catalog = officialCatalogSchema.parse(manifest)
-  validateOfficialCatalog(catalog)
-  const sourcePlans = buildOfficialProductPlans(catalog)
-  const manifestSha256 = officialCatalogManifestFingerprint(catalog)
-  const apply =
-    process.env.OFFICIAL_SEED_MODE === "apply" ||
-    Boolean(args?.includes("--apply"))
+  const catalog = legacyCatalogSchema.parse(manifest)
+  validateLegacyCatalog(catalog)
+  const sourcePlans = buildLegacyProductPlans(catalog)
+  const mode = process.env.LEGACY_IMPORT_MODE
+  const apply = mode === "apply" || Boolean(args?.includes("--apply"))
 
   const run = async () => {
     const locking = container.resolve(Modules.LOCKING) as LockingService
     const products = await loadProducts(container)
-    const conflict = findOfficialIdentityConflict(sourcePlans, products)
+    const conflict = findLegacyIdentityConflict(sourcePlans, products)
     if (conflict) {
       throw new MedusaError(MedusaError.Types.CONFLICT, conflict)
     }
-    const plans = resolveOfficialProductIdentities(sourcePlans, products)
-    if (apply) {
-      await invalidateOfficialCatalogCompletion(
-        container,
-        plans,
-        products,
-        manifestSha256,
-      )
-    }
+    const plans = resolveLegacyProductIdentities(sourcePlans, products)
+    const existingIds = new Set(
+      products.map((product) => String(product.external_id ?? "")).filter(Boolean),
+    )
+    const missingPlans = plans.filter((plan) => !existingIds.has(plan.externalId))
+
     const infrastructure = apply
       ? await locking.execute(
-          "jovy:seed:commerce-infrastructure",
+          "jovy:legacy-import:commerce-infrastructure",
           () => resolveInfrastructure(container, catalog, apply),
           { timeout: 300, expire: 600 },
         )
       : await resolveInfrastructure(container, catalog, apply)
-    const media = await prepareMedia(container, plans, products, apply)
+    const media = await prepareMedia(container, missingPlans, products, apply)
     const inventory = await prepareInventory(
       container,
-      plans,
+      missingPlans,
       infrastructure.stockLocationId,
       apply,
     )
@@ -1725,79 +1265,51 @@ export default async function seedOfficialCatalog({ container, args }: ExecArgs)
     )
 
     if (!apply) {
-      logger.info(`[official-seed] preview\n${JSON.stringify(preview, null, 2)}`)
+      logger.info(`[legacy-import] preview\n${JSON.stringify(preview, null, 2)}`)
       return
     }
 
-    const productIdByExternalId = await createMissingProducts(
+    const created = await createMissingProducts(
       container,
-      plans,
+      missingPlans,
       products,
       infrastructure,
       inventory,
       media,
     )
     const refreshedProducts = await loadProducts(container)
-    const variants = await reconcileVariants(
-      container,
-      plans,
-      refreshedProducts,
-      inventory,
-    )
-    const productUpdates = await reconcileOfficialProducts(
-      container,
-      plans,
-      refreshedProducts,
-      media,
-    )
-    const productLinks = await reconcileOfficialProductLinks(
-      container,
-      plans,
-      refreshedProducts,
-      infrastructure,
-    )
     const relationships = await linkFamiliesAndEditorials(
       container,
-      plans,
+      missingPlans,
       refreshedProducts,
       infrastructure,
     )
-    await markOfficialCatalogComplete(
-      container,
-      plans,
-      await loadProducts(container),
-      manifestSha256,
-    )
 
+    const createdIds = [...created.values()].map((id) => ({ id }))
     const search = container.resolve(Modules.SEARCH) as {
       ingest: (input: unknown) => Promise<unknown>
     }
-    const officialIds = plans
-      .map((plan) => productIdByExternalId.get(plan.externalId))
-      .filter((id): id is string => Boolean(id))
-      .map((id) => ({ id }))
-
     try {
-      for (let start = 0; start < officialIds.length; start += 25) {
+      for (let start = 0; start < createdIds.length; start += 25) {
         await search.ingest({
           name: "product.created",
-          data: officialIds.slice(start, start + 25),
+          data: createdIds.slice(start, start + 25),
         } as never)
       }
     } catch (error) {
       logger.warn(
-        `[official-seed] catálogo persistido; Search quedó pendiente de reindexar (${error instanceof Error ? error.name : "error"})`,
+        `[legacy-import] catálogo creado; Search quedó pendiente de reindexar (${error instanceof Error ? error.name : "error"})`,
       )
     }
 
     logger.info(
-      `[official-seed] listo: ${plans.length} productos, ${plans.flatMap((plan) => plan.variants).length} variantes, ${variants.created} variantes nuevas, ${variants.priced} precios creados, ${productUpdates} productos actualizados, ${relationships.editorials} fichas nuevas, ${inventory.itemsToCreate} inventory items, ${inventory.levelsToCreate} niveles nuevos.`,
+      `[legacy-import] listo: ${missingPlans.length} productos creados, ${missingPlans.flatMap((plan) => plan.variants).length} variantes, ${relationships.editorials} fichas nuevas, ${inventory.itemsToCreate} inventory items, ${inventory.levelsToCreate} niveles nuevos.`,
     )
   }
 
   if (apply) {
     const locking = container.resolve(Modules.LOCKING) as LockingService
-    await locking.execute("jovy:seed:official-catalog", run, {
+    await locking.execute("jovy:legacy-import", run, {
       timeout: 900,
       expire: 1800,
     })

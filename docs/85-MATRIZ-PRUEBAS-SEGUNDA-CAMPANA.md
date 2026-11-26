@@ -4,6 +4,10 @@
 **Entorno:** Windows local, Node 24.16.0, pnpm 11.17.0, PostgreSQL local.
 **Base de integración:** bases descartables creadas por `@medusajs/test-utils`.
 
+> **Documento histórico.** Describe la campaña anterior al retiro del subsistema
+> «catálogo oficial». La arquitectura vigente es Medusa como fuente única de
+> verdad y la migración manual descrita en `docs/90-MIGRACION-CATALOGO-LEGACY.md`.
+
 ## Escenarios obligatorios
 
 | Escenario | Resultado | Evidencia |
@@ -32,7 +36,7 @@
 | Admin E2E | NO EJECUTADO | No se ejecutó la suite Playwright del Admin |
 | Runtime inseguro | PASS | Preflight rechaza CORS HTTP, loopback, secretos débiles |
 | Gitleaks | PASS en árbol | Falso positivo corregido; CI pendiente de re-ejecutar |
-| Seed oficial idempotente y concurrente | PASS | `official-catalog-seed.spec.ts`, PostgreSQL descartable |
+| Importaci?n hist?rica idempotente y concurrente | PASS | `legacy-import.spec.ts`, PostgreSQL descartable |
 | Apertura de inventario 50 | PASS | 61 niveles iniciales; segundo seed no repone |
 | Precio/familia/título manual | PASS | Preservados en rerun |
 | Nueva presentación y renombre oficial | PASS | Opción enlazada; identidad/handle reutilizados |
@@ -57,7 +61,7 @@ pnpm --filter storefront build
 | Integración de módulos | 47/47 PASS, 7 suites |
 | Integración HTTP | 104/104 PASS, 14 suites |
 | Suite nueva de comercio | 9/9 PASS |
-| Seed oficial nuevo | 2/2 PASS |
+| Importaci?n hist?rica nuevo | 2/2 PASS |
 | Storefront E2E catálogo/visual | 30/30 PASS |
 | Typecheck backend | PASS |
 | Typecheck storefront | PASS |

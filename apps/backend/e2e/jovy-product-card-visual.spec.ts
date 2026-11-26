@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 
 import { signIn } from "./jovy-block2-helpers"
 
-const HANDLE = "jovy-aros-manzana-verde"
+const HANDLE = "jovy-mx-rings-rings-manzana"
 const TINY_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",

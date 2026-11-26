@@ -4,7 +4,7 @@
 
 ## Identidad
 
-Se conserva el sistema del catálogo oficial:
+Se conserva el sistema visual del catálogo:
 
 - azul Jovy, aqua, coral y rosa;
 - tipografía sans condensada;

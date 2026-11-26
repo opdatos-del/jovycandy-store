@@ -1,12 +1,12 @@
 # Catálogo y compra JovyCandy
 
-**Estado:** IMPLEMENTADO · catálogo oficial mexicano, precios sintéticos de laboratorio, carrito, checkout de laboratorio y cuentas B2C.
+**Estado:** IMPLEMENTADO · catálogo Medusa, precios de laboratorio, carrito, checkout de laboratorio y cuentas B2C.
 **Rutas:** `/{locale}/catalogo`, `/{locale}/productos/[handle]`, `/{locale}/carrito`, `/{locale}/checkout`, `/{locale}/checkout/confirmacion`, `/{locale}/cuenta`.  
 **Alcance:** laboratorio local; sin cobros reales, envíos productivos ni despliegue.
 
 ## 1. Experiencia
 
-El catálogo oficial usa una composición de alta densidad:
+El catálogo usa una composición de alta densidad:
 
 - cabecera compacta con breadcrumb, título y descripción;
 - catálogo a ancho completo con filtros laterales persistentes;
@@ -46,7 +46,7 @@ pnpm --dir apps/storefront test:e2e
 ```
 
 Los E2E levantan backend y storefront si no están activos. Requieren
-`seed:commerce` y `seed:official` aplicados previamente sobre la base local de
+`seed:commerce` y `import:legacy` aplicados previamente sobre la base local de
 laboratorio; no reinician ni borran esa base.
 
 ## 4. Implementación
@@ -80,21 +80,22 @@ El storefront combina editorial + Medusa en servidor y nunca confía en precios 
 
 ```powershell
 pnpm --dir apps/backend seed:commerce   # región MX, MXN, envío y pago de laboratorio
-$env:OFFICIAL_SEED_MODE="preview"
-pnpm --dir apps/backend seed:official   # 35 productos / 61 variantes verificadas
-$env:OFFICIAL_SEED_MODE="apply"
-pnpm --dir apps/backend seed:official
+$env:LEGACY_IMPORT_MODE="preview"
+pnpm --dir apps/backend run import:legacy   # 35 productos / 61 variantes verificadas
+$env:LEGACY_IMPORT_MODE="apply"
+pnpm --dir apps/backend run import:legacy
 ```
 
-`seed:catalog` queda como semilla histórica. El catálogo público prioriza los
-productos oficiales `jovy-mx-*` cuando existen; no borra los históricos y sus
-fichas directas siguen disponibles. Detalle y runbook: `docs/90-CATALOGO-OFICIAL-MEXICO.md`.
+`seed:catalog` queda como semilla histórica de laboratorio. El catálogo público
+muestra todos los productos publicados del canal de Medusa, sin distinguir si
+fueron importados o creados desde Admin. Detalle y runbook:
+`docs/90-MIGRACION-CATALOGO-LEGACY.md`.
 
 ## 7. Funcionalidad
 
 - búsqueda, filtros, conteos y ordenamiento;
 - precios MXN calculados por Medusa;
-- presentaciones oficiales en gramos con precio por presentación y filtros multivariante;
+- presentaciones en gramos con precio por presentación y filtros multivariante;
 - galería con miniaturas, ampliación y recuperación de packshots locales;
 - hover configurable desde `product.metadata` de Medusa: zoom, swap, capa de gomitas o sin animación (`docs/74-PRODUCT-CARD-VISUAL-MANAGER.md`);
 - selector de variante y cantidad con precio;

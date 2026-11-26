@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "product_handle": "jovy-mx-rings-rings-manzana",
+  "preset": "jovy-gummies",
+  "background": "#EAF7E8",
+  "description": "Paquete visual de JovyCandy Rings para tarjetas Medusa: bolsa original, composición completa y capa de gomitas alineada al mismo lienzo.",
+  "assets": [
+    {
+      "role": "base",
+      "file": "jovy-rings-01-bolsa-original.webp",
+      "sha256": "410e81accc25d97c158d2e3b96f07fe3b8f7a4be3592ec98aa9f642ec98a2e29",
+      "bytes": 136916,
+      "width": 1600,
+      "height": 1600,
+      "provenance": "Fotografía de la bolsa original conservada sin regenerar logotipos ni textos."
+    },
+    {
+      "role": "full",
+      "file": "jovy-rings-02-hover-completo.webp",
+      "sha256": "8ee591112505058d66ef8ad2fcd7981d92dfbd514c08431f429cecae43eff060",
+      "bytes": 366372,
+      "width": 1600,
+      "height": 1600,
+      "provenance": "Composición completa bolsa + gomitas sobre el mismo lienzo que la imagen base."
+    },
+    {
+      "role": "overlay",
+      "file": "jovy-rings-03-gomitas-explosion.webp",
+      "sha256": "c7134971d00a984c46bdbb119ccb860bdf28f8e7fdbedfbed64a661329fb19d8",
+      "bytes": 234758,
+      "width": 1600,
+      "height": 1600,
+      "provenance": "Capa de gomitas derivada de la referencia del producto, alineada al lienzo de 1600 × 1600."
+    },
+    {
+      "role": "gummy",
+      "file": "jovy-rings-04-gomita-individual.webp",
+      "sha256": "89bec06de9e81f1c130d0c53e9f8ec9e503a9cb824c8ef90db633ebf38195d88",
+      "bytes": 99934,
+      "width": 640,
+      "height": 640,
+      "provenance": "Ilustración individual generada a partir de la referencia del producto; recurso opcional."
+    }
+  ]
+}

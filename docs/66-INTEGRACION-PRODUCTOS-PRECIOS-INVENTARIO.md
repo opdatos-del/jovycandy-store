@@ -1,8 +1,9 @@
 # Productos, precios e inventario
 
 **Estado:** IMPLEMENTADO Y VALIDADO EN LABORATORIO LOCAL.
-**Fuente comercial:** catálogo oficial mexicano versionado en
-`apps/backend/src/data/catalog/official-mx.json`.
+**Fuente comercial:** productos publicados en Medusa. El manifiesto histórico
+vive en `apps/backend/src/scripts/migrations/jovycandy-legacy/manifest.json`
+solo para reproducir la migración inicial.
 
 ## Fuente
 
@@ -17,10 +18,10 @@
 `src/lib/medusa/store.ts` proyecta:
 
 - `id`, `external_id`, `handle`, título, descripción y miniatura;
-- imágenes y especificaciones oficiales;
-- variantes con id, SKU, gramaje, precio calculado y moneda;
+- imágenes y especificaciones (`jovy_specs` o referencia histórica de solo lectura);
+- variantes con id, SKU, `weight` de Medusa, precio calculado y moneda;
 - `manage_inventory`, `allow_backorder` e `inventory_quantity`;
-- metadata visual y propiedad `jovy_official_managed`.
+- metadata visual de tarjetas.
 
 El catálogo usa el precio mínimo y lo marca como “Desde” cuando hay varias
 presentaciones con precio. La ficha usa el precio de la variante seleccionada.
@@ -37,27 +38,28 @@ presentaciones con precio. La ficha usa el precio de la variante seleccionada.
   no disponible; si el CMS falla, muestra error y reintento.
 - El cliente nunca envía precio, moneda ni total.
 
-## Seed oficial
+## Importaci?n hist?rica
 
 ```powershell
-$env:OFFICIAL_SEED_MODE="preview"
-pnpm --dir apps/backend seed:official
+$env:LEGACY_IMPORT_MODE="preview"
+pnpm --dir apps/backend run import:legacy
 
-$env:OFFICIAL_SEED_MODE="apply"
-pnpm --dir apps/backend seed:official
+$env:LEGACY_IMPORT_MODE="apply"
+pnpm --dir apps/backend run import:legacy
 ```
 
-Crea 35 productos y 61 variantes oficiales. Es aditivo, serializado con el
-Locking Module y resuelve identidades por SKU antes de crear. No borra
-históricos, no repone stock y no sobrescribe precios MXN existentes. Si falta
-MXN en un price set existente, lo añade conservando otras monedas.
+Crea hasta 35 productos y 61 variantes en una instalación limpia. Es aditivo,
+serializado con el Locking Module y resuelve identidades por SKU antes de crear.
+Solo crea productos ausentes: no actualiza productos existentes, no repone stock
+y no recalcula precios. Un producto editado en Admin conserva sus cambios.
 
-Los precios son sintéticos de laboratorio: tarifa por 100 g, descuento por
-volumen, redondeo a $5 y mínimo de $15. No son precios autorizados para venta.
+Los precios sintéticos del manifiesto son datos exclusivos de laboratorio:
+tarifa por 100 g, descuento por volumen, redondeo a $5 y mínimo de $15. No son
+precios autorizados para venta y no se aplican a productos ya existentes.
 
 ## Inventario de laboratorio
 
-- Apertura inicial: 50 unidades por variante oficial.
+- Apertura inicial: 50 unidades por variante importada en una base limpia.
 - `manage_inventory=true`, `allow_backorder=false`.
 - Ubicación, canal, proveedor manual, fulfillment set y zona México enlazados.
 - Reservas y carrito usan workflows nativos con locking PostgreSQL/Redis.
@@ -66,11 +68,11 @@ volumen, redondeo a $5 y mínimo de $15. No son precios autorizados para venta.
 
 ## Search
 
-El índice incluye `mxn`, `eur` y `usd`. El seed espera la ingesta de los
-productos oficiales; si Search falla, deja el catálogo persistido y registra que
+El índice incluye `mxn`, `eur` y `usd`. La importación solicita la ingesta de los
+productos creados; si Search falla, deja el catálogo persistido y registra que
 falta reindexar. Ver `docs/77-SEARCH-MXN-Y-SINCRONIZACION.md`.
 
 ## Runbook y límites
 
-Ver `docs/90-CATALOGO-OFICIAL-MEXICO.md`. Pagos, envío, precios y stock siguen
+Ver `docs/90-MIGRACION-CATALOGO-LEGACY.md`. Pagos, envío, precios y stock siguen
 siendo de laboratorio. No hay cobro, fulfillment, devolución ni reembolso real.

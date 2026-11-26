@@ -5,7 +5,6 @@ import { ProductDetail } from "@/features/catalog/product-detail"
 import { CatalogError } from "@/features/catalog/catalog-error"
 import type { CatalogProduct, ViewableProduct } from "@/features/catalog/product-card"
 import { getHomeContent } from "@/lib/cms/client"
-import { selectCatalogProducts } from "@/lib/commerce/product-presentations"
 import {
   getCommerceProduct,
   getMexicoRegion,
@@ -46,7 +45,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const product = viewableProducts.find((item) => item.handle === handle)
   if (!product) notFound()
 
-  const collection = selectCatalogProducts(viewableProducts)
+  const collection = viewableProducts
 
   const categoryName =
     content.categories.find(

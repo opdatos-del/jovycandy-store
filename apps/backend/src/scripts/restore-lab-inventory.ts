@@ -32,13 +32,13 @@ type LockingService = {
  * Reposición explícita de laboratorio. No la ejecuta el seed.
  *
  *   $env:CONFIRM_RESTORE_LAB_STOCK="restore-lab-stock"
- *   pnpm --dir apps/backend exec medusa exec ./src/scripts/restore-official-inventory.ts
+ *   pnpm --dir apps/backend exec medusa exec ./src/scripts/restore-lab-inventory.ts
  *
  * Deja 50 unidades disponibles por variante, preservando reservas activas.
  * Bloquea la ubicación y cada inventory item con el mismo locking module que
  * usan las reservas para evitar calcular un absoluto con una reserva obsoleta.
  */
-export default async function restoreOfficialInventory({ container }: ExecArgs) {
+export default async function restoreLabInventory({ container }: ExecArgs) {
   if (process.env.CONFIRM_RESTORE_LAB_STOCK !== CONFIRMATION) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
@@ -84,7 +84,7 @@ export default async function restoreOfficialInventory({ container }: ExecArgs) 
   )
 
   if (!levels.length) {
-    logger.info("[official-inventory] no hay niveles oficiales que restaurar")
+    logger.info("[lab-inventory] no hay niveles del catálogo migrado que restaurar")
     return
   }
 
@@ -127,6 +127,6 @@ export default async function restoreOfficialInventory({ container }: ExecArgs) 
   )
 
   logger.info(
-    `[official-inventory] ${levels.length} variantes restauradas a ${RESTORE_AVAILABLE_QUANTITY} unidades disponibles`,
+    `[lab-inventory] ${levels.length} variantes restauradas a ${RESTORE_AVAILABLE_QUANTITY} unidades disponibles`,
   )
 }

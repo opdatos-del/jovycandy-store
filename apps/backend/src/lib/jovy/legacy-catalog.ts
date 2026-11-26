@@ -12,7 +12,7 @@ const mediaAssetSchema = z.looseObject({
   sha256: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
 })
 
-const officialProductSchema = z.looseObject({
+const legacyProductSchema = z.looseObject({
   source_id: z.number().int().positive(),
   source_slug: z.string().min(1),
   source_updated_at: z.string().nullable(),
@@ -43,7 +43,7 @@ const officialProductSchema = z.looseObject({
   }),
 })
 
-export const officialCatalogSchema = z.looseObject({
+export const legacyCatalogSchema = z.looseObject({
   schema_version: z.literal(1),
   source: z.object({
     site_url: z.url(),
@@ -97,14 +97,14 @@ export const officialCatalogSchema = z.looseObject({
       }).nullable(),
     }),
   ),
-  products: z.array(officialProductSchema),
+  products: z.array(legacyProductSchema),
   media: z.array(mediaAssetSchema),
 })
 
-export type OfficialCatalogManifest = z.infer<typeof officialCatalogSchema>
-export type OfficialCatalogProduct = z.infer<typeof officialProductSchema>
+export type LegacyCatalogManifest = z.infer<typeof legacyCatalogSchema>
+export type LegacyCatalogProduct = z.infer<typeof legacyProductSchema>
 
-export type OfficialVariantPlan = {
+export type LegacyVariantPlan = {
   sourceId: number
   sourceSlug: string
   title: string
@@ -112,15 +112,15 @@ export type OfficialVariantPlan = {
   sku: string
   priceMxn: number
   specs: Array<{ label: string; value: string }>
-  media: OfficialCatalogProduct["media"]
+  media: LegacyCatalogProduct["media"]
 }
 
-export type OfficialProductPlan = {
+export type LegacyProductPlan = {
   externalId: string
   handle: string
   title: string
   description: string | null
-  categoryKey: OfficialCatalogProduct["category_key"]
+  categoryKey: LegacyCatalogProduct["category_key"]
   familyId: string
   familyName: string
   sortOrder: number
@@ -128,13 +128,13 @@ export type OfficialProductPlan = {
   sourceUpdatedAt: string | null
   specs: Array<{ label: string; value: string }>
   certifications: string[]
-  variants: OfficialVariantPlan[]
-  media: OfficialCatalogProduct["media"]
+  variants: LegacyVariantPlan[]
+  media: LegacyCatalogProduct["media"]
 }
 
 /** Tarifa sintética por 100 g. No representa precios comerciales autorizados. */
 export const SYNTHETIC_PRICE_MXN_PER_100G: Record<
-  OfficialCatalogProduct["category_key"],
+  LegacyCatalogProduct["category_key"],
   number
 > = {
   sazonador: 22,
@@ -157,7 +157,7 @@ export const SYNTHETIC_FAMILY_PRICE_MXN_PER_100G: Record<string, number> = {
  * solo se usa al crear una variante que aún no tiene precio.
  */
 export function calculateSyntheticPriceMxn(
-  categoryKey: OfficialCatalogProduct["category_key"],
+  categoryKey: LegacyCatalogProduct["category_key"],
   grams: number,
   familyId?: string,
 ): number {
@@ -179,7 +179,7 @@ export function calculateSyntheticPriceMxn(
 }
 
 function aggregateSpecs(
-  rows: OfficialCatalogProduct[],
+  rows: LegacyCatalogProduct[],
 ): Array<{ label: string; value: string }> {
   const byLabel = new Map<string, Map<string, string[]>>()
   for (const row of rows) {
@@ -201,10 +201,10 @@ function aggregateSpecs(
 }
 
 /** Agrupa presentaciones del mismo nombre/familia sin agrupar sabores distintos. */
-export function buildOfficialProductPlans(
-  manifest: OfficialCatalogManifest,
-): OfficialProductPlan[] {
-  const groups = new Map<string, OfficialCatalogProduct[]>()
+export function buildLegacyProductPlans(
+  manifest: LegacyCatalogManifest,
+): LegacyProductPlan[] {
+  const groups = new Map<string, LegacyCatalogProduct[]>()
 
   for (const product of manifest.products) {
     const rows = groups.get(product.group_key) ?? []
@@ -256,8 +256,8 @@ export function buildOfficialProductPlans(
 }
 
 /** Validación de integridad adicional al esquema. */
-export function validateOfficialCatalog(
-  manifest: OfficialCatalogManifest,
+export function validateLegacyCatalog(
+  manifest: LegacyCatalogManifest,
 ): void {
   const sourceIds = new Set<number>()
   const sourceSlugs = new Set<string>()
@@ -265,12 +265,12 @@ export function validateOfficialCatalog(
 
   for (const product of manifest.products) {
     if (sourceIds.has(product.source_id)) {
-      throw new Error(`ID oficial duplicado: ${product.source_id}`)
+      throw new Error(`ID histórico duplicado: ${product.source_id}`)
     }
     sourceIds.add(product.source_id)
 
     if (sourceSlugs.has(product.source_slug)) {
-      throw new Error(`Slug oficial duplicado: ${product.source_slug}`)
+      throw new Error(`Slug histórico duplicado: ${product.source_slug}`)
     }
     sourceSlugs.add(product.source_slug)
 
@@ -314,7 +314,7 @@ export function validateOfficialCatalog(
     }
   }
 
-  const plans = buildOfficialProductPlans(manifest)
+  const plans = buildLegacyProductPlans(manifest)
   if (manifest.products.length !== manifest.summary.published_products) {
     throw new Error("El resumen del manifiesto no coincide con los productos publicados")
   }

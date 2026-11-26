@@ -1,25 +1,28 @@
 /**
- * Carga los recursos de hover de Jovy Rings en Medusa y configura el producto.
+ * Carga los recursos de hover de Jovy Rings desde el paquete versionado en el
+ * backend y configura el producto mediante el File Module existente.
  *
  *   pnpm --dir apps/backend seed:card-hover
  *
- * Variables opcionales:
- *   CARD_HOVER_SOURCE  carpeta con los cuatro .webp (por defecto Downloads)
- *   CARD_HOVER_HANDLE  handle del producto (por defecto jovy-aros-manzana-verde)
- *
- * - Sube los archivos con el File Module existente (file-local), sin copiarlos
- *   al repositorio del storefront.
- * - Asigna la bolsa original como thumbnail y el resto como galería.
- * - Guarda las URLs reales en `product.metadata` con el esquema card_hover_*.
- * - Es idempotente: si las URLs ya existen y responden, no vuelve a subir.
+ * No requiere el producto histórico ni archivos en Downloads. CARD_HOVER_HANDLE
+ * permite apuntar a otro producto; CARD_HOVER_SOURCE permite usar otro paquete
+ * con su propio manifest.json y hashes.
  */
-import { readFile, stat } from "node:fs/promises"
-import { homedir } from "node:os"
 import path from "node:path"
 
 import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import type { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+
+import {
+  canManageCardVisual,
+  loadCardVisualManifest,
+  readVerifiedCardVisualAsset,
+  remoteCardVisualHash,
+  RINGS_VISUAL_MARKER,
+  type CardVisualAsset,
+  type CardVisualManifest,
+} from "@jovy/lib/jovy/card-visual-assets"
 
 type QueryGraph = {
   graph: (input: {
@@ -49,43 +52,25 @@ type ProductRow = {
   images?: Array<{ id: string; url: string }> | null
 }
 
-const FILES = {
-  base: "jovy-rings-01-bolsa-original.webp",
-  full: "jovy-rings-02-hover-completo.webp",
-  overlay: "jovy-rings-03-gomitas-explosion.webp",
-  gummy: "jovy-rings-04-gomita-individual.webp",
-} as const
-
-const METADATA_KEYS = {
+const URL_KEY: Record<CardVisualAsset["role"], string> = {
   base: "card_hover_base_url",
-  overlay: "card_hover_overlay_url",
   full: "card_hover_full_url",
+  overlay: "card_hover_overlay_url",
   gummy: "card_gummy_url",
-} as const
-
-function sourceDirectory() {
-  return (
-    process.env.CARD_HOVER_SOURCE ??
-    path.join(homedir(), "Downloads", "jovy-rings-assets-medusa-storefront")
-  )
 }
 
-async function isReachable(url: string | null | undefined) {
-  if (!url || typeof url !== "string") return false
-  try {
-    const response = await fetch(url, { method: "HEAD" })
-    return response.ok
-  } catch {
-    return false
-  }
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null
 }
 
-async function uploadFile(fileService: FileUploader, directory: string, filename: string) {
-  const filePath = path.join(directory, filename)
-  await stat(filePath)
-  const contents = await readFile(filePath)
+async function uploadAsset(
+  fileService: FileUploader,
+  directory: string,
+  asset: CardVisualAsset,
+): Promise<string> {
+  const contents = await readVerifiedCardVisualAsset(directory, asset)
   const stream = await fileService.getUploadStream({
-    filename,
+    filename: asset.file,
     mimeType: "image/webp",
     access: "public",
   })
@@ -93,17 +78,43 @@ async function uploadFile(fileService: FileUploader, directory: string, filename
   const result = await stream.promise
   const url = result.url ?? stream.url
   if (!url) {
-    throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `No se pudo subir ${filename}`)
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `No se pudo subir ${asset.file}`,
+    )
   }
   return url
+}
+
+async function resolveAssetUrls(
+  fileService: FileUploader,
+  directory: string,
+  manifest: CardVisualManifest,
+  metadata: Record<string, unknown>,
+  managed: boolean,
+): Promise<Record<CardVisualAsset["role"], string>> {
+  const urls = {} as Record<CardVisualAsset["role"], string>
+  for (const asset of manifest.assets) {
+    const existing = managed ? stringValue(metadata[URL_KEY[asset.role]]) : null
+    if (existing && (await remoteCardVisualHash(existing)) === asset.sha256) {
+      urls[asset.role] = existing
+      continue
+    }
+    urls[asset.role] = await uploadAsset(fileService, directory, asset)
+  }
+  return urls
 }
 
 export default async function seedCardHoverRings({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY) as QueryGraph
   const fileService = container.resolve(Modules.FILE) as unknown as FileUploader
-  const handle = process.env.CARD_HOVER_HANDLE ?? "jovy-aros-manzana-verde"
-  const directory = sourceDirectory()
+  const directory = process.env.CARD_HOVER_SOURCE
+    ? path.resolve(process.env.CARD_HOVER_SOURCE)
+    : undefined
+  const manifest = await loadCardVisualManifest(directory)
+  const handle = process.env.CARD_HOVER_HANDLE ?? manifest.product_handle
+  const force = process.env.CARD_HOVER_FORCE === "1"
 
   const { data } = await query.graph({
     entity: "product",
@@ -116,42 +127,33 @@ export default async function seedCardHoverRings({ container }: ExecArgs) {
   }
 
   const metadata = (product.metadata ?? {}) as Record<string, unknown>
-  const existing = {
-    base: typeof metadata[METADATA_KEYS.base] === "string" ? (metadata[METADATA_KEYS.base] as string) : null,
-    overlay:
-      typeof metadata[METADATA_KEYS.overlay] === "string"
-        ? (metadata[METADATA_KEYS.overlay] as string)
-        : null,
-    full: typeof metadata[METADATA_KEYS.full] === "string" ? (metadata[METADATA_KEYS.full] as string) : null,
-    gummy: typeof metadata[METADATA_KEYS.gummy] === "string" ? (metadata[METADATA_KEYS.gummy] as string) : null,
+  const managed = metadata.card_visual_managed_by === RINGS_VISUAL_MARKER
+  if (!canManageCardVisual(metadata, force)) {
+    logger.info(
+      `[jovy-hover] ${handle} conserva una configuración manual; usa CARD_HOVER_FORCE=1 para reemplazarla`,
+    )
+    return
   }
 
-  const reusable =
-    (await isReachable(existing.base)) &&
-    (await isReachable(existing.overlay)) &&
-    (await isReachable(existing.full))
-
-  let urls = existing
-  if (!reusable) {
-    logger.info(`[jovy-hover] subiendo recursos desde ${directory}`)
-    urls = {
-      base: await uploadFile(fileService, directory, FILES.base),
-      full: await uploadFile(fileService, directory, FILES.full),
-      overlay: await uploadFile(fileService, directory, FILES.overlay),
-      gummy: await uploadFile(fileService, directory, FILES.gummy),
-    }
-  } else {
-    logger.info("[jovy-hover] URLs existentes reutilizadas")
-  }
+  const sourceDirectory =
+    directory ?? path.resolve(process.cwd(), "src", "data", "card-visuals", "rings")
+  const urls = await resolveAssetUrls(
+    fileService,
+    sourceDirectory,
+    manifest,
+    metadata,
+    managed,
+  )
 
   const gallery = [
     ...(product.images ?? []).map((image) => ({ id: image.id, url: image.url })),
-    { url: urls.full! },
-    { url: urls.overlay! },
-    { url: urls.gummy! },
+    { url: urls.full },
+    { url: urls.overlay },
+    { url: urls.gummy },
   ]
   const uniqueGallery = gallery.filter(
-    (image, index, list) => list.findIndex((candidate) => candidate.url === image.url) === index,
+    (image, index, list) =>
+      list.findIndex((candidate) => candidate.url === image.url) === index,
   )
 
   await updateProductsWorkflow(container).run({
@@ -159,20 +161,23 @@ export default async function seedCardHoverRings({ container }: ExecArgs) {
       products: [
         {
           id: product.id,
-          thumbnail: urls.base!,
+          thumbnail: urls.base,
           images: uniqueGallery,
           metadata: {
             ...metadata,
             card_hover_enabled: true,
             card_hover_mode: "layered",
-            card_hover_preset: "jovy-gummies",
+            card_hover_preset: manifest.preset,
             card_visual_version: 1,
+            card_visual_managed_by: RINGS_VISUAL_MARKER,
+            card_visual_asset_version: manifest.version,
             card_hover_duration_ms: 450,
-            [METADATA_KEYS.base]: urls.base,
-            [METADATA_KEYS.overlay]: urls.overlay,
-            [METADATA_KEYS.full]: urls.full,
-            [METADATA_KEYS.gummy]: urls.gummy,
-            card_hover_background: "#EAF7E8",
+            card_hover_intensity: 100,
+            card_hover_background: manifest.background,
+            [URL_KEY.base]: urls.base,
+            [URL_KEY.full]: urls.full,
+            [URL_KEY.overlay]: urls.overlay,
+            [URL_KEY.gummy]: urls.gummy,
           },
         },
       ],

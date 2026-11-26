@@ -61,7 +61,7 @@ test("exige un comando explícito y no expone secretos al registrar fallos", () 
     assertSingleIntegrationSuite([
       "node",
       "integration-tests/http/contacts-rate-limit.spec.ts",
-      "integration-tests/http/official-catalog-seed.spec.ts",
+      "integration-tests/http/legacy-import.spec.ts",
     ]),
   )
 

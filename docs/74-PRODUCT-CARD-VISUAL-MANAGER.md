@@ -2,7 +2,7 @@
 
 **Estado:** IMPLEMENTADO EN LABORATORIO.
 **Alcance:** efectos visuales de las tarjetas del catálogo. No modifica precios, variantes, inventario, carrito ni checkout.
-**Casos de regresión:** Jovy Rings Manzana Verde (`jovy-aros-manzana-verde`) conserva su explosión de gomitas.
+**Casos de regresión:** Jovy Rings Manzana (`jovy-mx-rings-rings-manzana`) conserva su explosión de gomitas; una instalación nueva no depende del producto histórico ni de archivos en Downloads.
 
 ## 1. Arquitectura
 
@@ -148,34 +148,39 @@ Built-in en `card-visual.ts`:
 
 ## 8. Migración de Rings
 
-- Conserva URLs, composición y capas actuales.
-- Su metadata ahora incluye `card_hover_preset: jovy-gummies`, `card_visual_version` y `card_hover_duration_ms`.
-- El storefront ya no tiene lógica específica por handle: Rings usa el mismo motor y contrato que cualquier producto.
+- `seed:card-hover` ya no lee `jovy-aros-manzana-verde` ni Downloads por defecto.
+- El paquete `apps/backend/src/data/card-visuals/rings/` contiene cuatro WebP reales y `manifest.json` con rol, dimensiones, bytes, SHA-256 y procedencia.
+- El comando verifica tamaño y hash antes de subir cada archivo al File Module y configura el producto `jovy-mx-rings-rings-manzana` (o `CARD_HOVER_HANDLE`).
+- Su metadata incluye `card_hover_preset: jovy-gummies`, `card_visual_version`, `card_hover_duration_ms` y `card_visual_managed_by: jovy-rings-assets-v1`.
+- Una configuración visual existente sin ese marcador se considera manual y se conserva; `CARD_HOVER_FORCE=1` autoriza reemplazarla.
+- El storefront no tiene lógica específica por handle: Rings usa el mismo motor y contrato que cualquier producto.
+- Si falta el overlay o la capa falla en el navegador, el resolver y el componente vuelven a la imagen base con `zoom`, sin imágenes rotas.
 
 ## 9. Pruebas
 
 - **Resolver**: `apps/storefront/e2e/card-visual.spec.ts` (13 casos): sin configuración, zoom, swap, layered, none, fallbacks, preset de familia, prioridad de producto, valores desconocidos, compatibilidad Rings y metadata ajena.
+- **Paquete de Rings**: unitaria que verifica los cuatro roles, SHA-256, procedencia, rechazo de hash alterado y respeto de configuración manual.
 - **E2E catálogo**:
   - capa decorativa de Rings desde Medusa, hover 0→1, misma caja, teclado, error de capa;
   - producto sin configuración con `zoom`;
   - `prefers-reduced-motion`;
-  - cards y navegación intactas.
+  - cards y navegación intactas;
+  - tablet 768 px con tres columnas y sin overflow.
 - **Estáticas**: typecheck backend/storefront, lint, build.
 
 Resultados de la última ejecución:
 
 | Suite | Resultado |
 |---|---|
-| E2E storefront (resolver + catálogo) | 25/25 |
-| Unitarias backend (Jovy + familias) | 269/269 |
+| E2E storefront (resolver + catálogo) | 30/30 |
 | Typecheck backend/storefront | PASS |
 | Build backend (incluye Admin Vite) | PASS |
 | Build storefront | PASS |
 | Lint | 0 errores |
-| E2E Admin autenticado | 1/1 (`jovy-product-card-visual.spec.ts`) |
-| E2E backend completo | 32/32 |
+| E2E Admin Rings | 1/1 (`jovy-product-card-visual.spec.ts`, producto Rings) |
+| Seed de Rings en producto desechable | PASS; 4 archivos verificados y URLs de Medusa con hash correcto |
 
-El E2E del Admin inicia sesión real, cambia el efecto a `zoom`, guarda, recarga, comprueba persistencia vía API, edita el preset de la familia, sube una imagen por el carril dedicado, valida la URL en metadata y restaura producto y familia al estado original (incluyendo claves ausentes).
+El E2E del Admin inicia sesión real, cambia el efecto a `zoom`, guarda, recarga, comprueba persistencia vía API, edita el preset de la familia, sube una imagen por el carril dedicado, valida la URL en metadata y restaura producto y familia al estado original (incluyendo claves ausentes). Se ejecutó contra el producto Rings creado por la importación, no contra el histórico.
 
 ## 10. Limitaciones
 
@@ -185,7 +190,7 @@ El E2E del Admin inicia sesión real, cambia el efecto a `zoom`, guarda, recarga
 
 ## 11. Validación manual
 
-1. `pnpm --dir apps/backend seed:card-hover` (si se reconfigura Rings).
+1. `pnpm --dir apps/backend seed:card-hover` (configura Rings desde el paquete versionado; no requiere Downloads ni el producto histórico).
 2. `pnpm dev`.
 3. Admin → Productos → Rings → *Presentación visual del catálogo*: verificar preset/efecto y vista previa.
 4. Storefront `/es/catalogo`: Rings muestra gomitas al hover; el resto de tarjetas hace zoom.

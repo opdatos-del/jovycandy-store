@@ -1,7 +1,7 @@
 # Inventario, reservas y concurrencia
 
 **Corte:** 2026-11-24
-**Estado:** IMPLEMENTADO Y VALIDADO EN LABORATORIO. Catálogo oficial con inventario activo solo en la ubicación de laboratorio.
+**Estado:** IMPLEMENTADO Y VALIDADO EN LABORATORIO. Catálogo Medusa con inventario activo solo en la ubicación de laboratorio.
 **Autoridad de inventario:** sin decisión. Medusa es la única fuente en el
 laboratorio; no se creó un sistema paralelo.
 
@@ -14,7 +14,7 @@ manage_inventory = false
 allow_backorder = true
 ```
 
-Las 61 variantes oficiales `JOVY-MX-*` usan:
+Las 61 variantes importadas `JOVY-MX-*` de una base limpia usan:
 
 ```text
 manage_inventory = true
@@ -23,8 +23,9 @@ stock_location = Jovy México Laboratorio
 apertura = 50 unidades por variante
 ```
 
-La apertura ocurre una sola vez. El seed preserva niveles, reservas y ajustes
-posteriores. Las pruebas usan bases descartables y no tocan stock productivo.
+La apertura ocurre una sola vez al importar un producto ausente. Reimportar no
+repone niveles, no altera reservas y no toca productos ya existentes. Las pruebas
+usan bases descartables y no tocan stock productivo.
 
 ## Comportamiento comprobado
 
@@ -111,12 +112,10 @@ Reglas mínimas del futuro adaptador:
 | Tres reservas concurrentes contra stock 2 | 2 aceptadas, 1 rechazada |
 | Nivel final tras reservas | `reserved=2`, `available=0` |
 | Producto `CATALOG_ONLY` | No se modificó; sigue fuera de compra |
-| Seed oficial dos veces y concurrente | Sin duplicados; precio, familia, título y stock preservados |
+| Importación histórica dos veces | Sin duplicados; título, precio, peso y stock editados se preservan |
 | Reserva activa + reposición | 50 disponibles y reserva conservada |
-| Presentación nueva | Valor de opción creado y variante enlazada |
-| Renombre oficial | Producto/handle existentes reutilizados por SKU |
-| Variante solo USD | MXN añadido al mismo price set |
+| Producto 36 creado en Admin | Permanece tras reimportar |
 
 Suite: `apps/backend/integration-tests/http/commerce-operations.spec.ts`.
-Seed oficial: `apps/backend/integration-tests/http/official-catalog-seed.spec.ts`.
+Importación histórica: `apps/backend/integration-tests/http/legacy-import.spec.ts`.
 Bases descartables. Sin pagos ni stock productivo.

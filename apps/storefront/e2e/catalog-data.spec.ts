@@ -4,15 +4,13 @@ import {
   getProductPresentations,
   lowestVariantPrice,
   matchesPresentation,
-  selectCatalogProducts,
   summarizePresentations,
 } from "../src/lib/commerce/product-presentations"
 import type { CommerceProduct } from "../src/lib/medusa/store"
 
 const commerce: CommerceProduct = {
-  id: "prod_official",
+  id: "prod_migrated",
   externalId: "jovy-mx:test:test",
-  officialManaged: true,
   handle: "jovy-mx-test",
   title: "Producto",
   description: null,
@@ -57,7 +55,7 @@ const commerce: CommerceProduct = {
   ],
 }
 
-test.describe("datos de catálogo oficial", () => {
+test.describe("datos de catálogo", () => {
   test("deriva presentaciones únicas y ordenadas desde variantes", () => {
     expect(getProductPresentations(commerce).map((item) => item.grams)).toEqual([
       50, 100, 1000,
@@ -76,28 +74,4 @@ test.describe("datos de catálogo oficial", () => {
     expect(lowestVariantPrice(null)).toBeNull()
   })
 
-  test("activa aislamiento oficial solo con catálogo completo", () => {
-    const officialProducts = Array.from({ length: 35 }, (_, index) => ({
-      id: `official-${index}`,
-      handle: `jovy-mx-product-${index}`,
-      officialCatalogComplete: true,
-      officialCatalogSize: 35,
-    }))
-    expect(
-      selectCatalogProducts([
-        { id: "legacy", handle: "jovy-ositos-surtidos" },
-        ...officialProducts,
-        { id: "fallback", handle: null },
-      ]),
-    ).toEqual(officialProducts)
-
-    const partial = officialProducts.slice(0, 5)
-    expect(
-      selectCatalogProducts([
-        { id: "legacy", handle: "jovy-ositos-surtidos" },
-        ...partial,
-        { id: "fallback", handle: null },
-      ]),
-    ).toEqual([{ id: "legacy", handle: "jovy-ositos-surtidos" }, ...partial])
-  })
 })

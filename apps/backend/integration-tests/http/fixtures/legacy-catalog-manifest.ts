@@ -1,5 +1,5 @@
 const media = {
-  url: "https://official.test/packshot.webp",
+  url: "https://legacy.test/packshot.webp",
   source_path: "/uploads/packshot.webp",
   role: "packshot",
   status: "verified",

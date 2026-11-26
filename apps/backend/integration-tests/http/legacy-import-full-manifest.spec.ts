@@ -2,31 +2,32 @@ import path from "node:path"
 
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import type { ExecArgs } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, ProductStatus } from "@medusajs/framework/utils"
+import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 
-import manifest from "@jovy/data/catalog/official-mx.json"
+import manifest from "@jovy/scripts/migrations/jovycandy-legacy/manifest.json"
 import {
-  buildOfficialProductPlans,
-  officialCatalogSchema,
-} from "@jovy/lib/jovy/official-catalog"
+  buildLegacyProductPlans,
+  legacyCatalogSchema,
+} from "@jovy/lib/jovy/legacy-catalog"
+import importLegacyProducts from "@jovy/scripts/migrations/jovycandy-legacy/import-products"
 import seedCommerceLab from "@jovy/scripts/seed-commerce-lab"
-import seedOfficialCatalog from "@jovy/scripts/seed-official-catalog"
 
 jest.setTimeout(360_000)
 
 /**
- * Persistencia real de 35/61 sin red: OFFICIAL_SEED_MEDIA_MODE=manifest usa
+ * Importación real de 35/61 sin red: LEGACY_IMPORT_MEDIA_MODE=manifest usa
  * solamente URLs y hashes ya auditados. La disponibilidad remota se verifica
- * con `catalog:verify-media`, fuera de esta prueba determinista.
+ * con `legacy:verify-media`, fuera de esta prueba determinista.
  */
 medusaIntegrationTestRunner({
   cwd: path.join(__dirname, "..", ".."),
-  dbName: "medusa-jovy-http-official-catalog-full",
+  dbName: "medusa-jovy-http-legacy-full",
   testSuite: ({ getContainer }) => {
-    const originalMode = process.env.OFFICIAL_SEED_MODE
-    const originalMediaMode = process.env.OFFICIAL_SEED_MEDIA_MODE
-    const catalog = officialCatalogSchema.parse(manifest)
-    const plans = buildOfficialProductPlans(catalog)
+    const originalMode = process.env.LEGACY_IMPORT_MODE
+    const originalMediaMode = process.env.LEGACY_IMPORT_MEDIA_MODE
+    const catalog = legacyCatalogSchema.parse(manifest)
+    const plans = buildLegacyProductPlans(catalog)
 
     const query = () =>
       getContainer().resolve(ContainerRegistrationKeys.QUERY) as {
@@ -38,25 +39,25 @@ medusaIntegrationTestRunner({
         }) => Promise<{ data: Array<Record<string, any>> }>
       }
 
-    const runSeed = () =>
-      seedOfficialCatalog({ container: getContainer(), args: [] } as ExecArgs)
+    const runImport = () =>
+      importLegacyProducts({ container: getContainer(), args: [] } as ExecArgs)
 
     beforeAll(() => {
-      process.env.OFFICIAL_SEED_MODE = "apply"
-      process.env.OFFICIAL_SEED_MEDIA_MODE = "manifest"
+      process.env.LEGACY_IMPORT_MODE = "apply"
+      process.env.LEGACY_IMPORT_MEDIA_MODE = "manifest"
     })
 
     afterAll(() => {
-      if (originalMode === undefined) delete process.env.OFFICIAL_SEED_MODE
-      else process.env.OFFICIAL_SEED_MODE = originalMode
-      if (originalMediaMode === undefined) delete process.env.OFFICIAL_SEED_MEDIA_MODE
-      else process.env.OFFICIAL_SEED_MEDIA_MODE = originalMediaMode
+      if (originalMode === undefined) delete process.env.LEGACY_IMPORT_MODE
+      else process.env.LEGACY_IMPORT_MODE = originalMode
+      if (originalMediaMode === undefined) delete process.env.LEGACY_IMPORT_MEDIA_MODE
+      else process.env.LEGACY_IMPORT_MEDIA_MODE = originalMediaMode
     })
 
-    it("persiste 35 productos, 61 variantes, precios MXN, inventario y relaciones sin descargas remotas", async () => {
+    it("importa 35 productos y 61 variantes normales de Medusa sin duplicar", async () => {
       const container = getContainer()
       await seedCommerceLab({ container, args: [] } as ExecArgs)
-      await runSeed()
+      await runImport()
 
       const { data: products } = await query().graph({
         entity: "product",
@@ -69,6 +70,7 @@ medusaIntegrationTestRunner({
           "sales_channels.id",
           "shipping_profile.id",
           "variants.sku",
+          "variants.weight",
           "variants.manage_inventory",
           "variants.allow_backorder",
           "variants.prices.currency_code",
@@ -86,18 +88,20 @@ medusaIntegrationTestRunner({
             product.categories.length === 1 &&
             product.sales_channels.length === 1 &&
             product.shipping_profile?.id &&
-            product.metadata?.jovy_official_catalog_complete === true &&
-            /^[a-f0-9]{64}$/.test(
-              String(product.metadata?.jovy_official_catalog_manifest_sha256),
-            ) &&
-            /^[a-f0-9]{64}$/.test(
-              String(product.metadata?.jovy_official_catalog_integrity_sha256),
-            ),
+            product.metadata?.jovy_legacy_managed === true &&
+            !("jovy_official_catalog_complete" in (product.metadata ?? {})),
         ),
       ).toBe(true)
+
+      const gramsBySku = new Map(
+        plans.flatMap((plan) =>
+          plan.variants.map((variant) => [variant.sku, variant.grams] as const),
+        ),
+      )
       expect(
         products.flatMap((product) => product.variants).every(
           (variant) =>
+            variant.weight === gramsBySku.get(variant.sku) &&
             variant.manage_inventory === true &&
             variant.allow_backorder === false &&
             variant.inventory_items.length === 1 &&
@@ -123,7 +127,28 @@ medusaIntegrationTestRunner({
         ),
       ).toBe(true)
 
-      await runSeed()
+      await createProductsWorkflow(container).run({
+        input: {
+          products: [
+            {
+              title: "Producto 36",
+              handle: "producto-36",
+              status: ProductStatus.PUBLISHED,
+              options: [{ title: "Presentación", values: ["Única"] }],
+              variants: [
+                {
+                  title: "Única",
+                  sku: "PRODUCTO-36",
+                  options: { Presentación: "Única" },
+                  prices: [{ amount: 50, currency_code: "mxn" }],
+                },
+              ],
+            },
+          ],
+        },
+      })
+
+      await runImport()
       const { data: repeated } = await query().graph({
         entity: "product",
         fields: ["id", "variants.id"],
@@ -132,6 +157,12 @@ medusaIntegrationTestRunner({
       })
       expect(repeated).toHaveLength(35)
       expect(repeated.flatMap((product) => product.variants)).toHaveLength(61)
+      const { data: newProduct } = await query().graph({
+        entity: "product",
+        fields: ["id"],
+        filters: { handle: "producto-36" },
+      })
+      expect(newProduct).toHaveLength(1)
       expect(plans).toHaveLength(35)
     })
   },

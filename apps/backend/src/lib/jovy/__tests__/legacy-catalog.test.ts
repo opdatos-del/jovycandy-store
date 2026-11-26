@@ -1,15 +1,15 @@
-import manifest from "@jovy/data/catalog/official-mx.json"
+import manifest from "@jovy/scripts/migrations/jovycandy-legacy/manifest.json"
 
 import {
-  buildOfficialProductPlans,
+  buildLegacyProductPlans,
   calculateSyntheticPriceMxn,
-  officialCatalogSchema,
-  validateOfficialCatalog,
-} from "@jovy/lib/jovy/official-catalog"
+  legacyCatalogSchema,
+  validateLegacyCatalog,
+} from "@jovy/lib/jovy/legacy-catalog"
 
-describe("manifiesto oficial del catálogo mexicano", () => {
+describe("manifiesto histórico del catálogo mexicano", () => {
   it("valida el snapshot verificado y sus totales", () => {
-    const parsed = officialCatalogSchema.parse(manifest)
+    const parsed = legacyCatalogSchema.parse(manifest)
 
     expect(parsed.summary).toMatchObject({
       published_products: 61,
@@ -20,12 +20,12 @@ describe("manifiesto oficial del catálogo mexicano", () => {
       media_verified: 173,
       media_unavailable: 0,
     })
-    expect(() => validateOfficialCatalog(parsed)).not.toThrow()
+    expect(() => validateLegacyCatalog(parsed)).not.toThrow()
   })
 
   it("agrupa presentaciones del mismo producto sin agrupar sabores", () => {
-    const parsed = officialCatalogSchema.parse(manifest)
-    const plans = buildOfficialProductPlans(parsed)
+    const parsed = legacyCatalogSchema.parse(manifest)
+    const plans = buildLegacyProductPlans(parsed)
 
     expect(plans).toHaveLength(35)
     expect(plans.flatMap((plan) => plan.variants)).toHaveLength(61)
@@ -45,8 +45,8 @@ describe("manifiesto oficial del catálogo mexicano", () => {
   })
 
   it("usa identidades estables para producto y variante", () => {
-    const parsed = officialCatalogSchema.parse(manifest)
-    const plan = buildOfficialProductPlans(parsed).find(
+    const parsed = legacyCatalogSchema.parse(manifest)
+    const plan = buildLegacyProductPlans(parsed).find(
       (candidate) => candidate.familyId === "happy-mix",
     )
 
@@ -71,16 +71,16 @@ describe("manifiesto oficial del catálogo mexicano", () => {
   })
 
   it("rechaza duplicados y productos sin packshot verificado", () => {
-    const parsed = officialCatalogSchema.parse(manifest)
+    const parsed = legacyCatalogSchema.parse(manifest)
     const duplicate = structuredClone(parsed)
     duplicate.products.push(duplicate.products[0])
-    expect(() => validateOfficialCatalog(duplicate)).toThrow("ID oficial duplicado")
+    expect(() => validateLegacyCatalog(duplicate)).toThrow("ID histórico duplicado")
 
     const missingImage = structuredClone(parsed)
     missingImage.products[0].media = missingImage.products[0].media.filter(
       (asset) => asset.role !== "packshot",
     )
-    expect(() => validateOfficialCatalog(missingImage)).toThrow(
+    expect(() => validateLegacyCatalog(missingImage)).toThrow(
       "sin packshot verificado",
     )
   })

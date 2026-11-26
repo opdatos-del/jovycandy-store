@@ -7,33 +7,6 @@ export type ProductPresentation = {
   grams: number
 }
 
-export function isOfficialCatalogHandle(handle: string | null | undefined): boolean {
-  return Boolean(handle?.startsWith("jovy-mx-"))
-}
-
-export const OFFICIAL_CATALOG_EXPECTED_PRODUCTS = 35
-
-export function selectCatalogProducts<
-  T extends {
-    handle: string | null
-    officialCatalogComplete?: boolean
-    officialCatalogSize?: number | null
-  },
->(products: T[]): Array<T & { handle: string }> {
-  const viewable = products.filter(
-    (product): product is T & { handle: string } => Boolean(product.handle),
-  )
-  const completeOfficial = viewable.filter(
-    (product) =>
-      product.officialCatalogComplete === true &&
-      product.officialCatalogSize === OFFICIAL_CATALOG_EXPECTED_PRODUCTS,
-  )
-  if (completeOfficial.length === OFFICIAL_CATALOG_EXPECTED_PRODUCTS) {
-    return completeOfficial
-  }
-  return viewable
-}
-
 export function variantGrams(variant: CommerceVariant): number | null {
   if (typeof variant.grams === "number" && variant.grams > 0) return variant.grams
   return parseWeightGrams(variant.title)

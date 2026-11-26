@@ -6,6 +6,10 @@
 **Estado Git:** cambios locales sin commit ni push. `.agents/` y
 `skills-lock.json` permanecen sin rastrear y no forman parte de la entrega.
 
+> **Documento histórico.** Conserva evidencia de la campaña anterior. No describe
+> el funcionamiento vigente: el «catálogo oficial» fue retirado y Medusa es la
+> fuente única de verdad. Ver `docs/90-MIGRACION-CATALOGO-LEGACY.md`.
+
 ## 1. Resumen ejecutivo
 
 La campaña cerró los frentes que no dependen de infraestructura externa:
@@ -254,7 +258,7 @@ Warnings preexistentes del backend: dos `eslint-disable` sin uso en
 - Storefront: colección oficial aislada de históricos, paginación, filtros por
   presentación, precio mínimo, descripción/especificaciones, stock máximo,
   estados accesibles y capa `layered` de Rings preservada.
-- Runbook: `docs/90-CATALOGO-OFICIAL-MEXICO.md`.
+- Runbook: `docs/90-MIGRACION-CATALOGO-LEGACY.md`.
 
 Los precios son sintéticos y no autorizados para venta. No se ejecutaron pagos,
 envíos ni operaciones productivas.

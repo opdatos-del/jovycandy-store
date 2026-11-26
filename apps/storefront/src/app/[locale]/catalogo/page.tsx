@@ -2,9 +2,8 @@
 
 import { CatalogPage } from "@/features/catalog/catalog-page"
 import { CatalogError } from "@/features/catalog/catalog-error"
-import type { CatalogProduct } from "@/features/catalog/product-card"
+import type { CatalogProduct, ViewableProduct } from "@/features/catalog/product-card"
 import { getHomeContent } from "@/lib/cms/client"
-import { selectCatalogProducts } from "@/lib/commerce/product-presentations"
 import { getDictionary, isLocale } from "@/lib/i18n"
 import { getMexicoRegion, listCommerceProducts } from "@/lib/medusa/store"
 
@@ -27,10 +26,10 @@ export default async function CataloguePage({ params, searchParams }: CatalogueP
   const selected = categories.find((category) => category.key === categoria)
   if (categoria && !selected) notFound()
 
-  // El catálogo público prioriza el snapshot oficial cuando existe. Los
-  // productos históricos se conservan en Medusa y sus fichas directas siguen
-  // funcionando, pero no se mezclan con la colección mexicana verificada.
-  const collection = selectCatalogProducts(content.products)
+  // Todos los productos publicados del canal son parte del mismo catálogo.
+  const collection: ViewableProduct[] = content.products.filter(
+    (product): product is ViewableProduct => Boolean(product.handle),
+  )
   const products = selected
     ? collection.filter((product) => product.categoryKeys.includes(selected.key))
     : collection

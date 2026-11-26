@@ -67,8 +67,6 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       id: item.id,
       product: item.product,
       product_status: item.product_status,
-      official_catalog_complete: item.product?.official_catalog_complete ?? false,
-      official_catalog_size: item.product?.official_catalog_size ?? null,
       // Modalidad derivada: nunca se exponen precios ni inventario desde aquí.
       commercial_mode: resolveCommercialMode(item.commercial_mode),
       gramaje: item.gramaje,

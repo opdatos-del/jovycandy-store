@@ -265,10 +265,7 @@ async function main() {
   const output =
     outputIndex >= 0
       ? path.resolve(process.argv[outputIndex + 1] ?? "")
-      : path.resolve(
-          path.dirname(process.argv[1]),
-          "../data/catalog/official-mx.json",
-        )
+      : path.join(path.dirname(process.argv[1]), "manifest.json")
 
   const [products, categories, logos] = await Promise.all([
     fetchJson<SourceProduct[]>(PRODUCTS_URL),

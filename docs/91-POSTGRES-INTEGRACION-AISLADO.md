@@ -12,7 +12,7 @@ Desde `apps/backend`:
 
 ```powershell
 # Cualquier suite HTTP explícita, serial, en un clúster nuevo
-pnpm test:integration:http:ephemeral -- integration-tests/http/official-catalog-seed.spec.ts
+pnpm test:integration:http:ephemeral -- integration-tests/http/legacy-import.spec.ts
 
 # Una suite de módulos explícita, serial, en un clúster nuevo
 pnpm test:integration:modules:ephemeral -- src/modules/jovy-catalogue/__tests__/catalogue.integration.test.ts
@@ -93,8 +93,8 @@ cadena. No se desactiva TLS de forma global ni se usa
 | Negativas de Jest | `TEST_TYPE` ausente y `integration:http` sin launcher rechazados antes de descubrir suites |
 | Clúster exclusivo y verificación Medusa | Correcta mediante cliente `@medusajs/framework/pg` |
 | Suite HTTP serial | `contacts-rate-limit.spec.ts`: 1 suite, 1 prueba correcta, 27.197 s |
-| Seed oficial HTTP serial | `official-catalog-seed.spec.ts`: 1 suite, 3 pruebas correctas |
-| Manifiesto oficial completo | `official-catalog-full-manifest.spec.ts`: 1 suite, 1 prueba correcta, 35 productos y 61 variantes |
+| Importación histórica HTTP serial | `legacy-import.spec.ts`: 1 suite, 2 pruebas correctas |
+| Manifiesto histórico completo | `legacy-import-full-manifest.spec.ts`: 1 suite, 1 prueba correcta, 35 productos y 61 variantes |
 | Módulo de catálogo | `catalogue.integration.test.ts`: 1 suite, 6 pruebas correctas |
 | Limpieza del runner | Base, plantilla y cualquier otra base no predeterminada ausentes |
 | Limpieza PostgreSQL | `pg_ctl stop` correcto; directorio de ejecución exitoso eliminado |
@@ -104,12 +104,12 @@ Evidencia de ejecución exitosa:
 ```text
 contacts run id: b211c631-254a-49d8-9efa-a097a824fd91
 contacts port:   57671
-catalog seed run id: 4a68d466-19cc-4e21-bff3-ddc9b5550db7
-catalog seed port:   62512
-catalog full run id: 4930d385-8acc-4a34-b94f-e0dcc2a66db6
-catalog full port:   62785
-modules run id:      03eafef1-f237-4164-a0eb-193ad86992a9
-modules port:        59918
+legacy import run id: 15c3aab9-46a6-4fed-b96d-ec15b0cc4196
+legacy import port:   55198
+legacy full run id:   3ca985a4-884d-4999-9d28-09d26a667de0
+legacy full port:     55541
+modules run id:      0d3143f8-db18-4d1a-bc3a-51020be36db2
+modules port:        56085
 reports:             %LOCALAPPDATA%\JovyCandy\integration-runs\reports\
                      <run-id>.json
 ```

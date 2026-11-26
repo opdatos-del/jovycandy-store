@@ -30,8 +30,6 @@ export type CmsProduct = {
   gramaje: string | null
   certifications: string[]
   isNew: boolean
-  officialCatalogComplete?: boolean
-  officialCatalogSize?: number | null
   categoryKeys: string[]
   family: { id: string; slug: string; name: string; cardPreset?: string | null } | null
 }
@@ -105,8 +103,6 @@ type RawProduct = {
   gramaje?: string | null
   certifications?: string[] | null
   is_new?: boolean | null
-  official_catalog_complete?: boolean | null
-  official_catalog_size?: number | null
   category_keys?: string[] | null
   product?: {
     id?: string
@@ -407,11 +403,6 @@ function normalizeProduct(raw: RawProduct): CmsProduct | null {
     gramaje: raw.gramaje ?? null,
     certifications: Array.isArray(raw.certifications) ? raw.certifications : [],
     isNew: Boolean(raw.is_new),
-    officialCatalogComplete: Boolean(raw.official_catalog_complete),
-    officialCatalogSize:
-      typeof raw.official_catalog_size === "number"
-        ? raw.official_catalog_size
-        : null,
     categoryKeys: Array.isArray(raw.category_keys) ? raw.category_keys : [],
     family: raw.family?.name
       ? {
