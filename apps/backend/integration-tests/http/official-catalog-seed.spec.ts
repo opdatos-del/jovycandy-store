@@ -151,6 +151,12 @@ medusaIntegrationTestRunner({
       expect(created.id).toBeTruthy()
       expect(created.metadata.jovy_official_catalog_complete).toBe(true)
       expect(created.metadata.jovy_official_catalog_size).toBe(1)
+      expect(created.metadata.jovy_official_catalog_manifest_sha256).toMatch(
+        /^[a-f0-9]{64}$/,
+      )
+      expect(created.metadata.jovy_official_catalog_integrity_sha256).toMatch(
+        /^[a-f0-9]{64}$/,
+      )
       expect(created.variants).toHaveLength(2)
       expect(
         created.variants.every(
@@ -474,19 +480,16 @@ medusaIntegrationTestRunner({
       expect(String(updatedLinks[0].price_set_id)).toBe(priceSetId)
     })
 
-    it("no marca catálogo completo si una reconciliación posterior falla", async () => {
+    it("invalida el marcador previo si cambia el manifiesto y una actualización posterior falla", async () => {
       const container = getContainer()
       await seedCommerceLab({ container, args: [] } as ExecArgs)
       await runSeed()
 
       const created = await officialProduct()
       const variant = created.variants[0]
-      const preservedMetadata = { ...created.metadata }
-      preservedMetadata.jovy_official_catalog_complete = false
-      preservedMetadata.jovy_official_catalog_size = 0
-      await updateProductsWorkflow(container).run({
-        input: { products: [{ id: created.id, metadata: preservedMetadata }] },
-      })
+      expect(created.metadata.jovy_official_catalog_complete).toBe(true)
+      const previousFingerprint =
+        created.metadata.jovy_official_catalog_manifest_sha256
 
       const { result: conflictingItems } = await createInventoryItemsWorkflow(
         container,
@@ -545,6 +548,13 @@ medusaIntegrationTestRunner({
       expect(
         officialProducts.some(
           (product) => product.metadata?.jovy_official_catalog_complete === true,
+        ),
+      ).toBe(false)
+      expect(
+        officialProducts.some(
+          (product) =>
+            product.metadata?.jovy_official_catalog_manifest_sha256 ===
+            previousFingerprint,
         ),
       ).toBe(false)
     })

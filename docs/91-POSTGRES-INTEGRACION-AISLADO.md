@@ -1,6 +1,6 @@
 # PostgreSQL efímero para integración local
 
-**Estado: VALIDADO — primera suite HTTP ejecutada el 2026-11-26.**
+**Estado: VALIDADO — suites HTTP y de módulos ejecutadas el 2026-11-26.**
 
 Las pruebas de integración locales no usan PostgreSQL de desarrollo (`5432`) ni
 el clúster de laboratorio anterior (`55432`). Cada ejecución local crea un
@@ -14,13 +14,16 @@ Desde `apps/backend`:
 # Cualquier suite HTTP explícita, serial, en un clúster nuevo
 pnpm test:integration:http:ephemeral -- integration-tests/http/official-catalog-seed.spec.ts
 
+# Una suite de módulos explícita, serial, en un clúster nuevo
+pnpm test:integration:modules:ephemeral -- src/modules/jovy-catalogue/__tests__/catalogue.integration.test.ts
+
 # Atajo conservado para la primera suite aprobada
 pnpm test:integration:http:contacts
 ```
 
-El launcher recibe una sola suite HTTP explícita y la ejecuta en modo serial. No
-cambia los nombres fijos de bases del runner ni ejecuta implícitamente todas las
-pruebas HTTP.
+El launcher recibe una sola suite de integración explícita (HTTP o módulos) y la
+ejecuta en modo serial. No cambia los nombres fijos de bases del runner ni
+ejecuta implícitamente todas las pruebas HTTP o de módulos.
 
 `test:integration:http` y `test:integration:modules` siguen siendo los comandos
 de GitHub Actions: el workflow declara explícitamente
@@ -79,7 +82,8 @@ cadena. No se desactiva TLS de forma global ni se usa
   comprobarlo y conserva el directorio para inspección. Nunca borra un
   directorio previo o desconocido.
 - Informes y logs sanitizados se conservan fuera del repositorio en
-  `%LOCALAPPDATA%\JovyCandy\integration-runs\reports\<UUID>.json`.
+  `%LOCALAPPDATA%\JovyCandy\integration-runs\reports\<UUID>.json`; el informe
+  registra la suite ejecutada y las bases residuales encontradas.
 
 ## Validación ejecutada
 
@@ -89,7 +93,9 @@ cadena. No se desactiva TLS de forma global ni se usa
 | Negativas de Jest | `TEST_TYPE` ausente y `integration:http` sin launcher rechazados antes de descubrir suites |
 | Clúster exclusivo y verificación Medusa | Correcta mediante cliente `@medusajs/framework/pg` |
 | Suite HTTP serial | `contacts-rate-limit.spec.ts`: 1 suite, 1 prueba correcta, 27.197 s |
-| Seed oficial HTTP serial | `official-catalog-seed.spec.ts`: 1 suite, 3 pruebas correctas, 42.552 s |
+| Seed oficial HTTP serial | `official-catalog-seed.spec.ts`: 1 suite, 3 pruebas correctas |
+| Manifiesto oficial completo | `official-catalog-full-manifest.spec.ts`: 1 suite, 1 prueba correcta, 35 productos y 61 variantes |
+| Módulo de catálogo | `catalogue.integration.test.ts`: 1 suite, 6 pruebas correctas |
 | Limpieza del runner | Base, plantilla y cualquier otra base no predeterminada ausentes |
 | Limpieza PostgreSQL | `pg_ctl stop` correcto; directorio de ejecución exitoso eliminado |
 
@@ -98,14 +104,18 @@ Evidencia de ejecución exitosa:
 ```text
 contacts run id: b211c631-254a-49d8-9efa-a097a824fd91
 contacts port:   57671
-catalog run id:  371c75fc-94a4-4945-ba21-fb3ed3527a9f
-catalog port:    57144
-reports:         %LOCALAPPDATA%\JovyCandy\integration-runs\reports\
-                 <run-id>.json
+catalog seed run id: 4a68d466-19cc-4e21-bff3-ddc9b5550db7
+catalog seed port:   62512
+catalog full run id: 4930d385-8acc-4a34-b94f-e0dcc2a66db6
+catalog full port:   62785
+modules run id:      03eafef1-f237-4164-a0eb-193ad86992a9
+modules port:        59918
+reports:             %LOCALAPPDATA%\JovyCandy\integration-runs\reports\
+                     <run-id>.json
 ```
 
-Los dos directorios exitosos ya no existen; sus informes indican salida `0`,
-sin bases residuales y `stopped-and-removed`. Las ejecuciones fallidas de
+Los directorios exitosos ya no existen; sus informes indican salida `0`, sin
+bases residuales y `stopped-and-removed`. Las ejecuciones fallidas de
 desarrollo del launcher quedaron detenidas y conservadas bajo `integration-runs`
 para no eliminar evidencia automáticamente; no corresponden a los puertos
 `5432` ni `55432`.

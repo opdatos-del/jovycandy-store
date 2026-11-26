@@ -66,6 +66,8 @@ export const JOVY_ENDPOINT_INVENTORY: readonly JovyEndpointRule[] = [
   { method: "GET", path: "/admin/jovy/catalogue/families/:id", access: { type: "permission", resource: "jovy_catalogue", operation: "read" } },
   { method: "PUT", path: "/admin/jovy/catalogue/families/:id", access: { type: "permission", resource: "jovy_catalogue", operation: "update" } },
   { method: "DELETE", path: "/admin/jovy/catalogue/families/:id", access: { type: "permission", resource: "jovy_catalogue", operation: "delete" } },
+  { method: "GET", path: "/admin/jovy/catalogue/official-preview", access: { type: "permission", resource: "jovy_catalogue", operation: "read" } },
+  { method: "POST", path: "/admin/jovy/catalogue/official-preview", access: { type: "permission", resource: "jovy_catalogue", operation: "update" } },
   { method: "POST", path: "/admin/jovy/product-card-visual/media", access: { type: "permission", resource: "jovy_catalogue", operation: "update" } },
 
   { method: "GET", path: "/admin/jovy/contacts", access: { type: "contacts-query", operation: "read" } },

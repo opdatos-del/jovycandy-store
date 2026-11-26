@@ -14,7 +14,7 @@ const {
 } = require("./ephemeral-postgres.cjs")
 const {
   assertNoResidualDatabases,
-  assertSingleHttpSuite,
+  assertSingleIntegrationSuite,
   createPassword,
   parseTestCommand,
 } = require("./run-ephemeral-postgres.cjs")
@@ -40,7 +40,7 @@ test("exige un comando explícito y no expone secretos al registrar fallos", () 
   assert.deepEqual(parseTestCommand(["--", "pnpm.cmd", "exec", "jest"]), ["pnpm.cmd", "exec", "jest"])
   assert.throws(() => parseTestCommand([]))
   assert.equal(
-    assertSingleHttpSuite([
+    assertSingleIntegrationSuite([
       "node",
       "./node_modules/jest/bin/jest.js",
       "integration-tests/http/contacts-rate-limit.spec.ts",
@@ -48,9 +48,17 @@ test("exige un comando explícito y no expone secretos al registrar fallos", () 
     ]),
     "integration-tests/http/contacts-rate-limit.spec.ts",
   )
-  assert.throws(() => assertSingleHttpSuite(["node", "./node_modules/jest/bin/jest.js"]))
+  assert.equal(
+    assertSingleIntegrationSuite([
+      "node",
+      "./node_modules/jest/bin/jest.js",
+      "src/modules/jovy-catalogue/__tests__/catalogue.integration.test.ts",
+    ]),
+    "src/modules/jovy-catalogue/__tests__/catalogue.integration.test.ts",
+  )
+  assert.throws(() => assertSingleIntegrationSuite(["node", "./node_modules/jest/bin/jest.js"]))
   assert.throws(() =>
-    assertSingleHttpSuite([
+    assertSingleIntegrationSuite([
       "node",
       "integration-tests/http/contacts-rate-limit.spec.ts",
       "integration-tests/http/official-catalog-seed.spec.ts",

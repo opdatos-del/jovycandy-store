@@ -216,10 +216,6 @@ function saveEvidence(metadata, evidence) {
     cluster: metadata.cluster,
     dataDirectory: metadata.dataDirectory,
     postgresPid: metadata.postgresPid,
-    expectedDatabases: [
-      "medusa-jovy-http-contacts-rate-limit",
-      "medusa-jovy-http-contacts-rate-limit-template",
-    ],
     postgresLog,
   }
   fs.writeFileSync(
@@ -238,14 +234,18 @@ function parseTestCommand(argv) {
   return command
 }
 
-function assertSingleHttpSuite(command) {
-  const suites = command.filter((argument) =>
-    /^integration-tests\/http\/[^/]+\.spec\.[jt]s$/i.test(
-      String(argument).replace(/\\/g, "/"),
-    ),
-  )
+function assertSingleIntegrationSuite(command) {
+  const suites = command.filter((argument) => {
+    const normalized = String(argument).replace(/\\/g, "/")
+    return (
+      /^integration-tests\/http\/[^/]+\.spec\.[jt]s$/i.test(normalized) ||
+      /^src\/modules\/[^/]+\/__tests__\/[^/]+\.integration\.test\.[jt]s$/i.test(
+        normalized,
+      )
+    )
+  })
   if (suites.length !== 1) {
-    fail("El launcher requiere exactamente una suite HTTP explícita")
+    fail("El launcher requiere exactamente una suite de integración explícita")
   }
   return suites[0]
 }
@@ -253,7 +253,7 @@ function assertSingleHttpSuite(command) {
 async function main() {
   assertWindowsPostgres()
   const command = parseTestCommand(process.argv.slice(2))
-  assertSingleHttpSuite(command)
+  const suite = path.relative(BACKEND_DIRECTORY, assertSingleIntegrationSuite(command)).replace(/\\/g, "/")
   const identity = createRunIdentity()
   const root = createRunDirectory(process.env.LOCALAPPDATA, identity.runId)
   const metadata = {
@@ -288,6 +288,7 @@ async function main() {
     stopCluster(metadata)
     stopped = true
     saveEvidence(metadata, {
+      suite,
       jest: passed ? "passed" : "failed",
       jestExitCode: jestResult.status,
       runnerResourcesAfterJest: resourcesAfterJest,
@@ -313,6 +314,7 @@ async function main() {
         stopped = true
       }
       saveEvidence(metadata, {
+        suite,
         jest: jestResult ? "failed" : "not-started",
         jestExitCode: jestResult?.status ?? null,
         cleanup: stopped ? "stopped-directory-retained-after-launcher-failure" : "directory-retained-process-not-confirmed",
@@ -335,5 +337,5 @@ module.exports = {
   findAvailablePort,
   parseTestCommand,
   assertNoResidualDatabases,
-  assertSingleHttpSuite,
+  assertSingleIntegrationSuite,
 }

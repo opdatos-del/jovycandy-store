@@ -39,6 +39,17 @@ import {
   inheritRingsVisualMetadata,
   mergeOfficialProductMetadata,
 } from "@jovy/lib/jovy/official-catalog-seed"
+import {
+  inspectOfficialCatalogIntegrity,
+  isOfficialCatalogCompletionCurrent,
+  officialCatalogManifestFingerprint,
+} from "@jovy/lib/jovy/official-catalog-integrity"
+import {
+  classifyStoredOfficialMedia,
+  localMediaFileExists,
+  staticMediaPath,
+  type OfficialMediaState,
+} from "@jovy/lib/jovy/official-catalog-media"
 import { JOVY_CATALOGUE_MODULE } from "@jovy/modules/jovy-catalogue"
 import { JOVY_PRODUCT_EDITORIAL_MODULE } from "@jovy/modules/jovy-product-editorial"
 import { saveCatalogueCategoryWorkflow } from "@jovy/workflows/jovy-catalogue/category"
@@ -182,6 +193,7 @@ type MediaPlan = {
   urlByHash: Map<string, string>
   localUrlByHash: Map<string, string>
   assetsToUpload: number
+  stateByHash: Map<string, OfficialMediaState>
 }
 
 type Preview = {
@@ -198,6 +210,8 @@ type Preview = {
   inventoryLevelsToCreate: number
   familiesToCreate: number
   mediaToUpload: number
+  localMediaMissing: number
+  officialMediaFallbacks: number
   historicalProductsPreserved: number
 }
 
@@ -635,6 +649,11 @@ async function isReachable(url: string): Promise<boolean> {
   }
 }
 
+async function isStoredMediaAvailable(url: string): Promise<boolean> {
+  if (staticMediaPath(url)) return localMediaFileExists(url)
+  return isReachable(url)
+}
+
 async function uploadMedia(
   fileService: FileUploader,
   url: string,
@@ -687,16 +706,34 @@ async function prepareMedia(
   const registry = localMediaRegistryFromProducts(existingProducts)
   const urlByHash = new Map<string, string>()
   const localUrlByHash = new Map<string, string>()
+  const stateByHash = new Map<string, OfficialMediaState>()
   let assetsToUpload = 0
+  const manifestOnly = process.env.OFFICIAL_SEED_MEDIA_MODE === "manifest"
 
-  for (const asset of assets) {
+  const inspected = manifestOnly
+    ? assets.map((asset) => ({
+        asset,
+        existing: registry.get(asset.sha256!),
+        available: false,
+        state: "official-fallback" as OfficialMediaState,
+      }))
+    : await mapLimited(assets, MEDIA_CONCURRENCY, async (asset) => {
+        const existing = registry.get(asset.sha256!)
+        const available = existing ? await isStoredMediaAvailable(existing) : false
+        return {
+          asset,
+          existing,
+          available,
+          state: classifyStoredOfficialMedia(existing, available),
+        }
+      })
+
+  for (const { asset, existing, available, state } of inspected) {
     if (!asset.sha256) continue
     urlByHash.set(asset.sha256, asset.url)
-    const existing = registry.get(asset.sha256)
-    if (
-      existing &&
-      (/\/static\//.test(existing) || (await isReachable(existing)))
-    ) {
+    stateByHash.set(asset.sha256, state)
+    if (manifestOnly) continue
+    if (existing && available) {
       urlByHash.set(asset.sha256, existing)
       localUrlByHash.set(asset.sha256, existing)
     } else {
@@ -704,7 +741,9 @@ async function prepareMedia(
     }
   }
 
-  if (!apply) return { urlByHash, localUrlByHash, assetsToUpload }
+  if (!apply || manifestOnly) {
+    return { urlByHash, localUrlByHash, assetsToUpload, stateByHash }
+  }
 
   const fileService = container.resolve(Modules.FILE) as unknown as FileUploader
   const missing = assets.filter(
@@ -728,6 +767,7 @@ async function prepareMedia(
       logger.warn(
         `[official-seed] no se pudo registrar ${asset.source_path} en File Module; se usa la URL oficial verificada (${error instanceof Error ? error.name : "error"})`,
       )
+      stateByHash.set(asset.sha256, "official-fallback")
       return null
     }
   })
@@ -736,9 +776,10 @@ async function prepareMedia(
     if (!entry) continue
     localUrlByHash.set(entry[0], entry[1])
     urlByHash.set(entry[0], entry[1])
+    stateByHash.set(entry[0], "local-valid")
   }
 
-  return { urlByHash, localUrlByHash, assetsToUpload }
+  return { urlByHash, localUrlByHash, assetsToUpload, stateByHash }
 }
 
 async function prepareInventory(
@@ -1157,6 +1198,7 @@ function buildPreview(
   }
 
   const officialIds = new Set(plans.map((plan) => plan.externalId))
+  const mediaStates = [...media.stateByHash.values()]
 
   return {
     mode: "preview",
@@ -1172,6 +1214,10 @@ function buildPreview(
     inventoryLevelsToCreate: inventory.levelsToCreate,
     familiesToCreate: familiesCreated,
     mediaToUpload: media.assetsToUpload,
+    localMediaMissing: mediaStates.filter((state) => state === "local-missing").length,
+    officialMediaFallbacks: mediaStates.filter(
+      (state) => state === "official-fallback",
+    ).length,
     historicalProductsPreserved: products.filter(
       (product) => !officialIds.has(String(product.external_id ?? "")),
     ).length,
@@ -1468,7 +1514,15 @@ async function markOfficialCatalogComplete(
   container: ExecArgs["container"],
   plans: OfficialProductPlan[],
   products: ProductRow[],
+  manifestSha256: string,
 ): Promise<void> {
+  const integrity = inspectOfficialCatalogIntegrity(plans, products)
+  if (integrity.issues.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `No se puede marcar catálogo completo: ${integrity.issues.join("; ")}`,
+    )
+  }
   const byExternalId = new Map(
     products
       .filter((product) => product.external_id)
@@ -1479,7 +1533,9 @@ async function markOfficialCatalogComplete(
     if (!product) return []
     if (
       product.metadata?.jovy_official_catalog_complete === true &&
-      product.metadata?.jovy_official_catalog_size === plans.length
+      product.metadata?.jovy_official_catalog_size === plans.length &&
+      product.metadata?.jovy_official_catalog_manifest_sha256 === manifestSha256 &&
+      product.metadata?.jovy_official_catalog_integrity_sha256 === integrity.hash
     ) {
       return []
     }
@@ -1490,6 +1546,8 @@ async function markOfficialCatalogComplete(
           ...(product.metadata ?? {}),
           jovy_official_catalog_complete: true,
           jovy_official_catalog_size: plans.length,
+          jovy_official_catalog_manifest_sha256: manifestSha256,
+          jovy_official_catalog_integrity_sha256: integrity.hash,
         },
       },
     ]
@@ -1499,6 +1557,42 @@ async function markOfficialCatalogComplete(
     await updateProductsWorkflow(container).run({
       input: { products: updates },
     })
+  }
+}
+
+/**
+ * Un marcador de un manifiesto anterior nunca debe sobrevivir a una importación
+ * fallida. Se invalida antes de la primera escritura funcional del nuevo run.
+ */
+async function invalidateOfficialCatalogCompletion(
+  container: ExecArgs["container"],
+  plans: OfficialProductPlan[],
+  products: ProductRow[],
+  manifestSha256: string,
+): Promise<void> {
+  if (isOfficialCatalogCompletionCurrent(plans, products, manifestSha256)) return
+
+  const officialIds = new Set(plans.map((plan) => plan.externalId))
+  const updates = products
+    .filter((product) => officialIds.has(String(product.external_id ?? "")))
+    .filter(
+      (product) =>
+        product.metadata?.jovy_official_catalog_complete === true ||
+        product.metadata?.jovy_official_catalog_manifest_sha256 !== undefined ||
+        product.metadata?.jovy_official_catalog_integrity_sha256 !== undefined,
+    )
+    .map((product) => ({
+      id: product.id,
+      metadata: {
+        ...(product.metadata ?? {}),
+        jovy_official_catalog_complete: false,
+        jovy_official_catalog_size: null,
+        jovy_official_catalog_manifest_sha256: null,
+        jovy_official_catalog_integrity_sha256: null,
+      },
+    }))
+  if (updates.length) {
+    await updateProductsWorkflow(container).run({ input: { products: updates } })
   }
 }
 
@@ -1587,6 +1681,7 @@ export default async function seedOfficialCatalog({ container, args }: ExecArgs)
   const catalog = officialCatalogSchema.parse(manifest)
   validateOfficialCatalog(catalog)
   const sourcePlans = buildOfficialProductPlans(catalog)
+  const manifestSha256 = officialCatalogManifestFingerprint(catalog)
   const apply =
     process.env.OFFICIAL_SEED_MODE === "apply" ||
     Boolean(args?.includes("--apply"))
@@ -1599,6 +1694,14 @@ export default async function seedOfficialCatalog({ container, args }: ExecArgs)
       throw new MedusaError(MedusaError.Types.CONFLICT, conflict)
     }
     const plans = resolveOfficialProductIdentities(sourcePlans, products)
+    if (apply) {
+      await invalidateOfficialCatalogCompletion(
+        container,
+        plans,
+        products,
+        manifestSha256,
+      )
+    }
     const infrastructure = apply
       ? await locking.execute(
           "jovy:seed:commerce-infrastructure",
@@ -1663,6 +1766,7 @@ export default async function seedOfficialCatalog({ container, args }: ExecArgs)
       container,
       plans,
       await loadProducts(container),
+      manifestSha256,
     )
 
     const search = container.resolve(Modules.SEARCH) as {

@@ -52,6 +52,13 @@ precios MXN faltantes. Los precios MXN existentes, stock, reservas y metadata
 manual se preservan. Categorías, familias y perfiles de envío ya vinculados no
 se sobrescriben: el seed solo crea o completa lo que falta.
 
+El marcador de catálogo completo incluye la huella SHA-256 del manifiesto y una
+huella de integridad de las invariantes gestionadas (35 productos oficiales,
+61 variantes con inventario, precio MXN y configuración oficial). Antes de la
+primera escritura funcional de un manifiesto distinto, el seed invalida el
+marcador anterior. Si una reconciliación posterior falla, ningún producto
+conserva un marcador del manifiesto previo.
+
 ## 3. Ejecución
 
 ```powershell
@@ -115,6 +122,18 @@ Los medios se deduplican por SHA-256. El seed descarga, vuelve a calcular el
 hash y solo entonces sube al File Module. Un fallo de subida usa la URL oficial
 verificada y se reintenta en la siguiente ejecución; no lo marca como local.
 
+Una referencia registrada bajo `/static/` solo se reutiliza si el archivo existe
+dentro de `apps/backend/static`; una ruta ausente, una URL remota caída o una
+ruta con traversal dejan de considerarse válidas. El preview distingue medios
+locales válidos, archivos locales faltantes y recursos que usarán la URL oficial
+de respaldo. `OFFICIAL_SEED_MEDIA_MODE=manifest` permite cargar las 35 fichas de
+forma determinista sin descargar medios; la disponibilidad remota y sus hashes se
+comprueban aparte con:
+
+```powershell
+pnpm --dir apps/backend catalog:verify-media
+```
+
 Para conservar el efecto `layered` de Rings Manzana, el seed hereda las claves
 `card_hover_*` del producto histórico `jovy-aros-manzana-verde` en
 `jovy-mx-rings-rings-manzana`. No propaga la capa a otros sabores ni reemplaza un
@@ -122,7 +141,23 @@ ajuste manual posterior. En una base nueva sin ese producto histórico, la capa
 no existe y el resolver visual degrada a `zoom`; antes de una demostación se
 debe ejecutar el seed histórico y `seed:card-hover`.
 
-## 7. Storefront
+## 7. Revisión administrativa
+
+La pantalla **Categorías** del Admin incluye una revisión de fuente oficial. El
+endpoint `GET /admin/jovy/catalogue/official-preview` compara el manifiesto con
+los productos Medusa y expone diferencias de título, descripción, peso, variantes
+y precio MXN, además de diagnósticos de estado, categoría, familia,
+especificaciones y fecha de fuente. El endpoint `POST` aplica únicamente los campos comerciales
+seleccionados (`title`, `description`, `weight`) mediante el workflow nativo de
+productos; nunca cambia inventario, precios, variantes, medios ni metadata. Los
+campos no seleccionados conservan su edición administrativa y los productos
+faltantes solo se listan: su creación sigue reservada al seed controlado.
+
+La escritura requiere `jovy_catalogue:update`; la consulta requiere
+`jovy_catalogue:read`. La forma usa etiquetas visibles, agrupación semántica y
+mensajes de estado accesibles.
+
+## 8. Storefront
 
 - Prioriza los 35 productos oficiales cuando existe el marcador de catálogo
   completo (`jovy_official_catalog_complete` y tamaño 35); un seed parcial no
@@ -141,14 +176,24 @@ debe ejecutar el seed histórico y `seed:card-hover`.
 - Backorder e inventario no gestionado tienen copy específico.
 - Enlace de salto, carga accesible, error de CMS recuperable y foco visible.
 
-## 8. Pruebas
+## 9. Pruebas
 
-- Unitarias del manifiesto, agrupación, precios, identidades y metadata.
-- Integración HTTP contra PostgreSQL descartable:
+- Unitarias del manifiesto, agrupación, precios, identidades, metadata, huellas
+  de integridad, resolución segura de medios y diferencias de preview.
+- Integración HTTP con fixture reducido:
   `integration-tests/http/official-catalog-seed.spec.ts`. Valida primera carga,
   segunda ejecución, 50 unidades, reservas, identidades, duplicados,
-  presentaciones, precio MXN, enlaces ausentes y ausencia de marcador completo
-  ante una falla posterior a escrituras parciales.
+  presentaciones, precio MXN, enlaces ausentes, conservación de ediciones
+  administrativas e invalidación del marcador tras cambiar el manifiesto y
+  fallar una reconciliación posterior.
+- Integración HTTP determinista con el manifiesto completo:
+  `integration-tests/http/official-catalog-full-manifest.spec.ts`. Carga 35
+  productos y 61 variantes sin descargas remotas y comprueba persistencia,
+  categoría/canal/perfil, precios MXN, inventario de 50, huellas del marcador e
+  idempotencia.
+- La suite completa no depende de conectividad. `catalog:verify-media` es la
+  comprobación separada de 173 referencias verificadas (144 recursos únicos por
+  SHA-256) contra su URL remota y hash.
 - Escenarios cubiertos: apertura 50, idempotencia, dos seeds concurrentes,
   precio/edit manual, familia editada, reserva y reposición, presentación nueva,
   renombre oficial, reparación de enlaces de inventario/canal/perfil y MXN sobre
@@ -161,17 +206,23 @@ debe ejecutar el seed histórico y `seed:card-hover`.
 ### Evidencia 2026-11-26
 
 `official-catalog-seed.spec.ts` pasó sobre el clúster efímero de la ejecución
-`371c75fc-94a4-4945-ba21-fb3ed3527a9f` (puerto `57144`): 3 pruebas en 42.552 s,
-salida `0`, sin bases residuales y con el directorio de ejecución eliminado.
-No se accedió a PostgreSQL `5432` ni `55432`.
+`4a68d466-19cc-4e21-bff3-ddc9b5550db7` (puerto `62512`): 3 pruebas, salida `0`,
+sin bases residuales y con el directorio de ejecución eliminado.
 
-La suite confirma que una segunda ejecución conserva título y perfil de envío
-editados en Admin, repara enlaces ausentes, no duplica identidades/precios y no
-marca el catálogo como completo si una reconciliación posterior deja escrituras
-parciales. El manifiesto versionado se valida unitariamente con 35 productos,
-61 variantes y 173 medios verificados.
+`official-catalog-full-manifest.spec.ts` pasó en la ejecución
+`4930d385-8acc-4a34-b94f-e0dcc2a66db6` (puerto `62785`): 1 prueba, 35 productos,
+61 variantes, precios MXN, inventario de 50 y segunda ejecución sin duplicados.
+La suite de módulos `catalogue.integration.test.ts` pasó en la ejecución
+`03eafef1-f237-4164-a0eb-193ad86992a9` (puerto `59918`): 6 pruebas.
 
-## 9. Límites
+La suite reducida confirma que una segunda ejecución conserva título y perfil de
+envío editados en Admin, repara enlaces ausentes, no duplica identidades/precios
+e invalida el marcador previo cuando cambia el manifiesto y una reconciliación
+posterior deja escrituras parciales. `catalog:verify-media` verificó
+`144` recursos únicos con conectividad. No se accedió a PostgreSQL `5432` ni
+`55432`.
+
+## 10. Límites
 
 - Precios, pago, envío y stock son de laboratorio.
 - No hay certificaciones, SKU, EAN ni precios publicados por la fuente oficial.
