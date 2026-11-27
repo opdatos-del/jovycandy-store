@@ -6,12 +6,15 @@
  *
  * - una Price List de tipo `sale` con precios temporales por variante;
  * - un cupón porcentual, un cupón de importe fijo y un cupón de envío gratis;
- * - una promoción automática;
+ * - una promoción automática limitada al conjunto de variantes de laboratorio;
  * - una campaña nativa que agrupa vigencias y presupuesto.
  *
  * No toca precios base ni inventario; no publica nada en producción. Es
- * idempotente por identificador de campaña y por código de promoción. Las
- * fechas se pueden ajustar con `JOVY_CAMPAIGN_START` y `JOVY_CAMPAIGN_END`.
+ * idempotente por identificador de campaña y por código de promoción.
+ *
+ * Guardas: rechaza producción, staging, bases no loopback y bases locales sin
+ * huella autorizada. Un PostgreSQL efímero verificable se acepta por su
+ * marcador de ejecución.
  */
 import {
   createCampaignsWorkflow,
@@ -20,75 +23,33 @@ import {
 } from "@medusajs/medusa/core-flows"
 import type { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import {
+  assertLabCampaignDatabase,
+  campaignTargetRules,
+  parseLabDatabaseIdentity,
+  resolveLabCampaignConfig,
+  selectCampaignVariants,
+  type CampaignProductRow,
+} from "@jovy/lib/jovy/lab-campaign"
 import type { QueryGraph } from "@jovy/lib/jovy/product-editorial-graph"
 
-const CAMPAIGN_IDENTIFIER =
-  process.env.JOVY_CAMPAIGN_IDENTIFIER ?? "buen-fin-laboratorio"
-const CAMPAIGN_NAME = process.env.JOVY_CAMPAIGN_NAME ?? "Buen Fin Laboratorio"
 const CURRENCY = "mxn"
-const SALE_PERCENT = Number(process.env.JOVY_CAMPAIGN_SALE_PERCENT ?? "20")
-const VARIANT_LIMIT = Number(process.env.JOVY_CAMPAIGN_VARIANT_LIMIT ?? "5")
-const PRICE_LIST_TITLE = `${CAMPAIGN_NAME} - Precios`
 
-function campaignDates() {
-  const startsAt = process.env.JOVY_CAMPAIGN_START
-    ? new Date(process.env.JOVY_CAMPAIGN_START)
-    : new Date()
-  const endsAt = process.env.JOVY_CAMPAIGN_END
-    ? new Date(process.env.JOVY_CAMPAIGN_END)
-    : new Date(startsAt.getTime() + 14 * 24 * 60 * 60 * 1_000)
-  return { startsAt, endsAt }
-}
-
-type VariantRow = {
-  id: string
-  sku?: string | null
-  price_set?: {
-    id?: string | null
-    prices?: Array<{ amount?: number | null; currency_code?: string | null }> | null
-  } | null
-}
-
-type ProductRow = {
-  id: string
-  variants?: VariantRow[] | null
+function campaignDates(config: ReturnType<typeof resolveLabCampaignConfig>) {
+  return { startsAt: config.startsAt, endsAt: config.endsAt }
 }
 
 async function seedCampaign({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+
+  // Toda la validación ocurre antes de la primera escritura. La identidad de
+  // la base se comprueba antes de interpretar la configuración de campaña.
+  const identity = parseLabDatabaseIdentity(process.env.DATABASE_URL)
+  assertLabCampaignDatabase(process.env, identity)
+  const config = resolveLabCampaignConfig(process.env)
+  const { startsAt, endsAt } = campaignDates(config)
+
   const query = container.resolve(ContainerRegistrationKeys.QUERY) as QueryGraph
-  const { startsAt, endsAt } = campaignDates()
-
-  const existingCampaign = (await query.graph({
-    entity: "campaign",
-    fields: ["id", "name", "campaign_identifier"],
-    filters: { campaign_identifier: CAMPAIGN_IDENTIFIER },
-    pagination: { take: 1, skip: 0 },
-  })).data[0] as { id: string } | undefined
-
-  let campaignId: string | undefined = existingCampaign?.id
-  if (!campaignId) {
-    const { result } = await createCampaignsWorkflow(container).run({
-      input: {
-        campaignsData: [
-          {
-            name: CAMPAIGN_NAME,
-            campaign_identifier: CAMPAIGN_IDENTIFIER,
-            description:
-              "Campaña de laboratorio. No representa una promoción comercial publicada.",
-            starts_at: startsAt,
-            ends_at: endsAt,
-          },
-        ],
-      },
-    })
-    campaignId = result[0].id
-    if (!campaignId) throw new Error("La campaña no devolvió un identificador.")
-    logger.info(`[jovy-campaign] campaña creada: ${CAMPAIGN_NAME}`)
-  } else {
-    logger.info(`[jovy-campaign] campaña reutilizada: ${CAMPAIGN_NAME}`)
-  }
-
   const { data: products } = await query.graph({
     entity: "product",
     fields: [
@@ -104,50 +65,62 @@ async function seedCampaign({ container }: ExecArgs) {
     pagination: { take: 1_000, skip: 0 },
   })
 
-  const requestedSkus = (process.env.JOVY_CAMPAIGN_SKUS ?? "")
-    .split(",")
-    .map((sku) => sku.trim().toUpperCase())
-    .filter(Boolean)
+  const selected = selectCampaignVariants(
+    products as CampaignProductRow[],
+    config.requestedSkus,
+    config.variantLimit,
+    CURRENCY,
+  )
+  const selectedProductIds = [...new Set(selected.map((variant) => variant.productId))]
+  const targetRules = campaignTargetRules(selectedProductIds)
 
-  const variantRows = (products as ProductRow[])
-    .flatMap((product) => product.variants ?? [])
-    .filter((variant) => {
-      const price = (variant.price_set?.prices ?? []).find(
-        (item) => String(item.currency_code).toLowerCase() === CURRENCY,
-      )
-      return Boolean(
-        variant.id &&
-          variant.price_set?.id &&
-          typeof price?.amount === "number" &&
-          price.amount > 0,
-      )
-    })
-    .filter(
-      (variant) =>
-        !requestedSkus.length ||
-        requestedSkus.includes(String(variant.sku ?? "").toUpperCase()),
-    )
-    .slice(0, Math.max(1, VARIANT_LIMIT))
-
-  const existingPriceList = (await query.graph({
-    entity: "price_list",
-    fields: ["id", "title"],
-    filters: { title: PRICE_LIST_TITLE },
+  const existingCampaign = (await query.graph({
+    entity: "campaign",
+    fields: ["id", "name", "campaign_identifier"],
+    filters: { campaign_identifier: config.campaignIdentifier },
     pagination: { take: 1, skip: 0 },
   })).data[0] as { id: string } | undefined
 
-  if (!existingPriceList && variantRows.length) {
-    const discounts = variantRows.map((variant) => {
-      const price = (variant.price_set?.prices ?? []).find(
-        (item) => String(item.currency_code).toLowerCase() === CURRENCY,
-      )
-      const baseAmount = Number(price?.amount ?? 0)
-      return {
-        variant_id: variant.id,
-        currency_code: CURRENCY,
-        amount: Math.max(1, Math.round(baseAmount * (1 - SALE_PERCENT / 100))),
-      }
+  let campaignId: string | undefined = existingCampaign?.id
+  if (!campaignId) {
+    const { result } = await createCampaignsWorkflow(container).run({
+      input: {
+        campaignsData: [
+          {
+            name: config.campaignName,
+            campaign_identifier: config.campaignIdentifier,
+            description:
+              "Campaña de laboratorio. No representa una promoción comercial publicada.",
+            starts_at: startsAt,
+            ends_at: endsAt,
+          },
+        ],
+      },
     })
+    campaignId = result[0].id
+    if (!campaignId) throw new Error("La campaña no devolvió un identificador.")
+    logger.info(`[jovy-campaign] campaña creada: ${config.campaignName}`)
+  } else {
+    logger.info(`[jovy-campaign] campaña reutilizada: ${config.campaignName}`)
+  }
+
+  const priceListTitle = `${config.campaignName} - Precios`
+  const existingPriceList = (await query.graph({
+    entity: "price_list",
+    fields: ["id", "title"],
+    filters: { title: priceListTitle },
+    pagination: { take: 1, skip: 0 },
+  })).data[0] as { id: string } | undefined
+
+  if (!existingPriceList) {
+    const discounts = selected.map((variant) => ({
+      variant_id: variant.id,
+      currency_code: CURRENCY,
+      amount: Math.max(
+        1,
+        Math.round(variant.baseAmount * (1 - config.salePercent / 100)),
+      ),
+    }))
 
     // Los tipos publicados del workflow y su entrada real de Admin difieren en
     // esta versión; la forma usada aquí es la misma que valida la API Admin.
@@ -155,8 +128,8 @@ async function seedCampaign({ container }: ExecArgs) {
       input: {
         price_lists_data: [
           {
-            title: PRICE_LIST_TITLE,
-            description: `Precios de oferta de ${CAMPAIGN_NAME}. Solo laboratorio.`,
+            title: priceListTitle,
+            description: `Precios de oferta de ${config.campaignName}. Solo laboratorio.`,
             type: "sale",
             status: "active",
             starts_at: startsAt,
@@ -167,20 +140,18 @@ async function seedCampaign({ container }: ExecArgs) {
       } as never,
     })
     logger.info(
-      `[jovy-campaign] price list creada con ${discounts.length} variantes (-${SALE_PERCENT}%)`,
+      `[jovy-campaign] price list creada con ${discounts.length} variantes (-${config.salePercent}%)`,
     )
-  } else if (existingPriceList) {
-    logger.info("[jovy-campaign] price list ya existía; no se modificó")
   } else {
-    logger.warn("[jovy-campaign] no hay variantes con precio MXN; price list omitida")
+    logger.info("[jovy-campaign] price list ya existía; no se modificó")
   }
 
   const promotionCodes = [
-    process.env.JOVY_CAMPAIGN_CODE_PERCENT ?? "BUENFIN10",
-    process.env.JOVY_CAMPAIGN_CODE_FIXED ?? "BUENFIN50",
-    process.env.JOVY_CAMPAIGN_CODE_AUTO ?? "AUTO15",
-    process.env.JOVY_CAMPAIGN_CODE_SHIPPING ?? "ENVIOGRATIS",
-  ].map((code) => code.toUpperCase())
+    config.codes.percent,
+    config.codes.fixed,
+    config.codes.automatic,
+    config.codes.shipping,
+  ]
 
   const existingPromotions = (await query.graph({
     entity: "promotion",
@@ -192,7 +163,7 @@ async function seedCampaign({ container }: ExecArgs) {
 
   const promotionsData = [
     {
-      code: promotionCodes[0],
+      code: config.codes.percent,
       type: "standard",
       status: "active",
       campaign_id: campaignId,
@@ -202,12 +173,13 @@ async function seedCampaign({ container }: ExecArgs) {
         target_type: "items",
         allocation: "each",
         max_quantity: 100,
-        value: 10,
+        value: config.couponPercent,
         currency_code: CURRENCY,
+        target_rules: targetRules,
       },
     },
     {
-      code: promotionCodes[1],
+      code: config.codes.fixed,
       type: "standard",
       status: "active",
       campaign_id: campaignId,
@@ -217,12 +189,13 @@ async function seedCampaign({ container }: ExecArgs) {
         target_type: "items",
         allocation: "each",
         max_quantity: 100,
-        value: 50,
+        value: config.fixedAmount,
         currency_code: CURRENCY,
+        target_rules: targetRules,
       },
     },
     {
-      code: promotionCodes[2],
+      code: config.codes.automatic,
       type: "standard",
       status: "active",
       is_automatic: true,
@@ -233,12 +206,13 @@ async function seedCampaign({ container }: ExecArgs) {
         target_type: "items",
         allocation: "each",
         max_quantity: 100,
-        value: 15,
+        value: config.automaticPercent,
         currency_code: CURRENCY,
+        target_rules: targetRules,
       },
     },
     {
-      code: promotionCodes[3],
+      code: config.codes.shipping,
       type: "standard",
       status: "active",
       campaign_id: campaignId,
@@ -267,7 +241,7 @@ async function seedCampaign({ container }: ExecArgs) {
   }
 
   logger.info(
-    `[jovy-campaign] listo. Vigencia ${startsAt.toISOString()} → ${endsAt.toISOString()}. Solo laboratorio.`,
+    `[jovy-campaign] listo. ${selected.length} variantes, base ${identity.database}@${identity.host}:${identity.port}, vigencia ${startsAt.toISOString()} → ${endsAt.toISOString()}. Solo laboratorio.`,
   )
 }
 

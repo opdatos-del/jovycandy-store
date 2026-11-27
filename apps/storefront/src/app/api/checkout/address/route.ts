@@ -16,6 +16,7 @@ export async function POST(request: Request) {
 
     const updated = await updateStoreCartCustomer(cart.id, {
       email: address.email,
+      regionId: cart.regionId,
       shippingAddress: {
         first_name: address.first_name,
         last_name: address.last_name,

@@ -97,6 +97,7 @@ por Medusa. El storefront no recalcula descuentos ni impuestos.
 |---|---|
 | `commerce-operations.spec.ts` | 18/18 PASS en PostgreSQL efímero |
 | Storefront E2E | 31/31 PASS |
+| Campaña E2E aislada | 10/10 PASS |
 | Typecheck backend/storefront | PASS |
 | Build backend/storefront | PASS |
 
@@ -119,5 +120,6 @@ limpieza: stopped-and-removed
   productivas publicadas.
 - Las variantes históricas pueden conservar `manage_inventory = false`; activar
   inventario comercial requiere la decisión de autoridad de stock.
-- El E2E del cupón válido requiere una campaña de laboratorio creada con
-  `seed:campaign`; el flujo real se valida en la suite de integración.
+- El cupón válido se valida en la suite de integración y en el E2E aislado de
+  campañas (`pnpm --dir apps/storefront test:e2e:campaign`), que configura la
+  campaña por API Admin.

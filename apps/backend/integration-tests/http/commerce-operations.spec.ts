@@ -1250,6 +1250,77 @@ medusaIntegrationTestRunner({
         })
         expect(promotions).toHaveLength(4)
       })
+
+      it("aborta sin escrituras si la configuración es inválida", async () => {
+        const execArgs = { container: getContainer(), args: [] } as never
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+
+        const countCampaigns = async () =>
+          (
+            await query.graph({
+              entity: "campaign",
+              fields: ["id"],
+              filters: { campaign_identifier: "buen-fin-laboratorio" },
+            })
+          ).data.length
+
+        expect(await countCampaigns()).toBe(0)
+
+        const previousPercent = process.env.JOVY_CAMPAIGN_SALE_PERCENT
+        process.env.JOVY_CAMPAIGN_SALE_PERCENT = "0"
+        try {
+          await expect(seedCommerceCampaign(execArgs)).rejects.toMatchObject({
+            code: "invalid_range",
+          })
+        } finally {
+          if (previousPercent === undefined) delete process.env.JOVY_CAMPAIGN_SALE_PERCENT
+          else process.env.JOVY_CAMPAIGN_SALE_PERCENT = previousPercent
+        }
+        expect(await countCampaigns()).toBe(0)
+
+        const previousNodeEnv = process.env.NODE_ENV
+        process.env.NODE_ENV = "production"
+        try {
+          await expect(seedCommerceCampaign(execArgs)).rejects.toMatchObject({
+            code: "forbidden_environment",
+          })
+        } finally {
+          if (previousNodeEnv === undefined) delete process.env.NODE_ENV
+          else process.env.NODE_ENV = previousNodeEnv
+        }
+        expect(await countCampaigns()).toBe(0)
+      })
+
+      it("aborta sin escrituras si un SKU solicitado no existe", async () => {
+        await createProduct({ amount: 10_000 })
+        const execArgs = { container: getContainer(), args: [] } as never
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+
+        const previousSkus = process.env.JOVY_CAMPAIGN_SKUS
+        process.env.JOVY_CAMPAIGN_SKUS = "SKU-QUE-NO-EXISTE"
+        try {
+          await expect(seedCommerceCampaign(execArgs)).rejects.toMatchObject({
+            code: "missing_skus",
+          })
+        } finally {
+          if (previousSkus === undefined) delete process.env.JOVY_CAMPAIGN_SKUS
+          else process.env.JOVY_CAMPAIGN_SKUS = previousSkus
+        }
+
+        const { data: campaigns } = await query.graph({
+          entity: "campaign",
+          fields: ["id"],
+          filters: { campaign_identifier: "buen-fin-laboratorio" },
+        })
+        expect(campaigns).toHaveLength(0)
+
+        const { data: priceLists } = await query.graph({
+          entity: "price_list",
+          fields: ["id"],
+          filters: { title: "Buen Fin Laboratorio - Precios" },
+        })
+        expect(priceLists).toHaveLength(0)
+      })
     })
   },
 })

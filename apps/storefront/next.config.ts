@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
+const distDir = process.env.JOVY_NEXT_DIST_DIR?.trim()
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  ...(distDir ? { distDir } : {}),
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,

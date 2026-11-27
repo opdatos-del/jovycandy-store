@@ -293,7 +293,9 @@ async function runCommerceSeed({ container }: ExecArgs) {
         service_zones: [
           {
             name: "Mexico",
-            geo_zones: [{ country_code: COUNTRY, type: "country" }],
+            // La dirección del carrito usa ISO-2 en minúsculas; la zona debe
+            // coincidir exactamente para que Medusa resuelva opciones de envío.
+            geo_zones: [{ country_code: COUNTRY.toLowerCase(), type: "country" }],
           },
         ],
       },

@@ -295,11 +295,41 @@ export async function listCommerceProducts(regionId: string): Promise<CommercePr
     .filter((product): product is CommerceProduct => Boolean(product))
 }
 
+type RawCategoryList = {
+  product_categories?: Array<{ id?: string; handle?: string; name?: string }>
+  count?: number
+}
+
+type RawCollectionList = {
+  collections?: Array<{ id?: string; handle?: string; title?: string }>
+  count?: number
+}
+
+/**
+ * Las APIs de categorías y colecciones tienen paginación propia. Se recorren
+ * todas las páginas para que la navegación no dependa de un límite fijo.
+ */
 export async function listCommerceCategories(): Promise<CommerceCategory[]> {
-  const payload = await storeFetch<{
-    product_categories?: Array<{ id?: string; handle?: string; name?: string }>
-  }>("/product-categories?limit=100&fields=id,handle,name")
-  return (payload.product_categories ?? [])
+  const limit = 100
+  const rows: Array<{ id?: string; handle?: string; name?: string }> = []
+  let offset = 0
+
+  while (true) {
+    const payload = await storeFetch<RawCategoryList>(
+      `/product-categories?limit=${limit}&offset=${offset}&fields=id,handle,name`,
+    )
+    const page = payload.product_categories ?? []
+    rows.push(...page)
+    offset += page.length
+    if (
+      page.length < limit ||
+      (typeof payload.count === "number" && rows.length >= payload.count)
+    ) {
+      break
+    }
+  }
+
+  return rows
     .filter(
       (category): category is { id: string; handle: string; name: string } =>
         Boolean(category.id && category.handle && category.name),
@@ -312,10 +342,26 @@ export async function listCommerceCategories(): Promise<CommerceCategory[]> {
 }
 
 export async function listCommerceCollections(): Promise<CommerceCollection[]> {
-  const payload = await storeFetch<{
-    collections?: Array<{ id?: string; handle?: string; title?: string }>
-  }>("/collections?limit=100&fields=id,handle,title")
-  return (payload.collections ?? [])
+  const limit = 100
+  const rows: Array<{ id?: string; handle?: string; title?: string }> = []
+  let offset = 0
+
+  while (true) {
+    const payload = await storeFetch<RawCollectionList>(
+      `/collections?limit=${limit}&offset=${offset}&fields=id,handle,title`,
+    )
+    const page = payload.collections ?? []
+    rows.push(...page)
+    offset += page.length
+    if (
+      page.length < limit ||
+      (typeof payload.count === "number" && rows.length >= payload.count)
+    ) {
+      break
+    }
+  }
+
+  return rows
     .filter(
       (collection): collection is { id: string; handle: string; title: string } =>
         Boolean(collection.id && collection.handle && collection.title),
@@ -359,6 +405,7 @@ export type StorePromotion = {
 
 export type StoreCart = {
   id: string
+  regionId: string | null
   currencyCode: string
   email: string | null
   items: StoreCartItem[]
@@ -394,8 +441,10 @@ type RawPromotion = {
 
 type RawCart = {
   id?: string
+  region_id?: string | null
   currency_code?: string | null
   email?: string | null
+  shipping_address?: { first_name?: string | null } | null
   items?: RawLineItem[] | null
   subtotal?: number | null
   shipping_total?: number | null
@@ -433,6 +482,7 @@ export function normalizeCart(raw: RawCart): StoreCart | null {
 
   return {
     id: raw.id,
+    regionId: raw.region_id ?? null,
     currencyCode: raw.currency_code ?? "mxn",
     email: raw.email ?? null,
     items,
@@ -600,16 +650,39 @@ export async function setStoreCartShippingMethod(
 
 export async function updateStoreCartCustomer(
   cartId: string,
-  input: { email: string; shippingAddress: Record<string, string> },
+  input: {
+    email: string
+    shippingAddress: Record<string, string>
+    regionId?: string | null
+  },
 ): Promise<StoreCart> {
-  const payload = await storeFetch<{ cart?: RawCart }>(`/carts/${encodeURIComponent(cartId)}`, {
-    method: "POST",
-    body: {
-      email: input.email,
-      shipping_address: input.shippingAddress,
-      billing_address: input.shippingAddress,
-    },
-  })
+  const body = {
+    // Enviar la región evita que el workflow de Medusa trate la actualización
+    // como un cambio de región y reemplace la dirección por solo el país.
+    ...(input.regionId ? { region_id: input.regionId } : {}),
+    email: input.email,
+    shipping_address: input.shippingAddress,
+    billing_address: input.shippingAddress,
+  }
+
+  const send = () =>
+    storeFetch<{ cart?: RawCart }>(`/carts/${encodeURIComponent(cartId)}`, {
+      method: "POST",
+      body,
+    })
+
+  let payload = await send()
+  // En Medusa 2.22, la primera actualización de un carrito recién creado puede
+  // dejar solo `country_code` si el workflow interpreta la operación como un
+  // cambio de región. Se relee el carrito persistido y, solo si la dirección
+  // quedó incompleta, se repite la escritura completa.
+  const persisted = await storeFetch<{ cart?: RawCart }>(
+    `/carts/${encodeURIComponent(cartId)}`,
+  )
+  if (!persisted.cart?.shipping_address?.first_name) {
+    payload = await send()
+  }
+
   const cart = normalizeCart(payload.cart ?? {})
   if (!cart) throw new StoreApiError("No se pudieron guardar los datos de envío.")
   return cart

@@ -10,6 +10,11 @@ Preparar una oferta temporal desde Medusa Admin, sin modificar código por
 campaña, y consumirla en el storefront con precios y descuentos calculados por
 Medusa.
 
+El script está protegido por identidad de base: solo acepta un PostgreSQL
+efímero verificable o una base local autorizada por huella. Rechaza producción,
+staging, hosts no loopback y configuraciones inválidas antes de escribir. Ver
+`docs/94-CIERRE-CAMPANAS-COMERCIALES.md`.
+
 La campaña combina dos mecanismos independientes:
 
 1. **Precios especiales:** Price List nativa de tipo `sale` con vigencia.
@@ -126,6 +131,17 @@ limpieza: stopped-and-removed
 La suite no toca la base de desarrollo ni ejecuta pagos reales. El E2E del
 storefront (31/31) cubre catálogo, compra, carrito y el rechazo de un cupón
 inválido sin alterar totales.
+
+El flujo completo con cupón válido, envío gratis y pedido se valida en un
+entorno aislado:
+
+```powershell
+pnpm --dir apps/storefront test:e2e:campaign
+```
+
+Ese runner crea un PostgreSQL efímero, migra una base nueva, configura la
+campaña por API Admin y ejecuta 10/10 casos en navegador. Ver
+`docs/94-CIERRE-CAMPANAS-COMERCIALES.md`.
 
 ## Operación segura
 
