@@ -25,6 +25,7 @@ import type { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import {
   assertLabCampaignDatabase,
+  assertLabCampaignServerIdentity,
   campaignTargetRules,
   parseLabDatabaseIdentity,
   resolveLabCampaignConfig,
@@ -46,6 +47,7 @@ async function seedCampaign({ container }: ExecArgs) {
   // la base se comprueba antes de interpretar la configuración de campaña.
   const identity = parseLabDatabaseIdentity(process.env.DATABASE_URL)
   assertLabCampaignDatabase(process.env, identity)
+  const server = await assertLabCampaignServerIdentity(process.env, identity)
   const config = resolveLabCampaignConfig(process.env)
   const { startsAt, endsAt } = campaignDates(config)
 
@@ -241,7 +243,7 @@ async function seedCampaign({ container }: ExecArgs) {
   }
 
   logger.info(
-    `[jovy-campaign] listo. ${selected.length} variantes, base ${identity.database}@${identity.host}:${identity.port}, vigencia ${startsAt.toISOString()} → ${endsAt.toISOString()}. Solo laboratorio.`,
+    `[jovy-campaign] listo. ${selected.length} variantes, base ${server.database}@${server.serverAddress}:${server.port}, vigencia ${startsAt.toISOString()} → ${endsAt.toISOString()}. Solo laboratorio.`,
   )
 }
 

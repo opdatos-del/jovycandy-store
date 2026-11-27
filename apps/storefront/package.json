@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test:e2e": "playwright test -c playwright.config.ts",
-    "test:e2e:campaign": "node scripts/run-campaign-e2e.cjs"
+    "test:e2e:campaign": "node scripts/run-campaign-e2e.cjs",
+    "test:scripts": "node --test scripts/tsconfig-guard.test.cjs"
   },
   "dependencies": {
     "next": "16.4.6",

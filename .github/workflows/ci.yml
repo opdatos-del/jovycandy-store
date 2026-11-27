@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -82,6 +83,8 @@ jobs:
         run: pnpm lint
       - name: Unitarias backend
         run: pnpm --dir apps/backend test:unit
+      - name: Pruebas de scripts E2E
+        run: pnpm --dir apps/storefront test:scripts
       - name: Validar artefactos de staging
         run: |
           for script in deploy/staging/*.sh; do sh -n "$script"; done

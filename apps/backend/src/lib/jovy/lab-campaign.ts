@@ -1,14 +1,15 @@
 import { createHash } from "node:crypto"
 import fs from "node:fs"
 import path from "node:path"
+import { Client } from "@medusajs/framework/pg"
 
 /**
  * Guardas y validaciones del seed de campañas de laboratorio.
  *
- * El seed escribe Price Lists y promociones activas, por lo que no puede
- * depender solo de `NODE_ENV` ni de una confirmación manual. La identidad de la
- * base se calcula desde `DATABASE_URL` y debe corresponder a un PostgreSQL
- * efímero verificable o a una huella explícitamente autorizada.
+ * El seed escribe Price Lists y promociones activas. No basta una huella de
+ * `DATABASE_URL`: la identidad real se consulta al servidor PostgreSQL antes de
+ * cualquier escritura. Solo se aceptan clusters efímeros verificables o una base
+ * local declarada en un archivo de autorización fuera del repositorio.
  */
 
 export type LabCampaignErrorCode =
@@ -16,9 +17,11 @@ export type LabCampaignErrorCode =
   | "missing_database_url"
   | "invalid_database_url"
   | "non_loopback_database"
+  | "protected_port"
   | "ephemeral_identity_mismatch"
   | "ephemeral_root_missing"
   | "database_not_authorized"
+  | "server_identity_mismatch"
   | "invalid_date"
   | "invalid_range"
   | "invalid_number"
@@ -42,8 +45,51 @@ export type LabDatabaseIdentity = {
   port: number
   database: string
   user: string
+  password: string
   fingerprint: string
 }
+
+export type PostgresServerIdentity = {
+  database: string
+  user: string
+  port: number
+  serverAddress: string | null
+  dataDirectory: string
+  clusterName: string
+  listenAddresses: string
+  version: string
+}
+
+export type PostgresServerQuery = (
+  sql: string,
+) => Promise<{ rows: Array<Record<string, unknown>> }>
+
+export type ManualLabDatabaseEntry = {
+  fingerprint: string
+  host: string
+  port: number
+  database: string
+  user: string
+  data_directory: string
+  cluster_name: string
+}
+
+export type ManualLabAllowlist = {
+  version: 1
+  databases: ManualLabDatabaseEntry[]
+}
+
+export const POSTGRES_IDENTITY_QUERY = [
+  "SELECT",
+  "current_database() AS database,",
+  "current_user AS username,",
+  "inet_server_port() AS server_port,",
+  "inet_server_addr()::text AS server_address,",
+  "current_setting('data_directory') AS data_directory,",
+  "current_setting('cluster_name') AS cluster_name,",
+  "current_setting('listen_addresses') AS listen_addresses,",
+  "version() AS version",
+].join(" ")
 
 export type LabCampaignConfig = {
   campaignIdentifier: string
@@ -124,6 +170,7 @@ export function parseLabDatabaseIdentity(databaseUrl: string | undefined): LabDa
   const port = Number(url.port || "5432")
   const database = decodeURIComponent(url.pathname.replace(/^\//, ""))
   const user = decodeURIComponent(url.username)
+  const password = decodeURIComponent(url.password)
 
   if (!host || !database || !user || !Number.isInteger(port)) {
     fail("invalid_database_url", "DATABASE_URL no contiene host, base o usuario válidos.")
@@ -139,7 +186,212 @@ export function parseLabDatabaseIdentity(databaseUrl: string | undefined): LabDa
     .update(`jovy-lab-campaign:v1|${host}|${port}|${database.toLowerCase()}|${user.toLowerCase()}`)
     .digest("hex")
 
-  return { host, port, database, user, fingerprint }
+  return { host, port, database, user, password, fingerprint }
+}
+
+export function isLoopbackAddress(value: string | null | undefined) {
+  if (!value) return false
+  const address = value.replace(/^\[|\]$/g, "").toLowerCase()
+  return address === "127.0.0.1" || address === "::1" || address.startsWith("127.")
+}
+
+export function manualLabAllowlistPath(environment: NodeJS.ProcessEnv = process.env) {
+  const configured = environment.JOVY_LAB_DATABASE_ALLOWLIST_FILE?.trim()
+  if (configured) return path.resolve(configured)
+  const localAppData = environment.LOCALAPPDATA?.trim()
+  if (!localAppData) {
+    fail("database_not_authorized", "LOCALAPPDATA es obligatorio para la allowlist manual.")
+  }
+  return path.join(localAppData, "JovyCandy", "lab-databases.json")
+}
+
+/**
+ * La allowlist manual vive fuera del repositorio. Cada entrada describe una
+ * base concreta y se contrasta después contra el servidor real.
+ */
+export function loadManualLabAllowlist(
+  environment: NodeJS.ProcessEnv = process.env,
+): ManualLabAllowlist {
+  const file = manualLabAllowlistPath(environment)
+  const repository = normalizePath(environment.JOVY_REPOSITORY_ROOT ?? process.cwd())
+  if (normalizePath(file).startsWith(`${repository}/`)) {
+    fail(
+      "database_not_authorized",
+      "La allowlist de laboratorio no puede vivir dentro del repositorio.",
+    )
+  }
+  if (!fs.existsSync(file)) {
+    fail(
+      "database_not_authorized",
+      `No existe la allowlist manual de laboratorio: ${file}`,
+    )
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, "utf8"))
+  } catch {
+    fail("database_not_authorized", "La allowlist manual no es JSON válido.")
+  }
+  const value = parsed as Partial<ManualLabAllowlist> | null
+  if (value?.version !== 1 || !Array.isArray(value.databases)) {
+    fail("database_not_authorized", "La allowlist manual no tiene el formato esperado.")
+  }
+  return {
+    version: 1,
+    databases: value.databases.map((entry) => {
+      if (
+        !entry ||
+        typeof entry.fingerprint !== "string" ||
+        typeof entry.host !== "string" ||
+        typeof entry.port !== "number" ||
+        typeof entry.database !== "string" ||
+        typeof entry.user !== "string" ||
+        typeof entry.data_directory !== "string" ||
+        typeof entry.cluster_name !== "string"
+      ) {
+        fail("database_not_authorized", "Una entrada de la allowlist es inválida.")
+      }
+      return { ...entry }
+    }),
+  }
+}
+
+export function createPostgresQuery(identity: LabDatabaseIdentity): PostgresServerQuery {
+  return async (sql: string) => {
+    const client = new Client({
+      host: identity.host,
+      port: identity.port,
+      user: identity.user,
+      password: identity.password,
+      database: identity.database,
+      connectionTimeoutMillis: 5_000,
+    })
+    try {
+      await client.connect()
+      return await client.query(sql)
+    } finally {
+      await client.end().catch(() => undefined)
+    }
+  }
+}
+
+export async function fetchPostgresServerIdentity(
+  query: PostgresServerQuery,
+): Promise<PostgresServerIdentity> {
+  const { rows } = await query(POSTGRES_IDENTITY_QUERY)
+  const row = rows[0]
+  if (!row) fail("server_identity_mismatch", "PostgreSQL no devolvió su identidad.")
+  const server: PostgresServerIdentity = {
+    database: String(row.database ?? ""),
+    user: String(row.username ?? ""),
+    port: Number(row.server_port),
+    serverAddress: row.server_address ? String(row.server_address) : null,
+    dataDirectory: String(row.data_directory ?? ""),
+    clusterName: String(row.cluster_name ?? ""),
+    listenAddresses: String(row.listen_addresses ?? ""),
+    version: String(row.version ?? ""),
+  }
+  if (!server.database || !server.user || !Number.isInteger(server.port)) {
+    fail("server_identity_mismatch", "PostgreSQL devolvió una identidad incompleta.")
+  }
+  if (!isLoopbackAddress(server.serverAddress)) {
+    fail("server_identity_mismatch", "La conexión PostgreSQL no llegó por loopback.")
+  }
+  return server
+}
+
+function assertServerMatchesIdentity(
+  expected: LabDatabaseIdentity,
+  server: PostgresServerIdentity,
+) {
+  if (
+    server.database.toLowerCase() !== expected.database.toLowerCase() ||
+    server.user.toLowerCase() !== expected.user.toLowerCase() ||
+    server.port !== expected.port
+  ) {
+    fail(
+      "server_identity_mismatch",
+      "La identidad del servidor PostgreSQL no coincide con DATABASE_URL.",
+    )
+  }
+}
+
+/**
+ * Verifica el servidor real. Es obligatoria antes de escribir y se ejecuta
+ * después de las guardas síncronas de entorno y puerto.
+ */
+export async function assertLabCampaignServerIdentity(
+  environment: NodeJS.ProcessEnv = process.env,
+  identity: LabDatabaseIdentity = parseLabDatabaseIdentity(environment.DATABASE_URL),
+  options: {
+    query?: PostgresServerQuery
+    allowlist?: ManualLabAllowlist
+  } = {},
+): Promise<PostgresServerIdentity> {
+  const query = options.query ?? createPostgresQuery(identity)
+  const server = await fetchPostgresServerIdentity(query)
+  assertServerMatchesIdentity(identity, server)
+
+  if (environment.JOVY_EPHEMERAL_POSTGRES === "1") {
+    const runId = String(environment.JOVY_EPHEMERAL_POSTGRES_RUN_ID ?? "").toLowerCase()
+    const localAppData = String(environment.LOCALAPPDATA ?? "")
+    const marker = readEphemeralMarker(runId, localAppData)
+    if (
+      !marker ||
+      Number(marker.port) !== server.port ||
+      String(marker.user ?? "").toLowerCase() !== server.user.toLowerCase() ||
+      normalizePath(String(marker.dataDirectory ?? "")) !== normalizePath(server.dataDirectory) ||
+      String(marker.cluster ?? "") !== server.clusterName
+    ) {
+      fail(
+        "server_identity_mismatch",
+        "El servidor PostgreSQL no corresponde al marcador efímero.",
+      )
+    }
+    const listen = server.listenAddresses
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+    if (!listen.length || listen.some((value) => !isLoopbackAddress(value))) {
+      fail(
+        "server_identity_mismatch",
+        "El cluster efímero no escucha exclusivamente en loopback.",
+      )
+    }
+    return server
+  }
+
+  const confirmation = String(environment.JOVY_LAB_DATABASE_CONFIRM ?? "").toLowerCase()
+  if (confirmation !== "authorized") {
+    fail(
+      "database_not_authorized",
+      "La autorización manual requiere JOVY_LAB_DATABASE_CONFIRM=authorized.",
+    )
+  }
+  const allowlist = options.allowlist ?? loadManualLabAllowlist(environment)
+  const entry = allowlist.databases.find(
+    (candidate) => candidate.fingerprint.toLowerCase() === identity.fingerprint,
+  )
+  if (!entry) {
+    fail(
+      "database_not_authorized",
+      `La huella ${identity.fingerprint} no está en la allowlist manual.`,
+    )
+  }
+  if (
+    entry.host.toLowerCase() !== identity.host.toLowerCase() ||
+    Number(entry.port) !== identity.port ||
+    entry.database.toLowerCase() !== identity.database.toLowerCase() ||
+    entry.user.toLowerCase() !== identity.user.toLowerCase() ||
+    normalizePath(entry.data_directory) !== normalizePath(server.dataDirectory) ||
+    entry.cluster_name !== server.clusterName
+  ) {
+    fail(
+      "server_identity_mismatch",
+      "El servidor no coincide con la entrada autorizada de laboratorio.",
+    )
+  }
+  return server
 }
 
 function readEphemeralMarker(runId: string, localAppData: string) {
@@ -175,14 +427,10 @@ export function assertLabCampaignDatabase(
   }
 
   if (FORBIDDEN_PORTS.has(identity.port)) {
-    const authorizedFingerprint = String(environment.JOVY_LAB_DATABASE_SHA256 ?? "").toLowerCase()
-    const authorized = authorizedFingerprint === identity.fingerprint
-    if (!authorized) {
-      fail(
-        "database_not_authorized",
-        `El puerto ${identity.port} requiere autorización explícita por huella. Huella actual: ${identity.fingerprint}`,
-      )
-    }
+    fail(
+      "protected_port",
+      `seed:campaign prohíbe los puertos PostgreSQL ${[...FORBIDDEN_PORTS].join(" y ")}. Use un cluster efímero o un laboratorio aislado en otro puerto.`,
+    )
   }
 
   if (environment.JOVY_EPHEMERAL_POSTGRES === "1") {
@@ -231,12 +479,22 @@ export function assertLabCampaignDatabase(
     return
   }
 
-  const authorizedFingerprint = String(environment.JOVY_LAB_DATABASE_SHA256 ?? "").toLowerCase()
   const confirmation = String(environment.JOVY_LAB_DATABASE_CONFIRM ?? "").toLowerCase()
-  if (authorizedFingerprint !== identity.fingerprint || confirmation !== "authorized") {
+  if (confirmation !== "authorized") {
     fail(
       "database_not_authorized",
-      `Base no autorizada. Huella actual: ${identity.fingerprint}. Define JOVY_LAB_DATABASE_SHA256 con esa huella y JOVY_LAB_DATABASE_CONFIRM=authorized solo si es una base de laboratorio.`,
+      `Base no autorizada. Huella actual: ${identity.fingerprint}. La autorización manual requiere JOVY_LAB_DATABASE_CONFIRM=authorized y una entrada en la allowlist local fuera del repositorio.`,
+    )
+  }
+  const allowlist = loadManualLabAllowlist(environment)
+  if (
+    !allowlist.databases.some(
+      (entry) => entry.fingerprint.toLowerCase() === identity.fingerprint,
+    )
+  ) {
+    fail(
+      "database_not_authorized",
+      `La huella ${identity.fingerprint} no está en la allowlist manual.`,
     )
   }
 }

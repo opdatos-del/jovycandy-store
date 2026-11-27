@@ -27,6 +27,7 @@ const {
   createRunIdentity,
   writeRunMarker,
 } = require("../../backend/integration-tests/ephemeral-postgres.cjs")
+const { restoreTsconfig } = require("./tsconfig-guard.cjs")
 
 const STOREFRONT_DIRECTORY = path.resolve(__dirname, "..")
 const BACKEND_DIRECTORY = path.resolve(STOREFRONT_DIRECTORY, "..", "backend")
@@ -302,8 +303,26 @@ async function main() {
     if (nextDistDirectory) {
       fs.rmSync(nextDistDirectory, { recursive: true, force: true })
     }
-    // `next dev` agrega el distDir a tsconfig; se restaura el archivo original.
-    fs.writeFileSync(tsconfigPath, originalTsconfig, "utf8")
+    // `next dev` agrega el distDir a tsconfig. Se elimina esa entrada y se
+    // conserva cualquier cambio hecho por otro proceso durante la ejecución.
+    try {
+      const currentTsconfig = fs.readFileSync(tsconfigPath, "utf8")
+      const restored = restoreTsconfig(
+        originalTsconfig,
+        currentTsconfig,
+        ".next/campaign-e2e",
+      )
+      fs.writeFileSync(tsconfigPath, restored.text, "utf8")
+      if (restored.externalChanges) {
+        console.warn(
+          "[e2e-campaign] se conservaron cambios externos en tsconfig.json",
+        )
+      }
+    } catch (error) {
+      console.error(
+        `[e2e-campaign] no se pudo reconciliar tsconfig.json: ${redact(error)}`,
+      )
+    }
     process.stdout.write(`\n[e2e-campaign] cleanup\n`)
     try {
       if (metadata.postgresPid && !stopped) {

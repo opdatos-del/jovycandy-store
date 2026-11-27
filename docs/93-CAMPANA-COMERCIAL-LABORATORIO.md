@@ -10,10 +10,11 @@ Preparar una oferta temporal desde Medusa Admin, sin modificar código por
 campaña, y consumirla en el storefront con precios y descuentos calculados por
 Medusa.
 
-El script está protegido por identidad de base: solo acepta un PostgreSQL
-efímero verificable o una base local autorizada por huella. Rechaza producción,
-staging, hosts no loopback y configuraciones inválidas antes de escribir. Ver
-`docs/94-CIERRE-CAMPANAS-COMERCIALES.md`.
+El script está protegido por identidad real del servidor: solo acepta un
+PostgreSQL efímero verificable o una base local declarada en una allowlist
+fuera del repositorio. Rechaza producción, staging,
+hosts no loopback, los puertos `5432`/`55432` y configuraciones inválidas antes
+de escribir. Ver `docs/94-CIERRE-CAMPANAS-COMERCIALES.md`.
 
 La campaña combina dos mecanismos independientes:
 

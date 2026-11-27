@@ -3,8 +3,10 @@ import os from "node:os"
 import path from "node:path"
 import {
   assertLabCampaignDatabase,
+  assertLabCampaignServerIdentity,
   campaignTargetRules,
   parseLabDatabaseIdentity,
+  POSTGRES_IDENTITY_QUERY,
   resolveLabCampaignConfig,
   selectCampaignVariants,
   type CampaignProductRow,
@@ -38,7 +40,14 @@ function ephemeralEnvironment(root: string): NodeJS.ProcessEnv {
   fs.mkdirSync(dataDirectory, { recursive: true })
   fs.writeFileSync(
     path.join(runRoot, "run.json"),
-    JSON.stringify({ runId, port: 5433, postgresPid: 1234 }),
+    JSON.stringify({
+      runId,
+      port: 5433,
+      postgresPid: 1234,
+      user: "jovy",
+      dataDirectory,
+      cluster: "jovy_it_test",
+    }),
   )
   return {
     ...validEnvironment(),
@@ -83,29 +92,46 @@ describe("guardas de campaña de laboratorio", () => {
     ).toThrow(expect.objectContaining({ code: "non_loopback_database" }))
   })
 
-  it("rechaza los puertos persistentes sin huella autorizada", () => {
-    expect(() =>
-      assertLabCampaignDatabase(
-        validEnvironment(),
-        parseLabDatabaseIdentity(baseUrl(5432)),
-      ),
-    ).toThrow(expect.objectContaining({ code: "database_not_authorized" }))
-
-    expect(() =>
-      assertLabCampaignDatabase(
-        validEnvironment(),
-        parseLabDatabaseIdentity(baseUrl(55432)),
-      ),
-    ).toThrow(expect.objectContaining({ code: "database_not_authorized" }))
+  it("prohíbe siempre los puertos persistentes protegidos", () => {
+    for (const port of [5432, 55432]) {
+      expect(() =>
+        assertLabCampaignDatabase(
+          validEnvironment(),
+          parseLabDatabaseIdentity(baseUrl(port)),
+        ),
+      ).toThrow(expect.objectContaining({ code: "protected_port" }))
+    }
   })
 
-  it("acepta una base local autorizada por huella y confirmación", () => {
-    const identity = parseLabDatabaseIdentity(baseUrl(5432))
+  it("acepta una base local autorizada por allowlist fuera del repositorio", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jovy-lab-allowlist-"))
+    temporaryRoots.push(root)
+    const identity = parseLabDatabaseIdentity(baseUrl(5533))
+    const allowlistFile = path.join(root, "lab-databases.json")
+    fs.writeFileSync(
+      allowlistFile,
+      JSON.stringify({
+        version: 1,
+        databases: [
+          {
+            fingerprint: identity.fingerprint,
+            host: identity.host,
+            port: identity.port,
+            database: identity.database,
+            user: identity.user,
+            data_directory: path.join(root, "data"),
+            cluster_name: "jovy_manual_lab",
+          },
+        ],
+      }),
+    )
+
     expect(() =>
       assertLabCampaignDatabase(
         {
           ...validEnvironment(),
-          JOVY_LAB_DATABASE_SHA256: identity.fingerprint,
+          DATABASE_URL: baseUrl(5533),
+          JOVY_LAB_DATABASE_ALLOWLIST_FILE: allowlistFile,
           JOVY_LAB_DATABASE_CONFIRM: "authorized",
         },
         identity,
@@ -116,7 +142,8 @@ describe("guardas de campaña de laboratorio", () => {
       assertLabCampaignDatabase(
         {
           ...validEnvironment(),
-          JOVY_LAB_DATABASE_SHA256: identity.fingerprint,
+          DATABASE_URL: baseUrl(5533),
+          JOVY_LAB_DATABASE_ALLOWLIST_FILE: allowlistFile,
           JOVY_LAB_DATABASE_CONFIRM: "yes",
         },
         identity,
@@ -138,6 +165,113 @@ describe("guardas de campaña de laboratorio", () => {
         identity,
       ),
     ).toThrow(expect.objectContaining({ code: "ephemeral_identity_mismatch" }))
+  })
+
+  it("verifica la identidad real del servidor efímero antes de escribir", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jovy-lab-server-"))
+    temporaryRoots.push(root)
+    const environment = ephemeralEnvironment(root)
+    const identity = parseLabDatabaseIdentity(environment.DATABASE_URL)
+    const dataDirectory = environment.JOVY_EPHEMERAL_POSTGRES_DATA_DIRECTORY as string
+
+    const query = async (sql: string) => {
+      expect(sql).toBe(POSTGRES_IDENTITY_QUERY)
+      return {
+        rows: [
+          {
+            database: "jovy_lab",
+            username: "jovy",
+            server_port: 5433,
+            server_address: "127.0.0.1",
+            data_directory: dataDirectory,
+            cluster_name: "jovy_it_test",
+            listen_addresses: "127.0.0.1",
+            version: "PostgreSQL 18.6",
+          },
+        ],
+      }
+    }
+
+    await expect(
+      assertLabCampaignServerIdentity(environment, identity, { query }),
+    ).resolves.toMatchObject({ port: 5433, database: "jovy_lab" })
+
+    await expect(
+      assertLabCampaignServerIdentity(
+        environment,
+        identity,
+        {
+          query: async (sql: string) => {
+            expect(sql).toBe(POSTGRES_IDENTITY_QUERY)
+            return {
+              rows: [
+                {
+                  database: "jovy_lab",
+                  username: "jovy",
+                  server_port: 5433,
+                  server_address: "127.0.0.1",
+                  data_directory: dataDirectory,
+                  cluster_name: "otro_cluster",
+                  listen_addresses: "127.0.0.1",
+                  version: "PostgreSQL 18.6",
+                },
+              ],
+            }
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ code: "server_identity_mismatch" })
+  })
+
+  it("verifica el servidor manual contra su allowlist", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jovy-lab-manual-"))
+    temporaryRoots.push(root)
+    const identity = parseLabDatabaseIdentity(baseUrl(5533))
+    const dataDirectory = path.join(root, "data")
+    const allowlist = {
+      version: 1 as const,
+      databases: [
+        {
+          fingerprint: identity.fingerprint,
+          host: identity.host,
+          port: identity.port,
+          database: identity.database,
+          user: identity.user,
+          data_directory: dataDirectory,
+          cluster_name: "jovy_manual_lab",
+        },
+      ],
+    }
+
+    const query = async (sql: string) => {
+      expect(sql).toBe(POSTGRES_IDENTITY_QUERY)
+      return {
+        rows: [
+          {
+            database: "jovy_lab",
+            username: "jovy",
+            server_port: 5533,
+            server_address: "127.0.0.1",
+            data_directory: dataDirectory,
+            cluster_name: "jovy_manual_lab",
+            listen_addresses: "*",
+            version: "PostgreSQL 18.6",
+          },
+        ],
+      }
+    }
+
+    await expect(
+      assertLabCampaignServerIdentity(
+        {
+          ...validEnvironment(),
+          DATABASE_URL: baseUrl(5533),
+          JOVY_LAB_DATABASE_CONFIRM: "authorized",
+        },
+        identity,
+        { query, allowlist },
+      ),
+    ).resolves.toMatchObject({ clusterName: "jovy_manual_lab" })
   })
 
   it("rechaza fechas inválidas, pasadas o demasiado largas", () => {
