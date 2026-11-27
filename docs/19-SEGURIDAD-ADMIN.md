@@ -444,6 +444,19 @@ Este documento conserva la auditoría original previa a `jovy-authz`. Desde ento
   ninguna denegación.
 - El bootstrap por correo fue **eliminado** y sustituido por
   `src/scripts/bootstrap-authz.ts` con auditoría e idempotencia.
+- Para crear o reparar una cuenta con acceso completo en un laboratorio local
+  existe `src/scripts/create-superadmin.ts` (`pnpm --dir apps/backend
+  superadmin:create`). Rechaza `production`, exige contraseña de al menos 16
+  caracteres, registra o repara la identidad `emailpass`, enlaza el usuario y
+  asigna `superadmin`. Nunca imprime la contraseña.
+
+  ```powershell
+  $env:JOVY_SUPERADMIN_EMAIL = "admin@jovycandy.test"
+  $env:JOVY_SUPERADMIN_PASSWORD = "una-contraseña-local-de-16+"
+  pnpm --dir apps/backend superadmin:create
+  Remove-Item Env:JOVY_SUPERADMIN_EMAIL, Env:JOVY_SUPERADMIN_PASSWORD
+  ```
+
 - Las lecturas del shell se dividen: solo `GET /admin/feature-flags` es público;
   el resto exige sesión y usuario existente.
 - RBAC Enterprise sigue **BLOQUEADO POR LICENCIA**; el sidebar nativo no está

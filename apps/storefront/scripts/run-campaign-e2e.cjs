@@ -273,6 +273,7 @@ async function main() {
       DATABASE_NAME: database,
       NODE_ENV: "development",
       DEPLOYMENT_ENV: "development",
+      JOVY_STRIPE_SANDBOX_ENABLED: "false",
     }
 
     console.log(`[e2e-campaign] PostgreSQL efímero ${metadata.runId} en ${metadata.port}`)
@@ -336,6 +337,9 @@ async function main() {
         env: {
           ...process.env,
           NODE_ENV: "development",
+          DEPLOYMENT_ENV: "development",
+          JOVY_STRIPE_SANDBOX_ENABLED: "false",
+          JOVY_MANUAL_CHECKOUT_FOR_E2E: "true",
           NEXT_TELEMETRY_DISABLED: "1",
           JOVY_NEXT_DIST_DIR: nextDistDir,
           MEDUSA_BACKEND_URL: `http://127.0.0.1:${backendPort}`,

@@ -10,9 +10,11 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test:e2e": "playwright test -c playwright.config.ts",
     "test:e2e:campaign": "node scripts/run-campaign-e2e.cjs",
-    "test:scripts": "node --test scripts/tsconfig-guard.test.cjs scripts/campaign-e2e-cleanup.test.cjs"
+    "test:scripts": "node --test scripts/tsconfig-guard.test.cjs scripts/campaign-e2e-cleanup.test.cjs scripts/checkout-payment.test.cjs"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "7.1.0",
+    "@stripe/stripe-js": "10.4.0",
     "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1"

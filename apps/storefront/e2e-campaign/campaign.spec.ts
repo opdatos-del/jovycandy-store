@@ -395,6 +395,11 @@ test.describe.serial("campaña comercial en laboratorio aislado", () => {
     await addressSaved
 
     await expect(main.getByText("Envío estándar").first()).toBeVisible()
+    await page.reload()
+    await expect(main.getByLabel("Correo electrónico")).toHaveValue("campaign-e2e@example.test")
+    await expect(main.getByLabel("Calle y número")).toHaveValue("Av. Laboratorio 1")
+    await waitForHydratedButton(page, "Continuar al envío")
+    await main.getByRole("button", { name: "Continuar al envío" }).click()
     await main.getByRole("radio").first().check()
     await main.getByRole("button", { name: "Continuar al pago" }).click()
 
@@ -445,6 +450,147 @@ test.describe.serial("campaña comercial en laboratorio aislado", () => {
     await page.getByRole("link", { name: "Buen Fin Laboratorio" }).click()
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Buen Fin Laboratorio")
     await expect(page.getByText(PRODUCT_TITLE).first()).toBeVisible()
+  })
+
+  test("un retorno de pago sin carrito no confirma un pedido", async ({ page }) => {
+    const initial = await page.request.get("/es/checkout/retorno?redirect_status=succeeded", { maxRedirects: 0 })
+    expect(initial.headers()["referrer-policy"]).toBe("no-referrer")
+    await page.goto("/es/checkout/retorno?redirect_status=succeeded&payment_intent=ignored")
+    await expect(page).toHaveURL(/\/es\/checkout\/retorno$/)
+    await waitForHydratedButton(page, "Consultar pedido")
+    await page.getByRole("button", { name: "Consultar pedido" }).click()
+    await expect(page.getByText("Aún no pudimos confirmar un pedido", { exact: false })).toBeVisible()
+    await page.goto("/es/checkout/confirmacion?order_id=ignored")
+    await expect(page.getByRole("heading", { name: "No hay un pedido confirmado" })).toBeVisible()
+  })
+
+  test("cuenta móvil usa su dirección y pedido; otro cliente no puede leerlos", async ({ page, browser }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await addProduct(page)
+    const account = {
+      first_name: "Cliente", last_name: "Privado",
+      email: "campaign-account@example.test", password: "Campaign-account-93!",
+    }
+    expect((await page.request.post("/api/account/register", { data: account })).ok()).toBeTruthy()
+    const listEndpoint = "/api/account/lists"
+    const createdList = await page.request.post(listEndpoint, { data: { action: "create", name: "Para la fiesta" } })
+    expect(createdList.ok()).toBeTruthy()
+    const listId = (await createdList.json()).id
+    const cartResponse = await page.request.get("/api/cart")
+    const variantId = (await cartResponse.json()).cart.items[0].variantId
+    for (const target of ["favorites", listId]) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        expect((await page.request.post(listEndpoint, {
+          data: { action: "add", list_id: target, variant_id: variantId },
+        })).ok()).toBeTruthy()
+      }
+    }
+    const listResponse = await page.request.get(listEndpoint)
+    expect(listResponse.ok()).toBeTruthy()
+    const { lists } = await listResponse.json()
+    const favorites = lists.find((list: { id: string }) => list.id === "favorites")
+    const custom = lists.find((list: { id: string }) => list.id === listId)
+    expect(favorites.items).toHaveLength(1)
+    expect(custom.items).toHaveLength(1)
+    expect(custom.items[0].variant.product.title).toBe(PRODUCT_TITLE)
+    const address = await page.request.post("/api/account/addresses", { data: {
+      first_name: "Cliente", last_name: "Privado", address_1: "Av. Privada 25",
+      city: "Ciudad de México", province: "CDMX", postal_code: "01000", phone: "3312345678",
+    } })
+    expect(address.ok()).toBeTruthy()
+    const addressId = (await address.json()).address.id
+    expect((await page.request.patch(`/api/account/addresses/${addressId}`, {
+      data: { is_default_shipping: true },
+    })).ok()).toBeTruthy()
+
+    await page.goto("/es/checkout")
+    const main = page.getByRole("main")
+    await expect(main.getByLabel("Correo electrónico")).toHaveValue(account.email)
+    await expect(main.getByLabel("Calle y número")).toHaveValue("Av. Privada 25")
+    await waitForHydratedButton(page, "Continuar al envío")
+    await main.getByRole("button", { name: "Continuar al envío" }).click()
+    await main.getByRole("radio").first().check()
+    await main.getByRole("button", { name: "Continuar al pago" }).click()
+    await main.getByRole("button", { name: "Revisar pedido" }).click()
+    const result = page.waitForResponse((response) => response.url().endsWith("/api/checkout/complete"))
+    await main.getByRole("button", { name: "Confirmar pedido" }).click()
+    const completed = await result
+    expect(completed.ok()).toBeTruthy()
+    const orderId = (await completed.json()).order.id
+    await expect(page.getByRole("heading", { name: "Pedido confirmado" })).toBeVisible()
+
+    await page.goto("/es/cuenta")
+    await expect(page.getByText("Hola, Cliente")).toBeVisible()
+    await expect(page.getByText("Envío predeterminado")).toBeVisible()
+    await page.getByText("Ver detalle", { exact: true }).click()
+    await expect(page.getByText(PRODUCT_TITLE, { exact: false }).first()).toBeVisible()
+    await page.getByRole("button", { name: "Volver a comprar" }).click()
+    await expect(page.getByText("Unidades agregadas: 1")).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391)
+
+    const notices = "/api/account/notices"
+    await expect.poll(async () => (await (await page.request.get(notices)).json()).notices?.length).toBe(1)
+    const feed = await (await page.request.get(notices)).json()
+    expect(feed.notices[0]).toMatchObject({ kind: "order_placed", read_at: null })
+    expect(feed.marketingEmail).toBe(false)
+    const noticeId = feed.notices[0].id
+    expect((await page.request.post(notices, { data: { id: noticeId } })).ok()).toBeTruthy()
+    expect((await (await page.request.get(notices)).json()).notices[0].read_at).not.toBeNull()
+    expect((await page.request.post(notices, { data: { action: "set_marketing_email", enabled: true } })).ok()).toBeTruthy()
+    expect((await (await page.request.get(notices)).json()).marketingEmail).toBe(true)
+
+    const other = await browser.newContext({ baseURL: new URL(page.url()).origin })
+    try {
+      expect((await other.request.get(`/api/account/orders/${orderId}`)).status()).toBe(401)
+      expect((await other.request.post("/api/account/register", {
+        data: { ...account, email: "campaign-other@example.test" },
+      })).ok()).toBeTruthy()
+      expect((await other.request.get(`/api/account/orders/${orderId}`)).status()).toBe(404)
+      expect((await other.request.post(`/api/account/orders/${orderId}`)).status()).toBe(404)
+      expect((await other.request.delete(`/api/account/addresses/${addressId}`)).status()).toBe(404)
+      expect((await other.request.post(listEndpoint, { data: { action: "rename", list_id: listId, name: "Ajena" } })).status()).toBe(404)
+      expect((await other.request.post(listEndpoint, { data: { action: "move", list_id: listId, item_id: custom.items[0].id } })).status()).toBe(404)
+      expect((await other.request.post(notices, { data: { id: noticeId } })).status()).toBe(404)
+      expect((await (await other.request.get(notices)).json()).notices).toEqual([])
+    } finally {
+      await other.close()
+    }
+    expect((await page.request.post(listEndpoint, {
+      data: { action: "move", list_id: listId, item_id: custom.items[0].id },
+    })).ok()).toBeTruthy()
+    expect((await page.request.post(listEndpoint, { data: { action: "delete", list_id: listId } })).ok()).toBeTruthy()
+    expect((await page.request.delete("/api/account")).ok()).toBeTruthy()
+    expect((await page.request.get(`/api/account/orders/${orderId}`)).status()).toBe(401)
+  })
+
+  test("carrito de total cero completa sin proveedor de pago", async ({ page, request }) => {
+    await createPromotion(request, {
+      code: "E2EZERO",
+      type: "standard",
+      application_method: {
+        type: "percentage", target_type: "items", allocation: "each",
+        max_quantity: 100, value: 100, currency_code: "mxn",
+      },
+    })
+    await addProduct(page)
+    const address = await page.request.post("/api/checkout/address", { data: {
+      email: "campaign-zero@example.test", first_name: "Cliente", last_name: "Cero",
+      address_1: "Av. Laboratorio 3", city: "Ciudad de México", province: "CDMX", postal_code: "01000",
+    } })
+    expect(address.ok()).toBeTruthy()
+    const { options } = await (await page.request.get("/api/checkout/shipping-options")).json()
+    expect((await page.request.post("/api/checkout/shipping-method", { data: { option_id: options[0].id } })).ok()).toBeTruthy()
+    for (const code of ["E2EZERO", "E2EENVIO"]) {
+      const response = await page.request.post("/api/cart/promotions", { data: { code } })
+      expect(response.ok()).toBeTruthy()
+    }
+    const { cart } = await (await page.request.get("/api/cart")).json()
+    expect(cart.total).toBe(0)
+    const payment = await page.request.post("/api/checkout/payment", { data: {} })
+    expect(await payment.json()).toEqual({ payment: { kind: "free" } })
+    const completed = await page.request.post("/api/checkout/complete", { data: {} })
+    expect(completed.ok()).toBeTruthy()
+    expect((await completed.json()).order.total).toBe(0)
   })
 
   test("vuelve al precio base cuando expira la Price List", async ({ page, request }) => {

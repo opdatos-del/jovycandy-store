@@ -14,7 +14,7 @@ El binario `psql` está instalado en `C:\Program Files\PostgreSQL\18\bin\psql.ex
 ## Variables de entorno
 
 - `apps/backend/.env.example`: plantilla Medusa. Copiar a `.env` y reemplazar todos los marcadores con secretos locales únicos.
-- `apps/storefront/.env.example`: URL pública local del storefront y URL local de Medusa. La integración Store API no está activa todavía.
+- `apps/storefront/.env.example`: URL pública local del storefront, URL de Medusa y credencial publicable de la Store API.
 - Los archivos `.env` están excluidos por `.gitignore`. No use ni copie archivos de entorno de los proyectos originales.
 
 `apps/backend/.env` admite además variables opcionales del entorno local:
@@ -33,6 +33,17 @@ existe solo para el build local servido por HTTP en `localhost:9000`; con `medus
 (`NODE_ENV=production`) y sin el flag, Medusa marca la cookie como `Secure` y
 `express-session` no la envía fuera de HTTPS, lo que deja `/admin/*` en `401` después del login.
 Detrás de HTTPS, elimina `ADMIN_ALLOW_HTTP` o ponlo en `false`.
+
+Stripe está desactivado por defecto. Usa la configuración independiente de
+[sandbox local](96-PAGOS-SANDBOX-REQUISITOS-Y-CONTRATO.md), no el PostgreSQL
+habitual de desarrollo descrito abajo. La matriz de pruebas separa las
+comprobaciones offline de las que requieren una cuenta Stripe.
+
+El sandbox rechaza por defecto las bases en `5432` y `55432`. Para probar
+pagos sobre la base de desarrollo hay que declarar
+`JOVY_STRIPE_SANDBOX_ALLOW_SHARED_DATABASE=true`; esa opción crea colecciones,
+pagos y pedidos de prueba en la base compartida y solo se acepta en
+`DEPLOYMENT_ENV=development`.
 
 Si el build se arranca desde `apps/backend/.medusa/server`, el provider `file-local` busca
 `static/` relativo a ese directorio. Enlaza el directorio real para que imágenes y vídeos sigan

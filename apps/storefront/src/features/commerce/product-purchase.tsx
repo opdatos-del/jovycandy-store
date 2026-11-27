@@ -10,6 +10,7 @@ import type { Dictionary, Locale } from "@/lib/i18n"
 
 import { useCommerce } from "./cart-provider"
 import { useToast } from "./toast-provider"
+import { SaveToList } from "./save-to-list"
 
 type ProductPurchaseProps = {
   locale: Locale
@@ -240,9 +241,10 @@ export function ProductPurchase({
             </p>
           ) : null}
 
+          {variant ? <SaveToList key={variant.id} variantId={variant.id} locale={locale} /> : null}
+
           <ul className="product-trust" aria-label={copy.demoNote}>
             <li>{copy.shippingDemo}</li>
-            <li>{copy.paymentDemo}</li>
             <li>{copy.madeIn}</li>
           </ul>
 

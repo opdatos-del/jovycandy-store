@@ -12,9 +12,11 @@ export class ValidationError extends Error {
 export function assertSameOrigin(request: Request) {
   const origin = request.headers.get("origin")
   const host = request.headers.get("host")
-  if (origin && host) {
-    const originHost = new URL(origin).host
-    if (originHost !== host) throw new ValidationError("Origen de solicitud no permitido.")
+  if (origin) {
+    const http = new URL(request.url)
+    if (origin !== `${http.protocol}//${host ?? http.host}`) {
+      throw new ValidationError("Origen de solicitud no permitido.")
+    }
   }
 
   const site = request.headers.get("sec-fetch-site")

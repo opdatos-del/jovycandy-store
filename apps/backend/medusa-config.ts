@@ -2,10 +2,12 @@ import path from 'path'
 import { loadEnv, defineConfig } from '@medusajs/framework/utils'
 import { resolveRuntimeConfiguration } from './src/lib/jovy/runtime-configuration'
 import { assertRuntimePreflight } from './src/lib/jovy/runtime-preflight'
+import { stripeSandboxModule } from './src/lib/jovy/stripe-sandbox'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
 const runtime = resolveRuntimeConfiguration()
+const stripeSandbox = stripeSandboxModule(process.env, runtime.deploymentEnvironment)
 
 // El build local/CI no debe exigir infraestructura desplegada. En cualquier
 // otro comando se ejecuta el preflight, incluso si NODE_ENV=production pero
@@ -62,6 +64,8 @@ module.exports = defineConfig({
     },
   },
   modules: [
+    ...(stripeSandbox ? [stripeSandbox] : []),
+    { resolve: "./src/modules/jovy-customer-space" },
     {
       resolve: "./src/modules/jovy-content",
     },

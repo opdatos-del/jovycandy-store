@@ -2,15 +2,18 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { formatMoney } from "@/lib/commerce/format"
 import type { Dictionary, Locale } from "@/lib/i18n"
-import type { ShippingOption } from "@/lib/medusa/store"
+import type { CheckoutDraft, CheckoutPayment, ShippingOption } from "@/lib/medusa/store"
+import type { Customer, CustomerAddress } from "@/lib/medusa/customer"
+import type { checkoutPaymentMode } from "@/lib/medusa/checkout-payment-contract"
 
 import { useCommerce } from "./cart-provider"
 import { CouponForm } from "./coupon-form"
 import { useToast } from "./toast-provider"
+import { StripePaymentForm } from "./stripe-payment-form"
 
 type Step = "address" | "shipping" | "payment" | "review"
 
@@ -38,28 +41,69 @@ const EMPTY_ADDRESS: AddressFields = {
   postal_code: "",
 }
 
-async function postJson(path: string, body: unknown) {
+async function postJson<T extends { message?: string }>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   })
-  const payload = (await response.json().catch(() => null)) as { message?: string } | null
-  if (!response.ok) throw new Error(payload?.message ?? "No se pudo completar la operación.")
+  const payload = (await response.json().catch(() => null)) as T | null
+  if (!response.ok || !payload) throw new Error(payload?.message ?? "No se pudo completar la operación.")
   return payload
 }
 
-export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionary: Dictionary }) {
+export function CheckoutPage({ locale, dictionary, customer, draft, paymentMode }: {
+  locale: Locale
+  dictionary: Dictionary
+  customer: Customer | null
+  draft: CheckoutDraft
+  paymentMode: ReturnType<typeof checkoutPaymentMode>
+}) {
   const copy = dictionary.commerce
   const router = useRouter()
   const { cart, loading, refresh } = useCommerce()
   const { notify } = useToast()
   const [step, setStep] = useState<Step>("address")
-  const [address, setAddress] = useState<AddressFields>(EMPTY_ADDRESS)
+  const defaultAddress = customer?.addresses.find((entry) => entry.country_code === "mx" && entry.is_default_shipping)
+  const [address, setAddress] = useState<AddressFields>(() => ({
+    ...EMPTY_ADDRESS,
+    email: draft?.email ?? customer?.email ?? "",
+    first_name: draft?.first_name ?? defaultAddress?.first_name ?? customer?.first_name ?? "",
+    last_name: draft?.last_name ?? defaultAddress?.last_name ?? customer?.last_name ?? "",
+    phone: draft?.phone ?? (defaultAddress?.phone || customer?.phone || ""),
+    address_1: draft?.address_1 ?? defaultAddress?.address_1 ?? "",
+    address_2: draft ? (draft.address_2 ?? "") : (defaultAddress?.address_2 ?? ""),
+    city: draft?.city ?? defaultAddress?.city ?? "",
+    province: draft?.province ?? defaultAddress?.province ?? "",
+    postal_code: draft?.postal_code ?? defaultAddress?.postal_code ?? "",
+  }))
   const [options, setOptions] = useState<ShippingOption[]>([])
   const [selectedOption, setSelectedOption] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const [payment, setPayment] = useState<CheckoutPayment | null>(null)
+  const completing = useRef(false)
+  const progressHeading = useRef<HTMLHeadingElement>(null)
+  const spanish = locale === "es"
+
+  useEffect(() => {
+    if (step !== "address") progressHeading.current?.focus()
+  }, [step])
+
+  function reuseAddress(saved?: CustomerAddress) {
+    if (!saved) return
+    setAddress((current) => ({
+      ...current,
+      first_name: saved.first_name ?? current.first_name,
+      last_name: saved.last_name ?? current.last_name,
+      phone: saved.phone ?? current.phone,
+      address_1: saved.address_1 ?? "",
+      address_2: saved.address_2 ?? "",
+      city: saved.city ?? "",
+      province: saved.province ?? "",
+      postal_code: saved.postal_code ?? "",
+    }))
+  }
 
   if (loading && !cart) {
     return <p className="px-4 py-20 text-center text-sm text-[#5b6f82]">{copy.loading}</p>
@@ -142,7 +186,9 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
     setBusy(true)
     setError("")
     try {
-      await postJson("/api/checkout/payment", {})
+      const result = await postJson<{ payment?: CheckoutPayment; message?: string }>("/api/checkout/payment", {})
+      if (!result.payment) throw new Error(copy.error)
+      setPayment(result.payment)
       await refresh()
       setStep("review")
     } catch (reason) {
@@ -152,17 +198,25 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
     }
   }
 
+  const verifyOrder = async () => {
+    const result = await postJson<{ order?: { id: string }; message?: string }>("/api/checkout/complete", {})
+    if (!result.order?.id) throw new Error(copy.error)
+    notify({ title: copy.orderPlaced, description: copy.orderPlacedLead })
+    router.replace(`/${locale}/checkout/confirmacion`)
+    void refresh()
+  }
+
   const placeOrder = async () => {
+    if (completing.current) return
+    completing.current = true
     setBusy(true)
     setError("")
     try {
-      const result = (await postJson("/api/checkout/complete", {})) as { order?: { id: string } }
-      if (!result.order?.id) throw new Error(copy.error)
-      notify({ title: copy.orderPlaced, description: copy.orderPlacedLead });
-      router.push(`/${locale}/checkout/confirmacion`)
+      await verifyOrder()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : copy.error)
       setBusy(false)
+      completing.current = false
     }
   }
 
@@ -176,6 +230,14 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
           {copy.checkoutTitle}
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[#5b6f82]">{copy.checkoutLead}</p>
+        {paymentMode === "stripe" ? <p className="mt-2 text-sm font-bold text-[#007f7b]">
+          {spanish ? "Stripe en modo de pruebas. No se realizará ningún cargo real." : "Stripe test mode. No real charge will be made."}
+        </p> : null}
+        {paymentMode === "stripe" && cart.shippingMethodId ? (
+          <Link href={`/${locale}/checkout/retorno`} className="mt-2 inline-flex min-h-11 items-center text-sm text-[#0d3b6e] underline">
+            {spanish ? "¿Ya autorizaste el pago? Consulta tu pedido" : "Already authorized payment? Check your order"}
+          </Link>
+        ) : null}
       </header>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
@@ -203,6 +265,24 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
 
           {step === "address" ? (
             <form onSubmit={submitAddress} className="jovy-animate-in grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
+              {!customer ? <p className="text-sm text-[#5b6f82]">
+                {spanish ? "Compra como invitado o " : "Check out as a guest or "}
+                <Link href={`/${locale}/cuenta`} className="font-bold text-[#0d3b6e] underline">
+                  {spanish ? "inicia sesión" : "sign in"}
+                </Link>.
+              </p> : null}
+              {customer?.addresses.some((entry) => entry.country_code === "mx") ? (
+                <label className="grid gap-1.5 text-sm font-bold text-[#0d3b6e]">
+                  {spanish ? "Usar una dirección guardada" : "Use a saved address"}
+                  <select defaultValue={draft ? "" : (defaultAddress?.id ?? "")} onChange={(event) => reuseAddress(customer.addresses.find((entry) => entry.id === event.target.value))}
+                    className="min-h-12 rounded-lg border border-[#0d3b6e]/30 bg-white px-3">
+                    <option value="">{spanish ? "Elegir dirección" : "Choose address"}</option>
+                    {customer.addresses.filter((entry) => entry.country_code === "mx").map((entry) => (
+                      <option value={entry.id} key={entry.id}>{entry.address_1}, {entry.city} · {entry.postal_code}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
                 {copy.contactData}
               </h2>
@@ -243,7 +323,7 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
 
           {step === "shipping" ? (
             <form onSubmit={submitShipping} className="jovy-animate-in grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
-              <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
+              <h2 tabIndex={-1} ref={progressHeading} className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
                 {copy.shippingMethod}
               </h2>
               {options.length ? (
@@ -294,28 +374,34 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
 
           {step === "payment" ? (
             <section className="jovy-animate-in grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
-              <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
+              <h2 tabIndex={-1} ref={progressHeading} className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
                 {copy.paymentMethod}
               </h2>
-              <div className="rounded-xl border border-[#00afaa]/40 bg-[#eafaf6] p-4">
+              {paymentMode === "manual" && cart.total > 0 ? <div className="rounded-xl border border-[#00afaa]/40 bg-[#eafaf6] p-4">
                 <p className="text-sm font-black text-[#075a49]">{copy.paymentDemo}</p>
                 <p className="mt-1 text-xs leading-5 text-[#075a49]">{copy.paymentDemoNote}</p>
-              </div>
+              </div> : <p className="text-sm text-[#5b6f82]">{cart.total === 0
+                ? (spanish ? "Este pedido no requiere pago." : "No payment is required for this order.")
+                : paymentMode === "disabled"
+                  ? (spanish ? "El pago no está disponible en este entorno." : "Payment is not available in this environment.")
+                  : (spanish ? "Revisa el total y continúa al pago seguro." : "Review your total and continue to secure payment.")}</p>}
               {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
               <button
                 type="button"
                 onClick={() => void preparePayment()}
-                disabled={busy}
+                disabled={busy || (paymentMode === "disabled" && cart.total > 0)}
                 className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#0d3b6e] px-6 text-xs font-black uppercase tracking-[0.1em] text-white disabled:opacity-50"
               >
                 {busy ? copy.processing : copy.reviewOrder}
               </button>
+              <button type="button" disabled={busy} onClick={() => { setStep("shipping"); setError("") }}
+                className="min-h-11 text-sm font-bold text-[#0d3b6e] underline">{copy.shippingMethod}</button>
             </section>
           ) : null}
 
           {step === "review" ? (
             <section className="jovy-animate-in grid gap-4 rounded-2xl border border-[#0d3b6e]/15 bg-[#fffdf7] p-5">
-              <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
+              <h2 tabIndex={-1} ref={progressHeading} className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
                 {copy.reviewOrder}
               </h2>
               <div className="grid gap-3">
@@ -329,19 +415,33 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
                   </div>
                 ))}
               </div>
-              <div className="rounded-xl border border-[#00afaa]/40 bg-[#eafaf6] p-4 text-xs leading-5 text-[#075a49]">
+              {payment?.kind === "manual" ? <div className="rounded-xl border border-[#00afaa]/40 bg-[#eafaf6] p-4 text-xs leading-5 text-[#075a49]">
                 <p className="font-black">{copy.paymentDemo}</p>
                 <p>{copy.paymentDemoNote}</p>
-              </div>
+              </div> : null}
+              {payment?.kind === "stripe" ? <StripePaymentForm
+                key={payment.sessionId}
+                payment={payment}
+                locale={locale}
+                total={formatMoney(payment.amount, "mxn", locale)}
+                email={cart.email ?? address.email}
+                beforeConfirm={async () => {
+                  await postJson("/api/checkout/payment", { sessionId: payment.sessionId, cartVersion: payment.cartVersion })
+                }}
+                verifyOrder={verifyOrder}
+                onBusy={setBusy}
+              /> : null}
               {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
-              <button
+              {payment && payment.kind !== "stripe" ? <button
                 type="button"
                 onClick={() => void placeOrder()}
                 disabled={busy}
                 className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#0d3b6e] px-6 text-xs font-black uppercase tracking-[0.1em] text-white disabled:opacity-50"
               >
                 {busy ? copy.processing : copy.placeOrder}
-              </button>
+              </button> : null}
+              <button type="button" disabled={busy} onClick={() => { setPayment(null); setStep("payment"); setError("") }}
+                className="min-h-11 text-sm font-bold text-[#0d3b6e] underline">{copy.paymentMethod}</button>
             </section>
           ) : null}
         </div>
@@ -350,9 +450,9 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
           <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0d3b6e]">
             {copy.orderSummary}
           </h2>
-          <div className="mt-4">
+          <fieldset disabled={busy || payment?.kind === "stripe"} className="mt-4">
             <CouponForm dictionary={dictionary} compact />
-          </div>
+          </fieldset>
           <dl className="mt-4 grid gap-2 text-sm">
             <div className="flex justify-between gap-4 text-[#5b6f82]">
               <dt>{copy.subtotal}</dt>
@@ -375,7 +475,7 @@ export function CheckoutPage({ locale, dictionary }: { locale: Locale; dictionar
               <dd>{formatMoney(cart.total, cart.currencyCode, locale)}</dd>
             </div>
           </dl>
-          <p className="mt-3 text-[0.66rem] leading-5 text-[#5b6f82]">{copy.demoNote}</p>
+          {paymentMode === "manual" ? <p className="mt-3 text-[0.66rem] leading-5 text-[#5b6f82]">{copy.demoNote}</p> : null}
         </aside>
       </div>
     </div>

@@ -1,5 +1,13 @@
 import "server-only"
 
+import { createHash } from "node:crypto"
+import {
+  checkoutPaymentMode,
+  MANUAL_PROVIDER,
+  matchingStripeSession,
+  STRIPE_PROVIDER,
+  type NativePaymentSession,
+} from "./checkout-payment-contract"
 import { sortByWeight } from "@/lib/commerce/weight"
 import {
   parseCardVisualOverrides,
@@ -32,6 +40,7 @@ type RequestOptions = {
   method?: "GET" | "POST" | "DELETE"
   body?: unknown
   cache?: RequestCache
+  token?: string
 }
 
 async function storeFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -45,6 +54,7 @@ async function storeFetch<T>(path: string, options: RequestOptions = {}): Promis
       headers: {
         "x-publishable-api-key": PUBLISHABLE_KEY,
         accept: "application/json",
+        ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
         ...(options.body ? { "content-type": "application/json" } : {}),
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
@@ -406,6 +416,7 @@ export type StorePromotion = {
 export type StoreCart = {
   id: string
   regionId: string | null
+  salesChannelId?: string | null
   currencyCode: string
   email: string | null
   items: StoreCartItem[]
@@ -442,9 +453,10 @@ type RawPromotion = {
 type RawCart = {
   id?: string
   region_id?: string | null
+  sales_channel_id?: string | null
   currency_code?: string | null
   email?: string | null
-  shipping_address?: { first_name?: string | null } | null
+  shipping_address?: Partial<StoreAddressFields> | null
   items?: RawLineItem[] | null
   subtotal?: number | null
   shipping_total?: number | null
@@ -454,7 +466,25 @@ type RawCart = {
   promotions?: RawPromotion[] | null
   shipping_methods?: Array<{ id?: string | null }> | null
   completed_at?: string | null
+  updated_at?: string | null
+  payment_collection?: NativePaymentCollection | null
 }
+
+type StoreAddressFields = Record<
+  "first_name" | "last_name" | "phone" | "address_1" | "address_2" | "city" | "province" | "postal_code",
+  string | null
+>
+
+type NativePaymentCollection = {
+  id?: string
+  amount?: number
+  currency_code?: string
+  payment_sessions?: NativePaymentSession[]
+}
+
+export type CheckoutPayment =
+  | { kind: "free" | "manual" }
+  | { kind: "stripe"; publishableKey: string; clientSecret: string; sessionId: string; amount: number; cartVersion: string }
 
 export function normalizeCart(raw: RawCart): StoreCart | null {
   if (!raw.id) return null
@@ -483,6 +513,7 @@ export function normalizeCart(raw: RawCart): StoreCart | null {
   return {
     id: raw.id,
     regionId: raw.region_id ?? null,
+    salesChannelId: raw.sales_channel_id ?? null,
     currencyCode: raw.currency_code ?? "mxn",
     email: raw.email ?? null,
     items,
@@ -541,6 +572,39 @@ export async function addStoreCartItem(
   const cart = normalizeCart(payload.cart ?? {})
   if (!cart) throw new StoreApiError("No se pudo actualizar el carrito.")
   return cart
+}
+
+/** Recupera solo los datos introducidos en el carrito activo al recargar checkout. */
+export async function getCheckoutDraft(cartId: string) {
+  const { cart } = await storeFetch<{ cart?: RawCart }>(`/carts/${encodeURIComponent(cartId)}`)
+  if (cart?.completed_at || !cart?.shipping_address) return null
+  const { first_name, last_name, phone, address_1, address_2, city, province, postal_code } = cart.shipping_address
+  return { email: cart.email, first_name, last_name, phone, address_1, address_2, city, province, postal_code }
+}
+
+export type CheckoutDraft = Awaited<ReturnType<typeof getCheckoutDraft>>
+
+/** Consulta la oferta actual en el contexto del mismo carrito y canal. */
+export async function canReorderVariant(cart: StoreCart, productId: string, variantId: string, quantity: number) {
+  if (!cart.regionId || !cart.salesChannelId) return false
+  const search = new URLSearchParams({
+    cart_id: cart.id,
+    sales_channel_id: cart.salesChannelId,
+    fields: "id,variants.id,variants.manage_inventory,variants.allow_backorder,variants.inventory_quantity,variants.calculated_price",
+  })
+  try {
+    const { product } = await storeFetch<{ product?: RawProduct }>(
+      `/products/${encodeURIComponent(productId)}?${search}`,
+    )
+    const variant = product?.variants?.find((item) => item.id === variantId)
+    if (typeof variant?.calculated_price?.calculated_amount !== "number") return false
+    const existingQuantity = cart.items.find((item) => item.variantId === variantId)?.quantity ?? 0
+    return !variant.manage_inventory || variant.allow_backorder ||
+      (variant.inventory_quantity ?? 0) >= existingQuantity + quantity
+  } catch (error) {
+    if (error instanceof StoreApiError && error.status === 404) return false
+    throw error
+  }
 }
 
 export async function updateStoreCartItem(
@@ -688,22 +752,107 @@ export async function updateStoreCartCustomer(
   return cart
 }
 
-export async function createStorePaymentSession(cartId: string): Promise<StoreCart> {
-  const paymentCollection = await storeFetch<{ payment_collection?: { id?: string } }>(
-    "/payment-collections",
-    { method: "POST", body: { cart_id: cartId } },
+async function paymentCart(cartId: string) {
+  const { cart } = await storeFetch<{ cart?: RawCart }>(
+    `/carts/${encodeURIComponent(cartId)}?${new URLSearchParams({
+      fields: "+payment_collection.payment_sessions.data",
+    })}`,
   )
-  const collectionId = paymentCollection.payment_collection?.id
-  if (!collectionId) throw new StoreApiError("No se pudo preparar el pago de laboratorio.")
+  if (!cart?.id || cart.currency_code !== "mxn" ||
+      typeof cart.total !== "number" || !Number.isFinite(cart.total) || cart.total < 0) {
+    throw new StoreApiError("No se pudo verificar el importe del carrito.", 409)
+  }
+  return { ...cart, total: cart.total }
+}
 
-  await storeFetch(`/payment-collections/${encodeURIComponent(collectionId)}/payment-sessions`, {
-    method: "POST",
-    body: { provider_id: "pp_system_default" },
-  })
+function paymentProvider(cart: Awaited<ReturnType<typeof paymentCart>>) {  if (cart.total === 0) return null
+  const mode = checkoutPaymentMode(process.env)
+  if (mode === "disabled") throw new StoreApiError("El pago no está habilitado.", 503)
+  return mode === "stripe" ? STRIPE_PROVIDER : MANUAL_PROVIDER
+}
 
-  const cart = await getStoreCart(cartId)
-  if (!cart) throw new StoreApiError("No se pudo recuperar el carrito.")
-  return cart
+/**
+ * Una cookie de cliente puede sobrevivir a un cambio de base. Sin esta
+ * comprobación, Medusa intenta crear el account holder de un cliente que ya
+ * no existe y la sesión de pago falla con un error interno.
+ */
+async function usableCustomerToken(token?: string | null) {
+  if (!token) return undefined
+  try {
+    const { customer } = await storeFetch<{ customer?: { id?: string } }>(
+      "/customers/me", { token },
+    )
+    return customer?.id ? token : undefined
+  } catch (error) {
+    if (error instanceof StoreApiError && [401, 403, 404].includes(error.status)) return undefined
+    throw error
+  }
+}
+
+export async function prepareStorePayment(
+  cartId: string,
+  token?: string | null,
+  expected?: { sessionId: string; cartVersion: string },
+): Promise<CheckoutPayment> {
+  const customerToken = await usableCustomerToken(token)
+  const cart = await paymentCart(cartId)
+  if (cart.completed_at) throw new StoreApiError("Este carrito ya fue completado.", 409)
+  if (!cart.email || !cart.shipping_methods?.length || !cart.items?.length) {
+    throw new StoreApiError("Completa los datos de contacto y envío antes de pagar.", 400)
+  }
+  const provider = paymentProvider(cart)
+  const stale = () => new StoreApiError("El pago ya no coincide con el carrito. Vuelve a revisar el total.", 409)
+  if (!provider) {
+    if (expected) throw stale()
+    return { kind: "free" }
+  }
+
+  const requestOptions = { method: "POST" as const, token: customerToken }
+  let collection = cart.payment_collection
+  if (!collection && !expected) {
+    const result = await storeFetch<{ payment_collection?: NativePaymentCollection }>(
+      "/payment-collections", { ...requestOptions, body: { cart_id: cartId } },
+    )
+    collection = result.payment_collection
+  }
+  if (!collection?.id || collection.amount !== cart.total || collection.currency_code !== "mxn") throw stale()
+
+  let session = collection.payment_sessions?.find((item) => item.provider_id === provider)
+  if (!session && !expected && !collection.payment_sessions?.length) {
+    const result = await storeFetch<{ payment_collection?: NativePaymentCollection }>(
+      `/payment-collections/${encodeURIComponent(collection.id)}/payment-sessions`,
+      { ...requestOptions, body: { provider_id: provider } },
+    )
+    session = result.payment_collection?.payment_sessions?.find((item) => item.provider_id === provider)
+  }
+  if (provider === MANUAL_PROVIDER && session?.id && !expected) return { kind: "manual" }
+  const stripeSession = matchingStripeSession(cart, session)
+  const cartVersion = createHash("sha256").update(JSON.stringify([
+    cart.id, cart.updated_at, cart.total,
+    cart.items.map(({ id, quantity, total }) => [id, quantity, total]).sort(),
+    cart.shipping_methods.map(({ id }) => id).sort(),
+    cart.promotions?.map(({ id, code }) => [id, code]).sort(),
+  ])).digest("hex")
+  if (!stripeSession || (expected && (stripeSession.sessionId !== expected.sessionId || cartVersion !== expected.cartVersion))) throw stale()
+
+  return { kind: "stripe", publishableKey: process.env.STRIPE_PUBLISHABLE_KEY!, amount: cart.total, cartVersion, ...stripeSession }
+}
+
+export async function verifyStorePaymentForCompletion(cartId: string) {
+  const cart = await paymentCart(cartId)
+  const provider = paymentProvider(cart)
+  const sessions = cart.payment_collection?.payment_sessions ?? []
+  if (!provider) {
+    if (sessions.some((session) => session.provider_id === STRIPE_PROVIDER)) {
+      throw new StoreApiError("El carrito cambió durante el pago. Revisa el importe antes de continuar.", 409)
+    }
+    return
+  }
+  const session = sessions.length === 1 ? sessions[0] : undefined
+  if (session?.provider_id !== provider ||
+      (provider === STRIPE_PROVIDER && !matchingStripeSession(cart, session))) {
+    throw new StoreApiError("El pago ya no coincide con el carrito. Vuelve a revisar el total.", 409)
+  }
 }
 
 export type CompletedOrder = {

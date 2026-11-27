@@ -1,4 +1,5 @@
 import {
+  authenticate,
   configureStoreSearch,
   defineMiddlewares,
   MedusaNextFunction,
@@ -6,6 +7,9 @@ import {
   MedusaResponse,
 } from '@medusajs/framework/http'
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { customerListMiddlewares } from "./store/jovy/customer-lists/middlewares"
+import { customerNoticeMiddlewares } from "./store/jovy/customer-notices/middlewares"
+import { ensureOwnedStoreOrder } from "./middlewares/ensure-owned-store-order"
 import multer from "multer"
 import {
   CONTENT_REVALIDATION_EVENT,
@@ -216,6 +220,13 @@ function notifyContentChange(
 // the route narrows it to published products in the key's sales channels.
 export default defineMiddlewares({
   routes: [
+    ...customerListMiddlewares,
+    ...customerNoticeMiddlewares,
+    {
+      matcher: "/store/orders/:id",
+      methods: ["GET"],
+      middlewares: [authenticate("customer", ["session", "bearer"]), ensureOwnedStoreOrder],
+    },
     // La autenticación nativa de `/admin` ya se ejecutó; aquí solo se autoriza.
     // Reautenticar por duplicado rompía las lecturas del shell del Admin.
     {

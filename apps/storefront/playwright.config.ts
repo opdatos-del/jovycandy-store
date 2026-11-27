@@ -36,6 +36,7 @@ export default defineConfig({
       url: "http://localhost:9000/health",
       timeout: 180_000,
       reuseExistingServer: true,
+      env: { JOVY_STRIPE_SANDBOX_ENABLED: "false" },
     },
     {
       command: "pnpm dev",
@@ -43,6 +44,7 @@ export default defineConfig({
       url: baseURL,
       timeout: 120_000,
       reuseExistingServer: true,
+      env: { JOVY_MANUAL_CHECKOUT_FOR_E2E: "true", JOVY_STRIPE_SANDBOX_ENABLED: "false" },
     },
   ],
 })

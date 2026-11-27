@@ -11,7 +11,9 @@ import {
   type StoreCart,
 } from "./store"
 import { getCustomerToken } from "./customer-session"
-import { transferCartToCustomer } from "./customer"
+import { getCustomer, transferCartToCustomer } from "./customer"
+import { secureCommerceCookie } from "./cookie-security"
+import { hasCommerceSigningSecret } from "./checkout-payment-contract"
 
 export const CART_COOKIE = "jovy_cart_id"
 export const ORDER_COOKIE = "jovy_last_order"
@@ -20,6 +22,9 @@ const CART_MAX_AGE = 60 * 60 * 24 * 30
 const ORDER_MAX_AGE = 60 * 10
 
 function cookieSecret() {
+  if (process.env.JOVY_STRIPE_SANDBOX_ENABLED === "true" && !hasCommerceSigningSecret(process.env)) {
+    throw new Error("Stripe sandbox exige un JOVY_COMMERCE_SECRET único.")
+  }
   const secret = process.env.JOVY_COMMERCE_SECRET
   if (secret) return secret
   if (process.env.NODE_ENV === "production") {
@@ -46,7 +51,7 @@ export async function setCartId(cartId: string) {
   ;(await cookies()).set(CART_COOKIE, cartId, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: await secureCommerceCookie(),
     path: "/",
     maxAge: CART_MAX_AGE,
   })
@@ -54,6 +59,27 @@ export async function setCartId(cartId: string) {
 
 export async function clearCartId() {
   ;(await cookies()).delete(CART_COOKIE)
+}
+
+export async function clearCompletedOrderCookie() {
+  ;(await cookies()).delete(ORDER_COOKIE)
+}
+
+/** Nunca traslada el carrito activo entre dos identidades autenticadas. */
+export async function attachCartOnLogin(newToken: string) {
+  await clearCompletedOrderCookie()
+  const cartId = await getCartId()
+  if (!cartId) return
+  const previousToken = await getCustomerToken()
+  if (previousToken) {
+    const [previous, next] = await Promise.all([getCustomer(previousToken), getCustomer(newToken)])
+      .catch(() => [null, null] as const)
+    if (!previous || previous.id !== next?.id) {
+      await clearCartId()
+      return
+    }
+  }
+  await transferCartToCustomer(cartId, newToken).catch(() => undefined)
 }
 
 export async function getCart(): Promise<StoreCart | null> {
@@ -83,8 +109,10 @@ export async function setCompletedOrderCookie(order: CompletedOrder) {
     JSON.stringify({
       id: order.id,
       displayId: order.displayId,
-      email: order.email,
       currencyCode: order.currencyCode,
+      subtotal: order.subtotal,
+      shippingTotal: order.shippingTotal,
+      discountTotal: order.discountTotal,
       total: order.total,
       status: order.status,
       createdAt: order.createdAt,
@@ -96,7 +124,7 @@ export async function setCompletedOrderCookie(order: CompletedOrder) {
   ;(await cookies()).set(ORDER_COOKIE, `${payload}.${sign(payload)}`, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: await secureCommerceCookie(),
     path: "/",
     maxAge: ORDER_MAX_AGE,
   })

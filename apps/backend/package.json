@@ -36,7 +36,8 @@
     "inventory:restore": "medusa exec ./src/scripts/restore-lab-inventory.ts",
     "seed:commerce": "medusa exec ./src/scripts/seed-commerce-lab.ts",
     "seed:campaign": "medusa exec ./src/scripts/seed-commerce-campaign.ts",
-    "seed:card-hover": "medusa exec ./src/scripts/seed-card-hover-rings.ts"
+    "seed:card-hover": "medusa exec ./src/scripts/seed-card-hover-rings.ts",
+    "superadmin:create": "medusa exec ./src/scripts/create-superadmin.ts"
   },
   "dependencies": {
     "@medusajs/admin-sdk": "2.22.6",

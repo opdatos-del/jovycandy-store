@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 
-import { getCartId } from "@/lib/medusa/cart-session"
+import { attachCartOnLogin } from "@/lib/medusa/cart-session"
 import { getCurrentCustomer, setCustomerToken } from "@/lib/medusa/customer-session"
-import { loginCustomer, registerCustomer, transferCartToCustomer } from "@/lib/medusa/customer"
+import { loginCustomer, registerCustomer } from "@/lib/medusa/customer"
 import { assertSameOrigin, errorResponse, requiredString, ValidationError } from "@/lib/medusa/http"
 
 export async function POST(request: Request) {
@@ -27,8 +27,7 @@ export async function POST(request: Request) {
       // Si la identidad ya existe, la operación se comporta como login.
       return loginCustomer(email, password)
     })
-    const cartId = await getCartId()
-    if (cartId) await transferCartToCustomer(cartId, token).catch(() => undefined)
+    await attachCartOnLogin(token)
     await setCustomerToken(token)
     const customer = await getCurrentCustomer()
     return NextResponse.json({ customer })

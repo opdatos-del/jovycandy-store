@@ -4,6 +4,7 @@ import { cookies } from "next/headers"
 
 import { getCustomer, type Customer } from "./customer"
 import { StoreApiError } from "./store"
+import { secureCommerceCookie } from "./cookie-security"
 
 export const CUSTOMER_COOKIE = "jovy_customer_token"
 const MAX_AGE = 60 * 60 * 24 * 7
@@ -16,7 +17,7 @@ export async function setCustomerToken(token: string) {
   ;(await cookies()).set(CUSTOMER_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: await secureCommerceCookie(),
     path: "/",
     maxAge: MAX_AGE,
   })

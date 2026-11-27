@@ -1,200 +1,157 @@
-# Pagos sandbox: requisitos, contrato y staging
+# Stripe sandbox: configuración, contrato y validación
 
-**Corte:** 2026-11-27
-**Estado:** PROPUESTO. Ningún proveedor seleccionado ni instalado.
-**Base:** `docs/95-PLAN-PREPRODUCCION-ECOMMERCE.md`.
+**Estado:** IMPLEMENTADO para laboratorio local. Prueba conectada del
+proveedor oficial: correcta en sandbox. Checkout con webhook de punta a
+punta: **PENDIENTE**. Sin webhooks remotos ni cobros reales.
 
-## 1. Regla de decisión
+## Contrato
 
-No se elige Stripe, Mercado Pago, Openpay ni otro proveedor por defecto. La
-selección requiere aprobación de negocio, finanzas y seguridad después de
-completar la matriz de la sección 2.
+- Medusa 2.22.6 ya incluye `@medusajs/medusa/payment-stripe`. La configuración
+  registra el provider oficial (`id: stripe`, `pp_stripe_stripe`), no un módulo
+  de pagos paralelo. `capture: false` separa autorización y captura.
+- Medusa fija total, moneda, colección y sesión. Next.js solo compara la
+  sesión MXN, su vínculo y el importe en unidades menores del intent con
+  el total de Medusa. No envía importes a Stripe ni crea Payment Intents.
+- Stripe.js `10.4.0` y React Stripe.js `7.1.0` montan Payment Element. Stripe
+  decide si ofrece Link; tarjeta no requiere cuenta Link. Se usan métodos
+  dinámicos y el storefront no presenta sesiones que anuncien métodos fuera
+  de tarjeta/Link. No se utilizan Stripe Payment Links.
+- El navegador puede pedir a Medusa completar el carrito después de
+  Stripe.js o tras volver de autenticación. El retorno no confía en query
+  params ni marca compras como exitosas. La confirmación muestra un pedido
+  emitido por Medusa, que puede tener el pago autorizado sin capturar.
+- Carritos de total cero no crean sesión Stripe. Si todavía hay una sesión
+  Stripe vinculada por un cambio concurrente, la solicitud no se completa
+  hasta actualizar el carrito. Sin configuración, los importes positivos
+  no tienen fallback. `pp_system_default` queda para pruebas de laboratorio
+  explícitas, no como opción del checkout Stripe.
 
-La integración debe ser un **Payment Provider nativo de Medusa**. No se crea un
-módulo paralelo de pagos, pedidos, conciliación o reembolsos.
+## Activación manual, únicamente en sandbox local autorizado
 
-## 2. Matriz de requisitos del proveedor
+1. En Stripe Dashboard, selecciona el **sandbox** de JovyCandy. Si allí
+   puedes crear una configuración de métodos dedicada, deja habilitada tarjeta
+   y Link y usa su ID `pmc_…`. Si el sandbox es exclusivo del laboratorio,
+   también puedes usar su configuración predeterminada con esos métodos.
+   No cambies la configuración predeterminada si otras integraciones la usan.
+   Usa solo identidades y
+   [tarjetas de prueba](https://docs.stripe.com/testing).
+2. Prepara un PostgreSQL local **independiente**, con puerto explícito
+   diferente de `5432` y `55432`. Verifica identidad del servidor y base antes
+   de migrar/sembrar. No copies credenciales ni datos de desarrollo habitual.
+3. En terminal privada ejecuta `stripe login`, selecciona el sandbox con
+   `stripe switch` y reenvía eventos al Medusa local. Ajusta el puerto si
+   corresponde. No uses `--live`, `--print-json` ni guardes la salida del CLI
+   en logs compartidos. Usa una consola sin `STRIPE_API_KEY` heredada
+   de otro perfil para que el listener use el sandbox seleccionado.
 
-| Criterio | Pregunta obligatoria | Evidencia mínima |
-|---|---|---|
-| Disponibilidad en México | ¿Opera legal y técnicamente en México? | Contrato, cobertura y moneda MXN confirmados |
-| Métodos requeridos | ¿Tarjeta, transferencia, efectivo, meses sin intereses u otros? | Lista aprobada por negocio |
-| Comisiones y liquidaciones | ¿Comisión, IVA, plazo, moneda y retención? | Tarifario y calendario de liquidación |
-| Compatibilidad Medusa 2 | ¿Tiene provider oficial o API compatible con Payment Module? | Versión soportada y método de integración |
-| Sandbox | ¿Permite pruebas completas sin dinero real? | Credenciales sandbox y casos documentados |
-| Webhooks firmados | ¿Firma, timestamp, reintentos y tolerancia? | Algoritmo, secreto y ejemplo verificable |
-| Idempotencia | ¿Acepta claves idempotentes en cobro, captura y reembolso? | Documentación y prueba de reintento |
-| Autorización y captura | ¿Autoriza y captura por separado? | Flujo y estados disponibles |
-| Cancelaciones y reembolsos | ¿Total, parcial, antes y después de captura? | Reglas y límites |
-| Conciliación | ¿Identificador único por transacción y liquidación? | Reporte o API de conciliación |
-| Contracargos | ¿Notificación, plazos y evidencia? | Procedimiento y responsabilidades |
-| Seguridad y credenciales | ¿PCI, secretos, rotación y logs? | Alcance PCI y política de llaves |
-| Operación | ¿Soporte, SLA, mantenimiento y estado del servicio? | Contacto y ventana de soporte |
-| Salida | ¿Cómo se revoca y migra sin perder conciliación? | Plan de rollback y exportación |
+   ```powershell
+   stripe listen --events payment_intent.amount_capturable_updated,payment_intent.succeeded,payment_intent.payment_failed,payment_intent.requires_action,payment_intent.canceled --forward-to http://localhost:9000/hooks/payment/stripe_stripe
+   ```
 
-Cada fila debe quedar **Aprobada**, **Rechazada** o **Pendiente**. Una fila
-bloqueante pendiente impide instalar el proveedor.
+4. Variables, fuera de Git y sin copiar sus valores a tickets o chats:
 
-## 3. Contrato técnico con Medusa
+   | Entorno local | Variable | Valor esperado |
+   |---|---|---|
+   | Backend y storefront | `DEPLOYMENT_ENV` | `development` |
+   | Backend y storefront | `JOVY_STRIPE_SANDBOX_ENABLED` | `true`, solo cuando el laboratorio esté preparado |
+   | Backend | `DATABASE_URL` | PostgreSQL loopback, puerto de laboratorio explícito, sin query params |
+   | Backend | `STRIPE_API_KEY` | `sk_test_` o `rk_test_` con permisos del sandbox |
+   | Backend | `STRIPE_WEBHOOK_SECRET` | Firma `whsec_` del listener de **esa** CLI |
+   | Backend | `STRIPE_PAYMENT_METHOD_CONFIGURATION` | ID `pmc_` opcional de la configuración del sandbox |
+   | Backend | `JOVY_STRIPE_SANDBOX_ALLOW_SHARED_DATABASE` | `true` solo si aceptas crear pedidos de prueba en la base de desarrollo; por defecto el sandbox exige base aislada |
+   | Storefront | `MEDUSA_BACKEND_URL` | URL loopback del Medusa de laboratorio |
+   | Storefront | `STRIPE_PUBLISHABLE_KEY` | `pk_test_` del mismo sandbox |
+   | Storefront | `JOVY_COMMERCE_SECRET` | Secreto aleatorio único de al menos 32 caracteres para firmar la confirmación |
 
-### Registro del provider
+   La clave secreta y el webhook se leen solo en backend. No habilites
+   `JOVY_MANUAL_CHECKOUT_FOR_E2E` con Stripe. No uses una clave de
+   Stripe como `MEDUSA_PUBLISHABLE_API_KEY`: son credenciales distintas.
+5. Con `DATABASE_URL` de laboratorio **ya verificada**, aplica migraciones y
+   prepara la infraestructura comercial local. Usa únicamente un catálogo de
+   prueba; si el laboratorio está vacío, el equipo debe cargar un catálogo
+   sintético y validar inventario antes de intentar comprar.
 
-El proveedor se registra como módulo nativo de pago:
+   ```powershell
+   pnpm --dir apps/backend exec medusa db:migrate
+   pnpm --dir apps/backend seed:commerce
+   pnpm dev
+   ```
 
-```ts
-{
-  resolve: "@medusajs/medusa/payment",
-  options: {
-    providers: [
-      {
-        resolve: "./src/modules/payment-<provider>",
-        id: "pp_<provider>",
-        options: {
-          sandbox: true,
-          apiKey: process.env.PAYMENT_PROVIDER_API_KEY,
-          webhookSecret: process.env.PAYMENT_PROVIDER_WEBHOOK_SECRET,
-        },
-      },
-    ],
-  },
-}
-```
+   Arranca ambos procesos con las variables del laboratorio. En
+   **Medusa Admin → Settings → Regions**, verifica `México`/`MXN`; habilita
+   `pp_stripe_stripe` y quita la asociación de `pp_system_default` de esa
+   región de pruebas. No cambies otras regiones. Comprueba que el canal y la
+   publishable key de Medusa sean los del laboratorio.
+6. Compra con una tarjeta de prueba. En **Medusa Admin → Orders**, abre el
+   pedido: identifica el pago autorizado; ejecuta captura y confirma el estado
+   capturado. Cruza el identificador del intent `pi_…`, la colección/pago de
+   Medusa, el pedido y el `evt_…` en Stripe (solo identificadores). Desde
+   Medusa Admin, valida cancelar **antes** de captura y reembolsar total/parcial
+   **después**. El provider 2.22.6 no reconcilia `charge.refunded` externo:
+   no ejecutes reembolsos directamente desde Stripe Dashboard.
 
-La región México debe incluir `pp_<provider>` en `payment_providers`. El checkout
-sigue usando Payment Collection y Payment Session; no se llama al proveedor desde
-Next.js.
+## Webhook nativo
 
-### Interfaz mínima
+`POST /hooks/payment/stripe_stripe` (sin prefijo `pp_`) usa cuerpo original
+y firma. Medusa acusa recibo y agenda procesamiento; un HTTP `200` no
+significa firma válida, pago capturado ni pedido completado. El provider
+valida firma y antigüedad en el consumidor y usa el `session_id` del intent.
+No reenviar cuerpos ni secretos a observabilidad. Stripe puede incluir un
+`client_secret` antes de que la página retire los parámetros. Next.js excluye
+el retorno de sus logs de desarrollo y responde `Referrer-Policy: no-referrer`.
+Si en el futuro hay un proxy, excluye allí también las query strings.
 
-El servicio extiende `AbstractPaymentProvider` de
-`@medusajs/framework/utils` e implementa, como mínimo:
+Para un endpoint remoto **futuro y autorizado**, en Stripe Dashboard,
+**Developers/Workbench → Webhooks**, agrega un destino HTTPS del sandbox
+en la ruta nativa, elige los eventos anteriores y configura el secreto del
+endpoint (distinto del de CLI). Sigue pendiente contar con TLS,
+base independiente, custodia de secretos, observabilidad sin datos sensibles,
+restauración probada, pruebas de humo y rollback. Esta implementación
+rechaza staging y producción.
 
-| Método | Responsabilidad |
-|---|---|
-| `getIdentifier()` / identifier | Identificador estable `pp_<provider>` |
-| `initiatePayment` | Crear intención/sesión y devolver id + data |
-| `updatePayment` | Actualizar monto o datos antes de autorizar |
-| `authorizePayment` | Autorizar y devolver estado |
-| `capturePayment` | Capturar total o parcial |
-| `cancelPayment` | Cancelar autorización o sesión |
-| `refundPayment` | Reembolsar total o parcial |
-| `deletePayment` | Limpiar sesión no completada |
-| `retrievePayment` | Reconsultar estado real |
-| `getPaymentStatus` | Mapear estado del proveedor a Medusa |
-| `getWebhookActionAndData` | Verificar firma y devolver acción |
+## Laboratorio actual
 
-Métodos opcionales de account holder y payment methods solo se implementan si
-el negocio aprueba tokenización o cobros recurrentes.
+Base aislada `jovycandy_stripe_lab` en un PostgreSQL local en el puerto
+`56943`, con sus migraciones aplicadas. Backend y storefront de desarrollo
+están configurados contra ella y la región México/MXN usa únicamente
+`pp_stripe_stripe`. El listener de Stripe reenvía
+`/hooks/payment/stripe_stripe` al backend local.
 
-### Datos persistidos
+Comprobado: un pedido de **$144.00 MXN** (producto más envío) quedó
+**autorizado y capturado** con tarjeta de prueba; el intento aparece en Stripe
+como `succeeded` en modo de prueba, el webhook firmado se entregó y existe
+**un solo pedido** en Medusa. La captura se ejecutó con el workflow nativo
+porque el usuario creado no tenía permisos de Admin; ya se le asignó el rol
+superadministrador del laboratorio.
 
-En `session.data` se guarda únicamente lo necesario:
+También comprobado: reenviar los eventos de autorización y captura no creó
+otro pedido ni duplicó el importe capturado, y un reembolso total desde la API
+Admin dejó el pago en `refunded`, el total del pedido en cero y un reembolso
+`succeeded` en Stripe.
 
-```json
-{
-  "provider_payment_id": "...",
-  "provider_status": "...",
-  "idempotency_key": "...",
-  "capture_mode": "manual|automatic",
-  "amount": 0,
-  "currency_code": "mxn"
-}
-```
+Pendiente para cerrar la aceptación: pagar en el navegador con una tarjeta que
+exija 3DS y observar el desafío real de Stripe; la automatización del iframe
+del Payment Element no pudo rellenarse desde el runner local.
 
-No se guardan números de tarjeta, CVV, tokens completos ni secretos.
+## Evidencia y criterios pendientes
 
-### Webhooks
+- Contrato offline: [matriz del incremento](97-MATRIZ-STRIPE-CHECKOUT-CUENTA.md).
+  Fixtures firmadas llaman el provider instalado; no hablan con Stripe.
+- Por validar con sandbox: tarjeta aceptada/rechazada, 3DS, Link elegible,
+  reintento, recarga/retorno, entrega real de webhooks, firma inválida sin
+  efectos, eventos duplicados, retrasados y fuera de orden, captura, cancelación
+  y reembolso. Para reentrega usa un evento de un intento originado por
+  Medusa. `stripe trigger` por sí solo no vincula un intento a Medusa.
+- Un incidente con autorización incierta requiere consultar el pedido y,
+  si no se resuelve, comparar Stripe y Medusa antes de volver a pagar.
+- Para desactivar el laboratorio, deshabilita primero el checkout de Stripe,
+  concilia los intentos aún abiertos desde Admin y luego desvincula el
+  provider de la región de pruebas y detén el listener. No borres pedidos.
+- Selección para sandbox no autoriza uso comercial: comisiones/MXN,
+  liquidaciones, contracargos, conciliación, PCI, permisos operativos y plan de
+  salida siguen sujetos a revisión de negocio, finanzas y seguridad
+  ([plan de preproducción](95-PLAN-PREPRODUCCION-ECOMMERCE.md)).
 
-Medusa expone `POST /hooks/payment/:provider`. El provider debe:
-
-1. Verificar firma, timestamp y tolerancia.
-2. Rechazar payload inválido sin cambiar estados.
-3. Ser idempotente por id de evento del proveedor.
-4. Mapear el evento a `authorized`, `captured`, `canceled`, `failed` o
-   `pending`.
-5. Devolver una acción compatible con el Payment Module.
-6. No confiar en el monto enviado por el cliente; reconsultar al proveedor si
-   hay duda.
-
-La ruta de webhook debe ser pública por HTTPS en staging. No se usa la URL de
-producción para pruebas.
-
-### Flujo de estados
-
-```text
-Cart
-  → Payment Collection
-  → Payment Session (pending)
-  → authorizePayment
-  → captured o pending
-  → complete cart
-  → Order
-  → refund/cancel según proveedor
-```
-
-La orden y el pago conservan estados nativos de Medusa. No se resume el ciclo en
-un campo propio.
-
-### Idempotencia y concurrencia
-
-- Clave de idempotencia por intento de cobro y por reembolso.
-- Reintento de red no duplica cobro ni reembolso.
-- Webhook duplicado no duplica transición.
-- Captura y cancelación concurrentes se resuelven con el estado real del
-  proveedor.
-- La conciliación usa el id de transacción del proveedor y el id de pago de
-  Medusa.
-
-## 4. Prerrequisitos de staging
-
-No se despliega nada en este incremento. Para probar un proveedor con webhooks
-se requiere:
-
-| Requisito | Criterio |
-|---|---|
-| URL HTTPS backend | Dominio o túnel autorizado con TLS |
-| URL HTTPS storefront | Checkout y retorno del proveedor |
-| PostgreSQL independiente | Base staging, migraciones y backup |
-| Secretos sandbox | Fuera de Git, por ambiente, rotables |
-| Región y canal | México/MXN y canal de staging |
-| Provider en región | `pp_<provider>` habilitado solo en staging |
-| Endpoint webhook | `/hooks/payment/<provider>` accesible |
-| Firma de webhook | Secreto sandbox y prueba de rechazo |
-| Observabilidad | Request id, event id, payment id y order id |
-| Backups | Restauración probada antes de cobrar |
-| Smoke tests | Catálogo, carrito, pago, pedido y webhook |
-| Rollback | Deshabilitar provider y volver a laboratorio |
-
-## 5. Pruebas de aceptación sandbox
-
-1. Pago aprobado autoriza y captura una sola vez.
-2. Pago rechazado no crea pedido y conserva carrito.
-3. Redirección/3DS, si aplica, vuelve al checkout correcto.
-4. Webhook válido actualiza el pago.
-5. Webhook con firma inválida se rechaza sin cambios.
-6. Webhook duplicado no duplica estados.
-7. Webhook fuera de orden no retrocede el estado.
-8. Reembolso total y parcial actualizan pago y pedido.
-9. Cancelación antes y después de captura queda auditada.
-10. Conciliación cruza transacción, liquidación y pedido.
-11. No aparecen datos de tarjeta ni secretos en logs.
-12. El storefront muestra totales y estados calculados por Medusa.
-
-## 6. Bloqueos de negocio
-
-- Proveedor y contrato no aprobados.
-- Métodos de pago y meses sin intereses no definidos.
-- Política de reembolsos, contracargos y conciliación no aprobada.
-- Credenciales sandbox y responsable de custodia no asignados.
-- Staging con TLS y webhook público no disponible.
-- Tratamiento fiscal de comisiones y CFDI no definido.
-- Responsable operativo de disputas y soporte no designado.
-
-## 7. Recomendación
-
-Completar la matriz, aprobar un proveedor y ejecutar primero una integración
-**sandbox** con autorización, captura, webhook firmado y reembolso. No se
-instala ningún SDK ni provider hasta que la matriz esté aprobada.
-
-Después de pagos, continuar con envíos, inventario, impuestos y operación según
-`docs/95-PLAN-PREPRODUCCION-ECOMMERCE.md`.
+Referencias: [provider oficial](https://docs.medusajs.com/resources/commerce-modules/payment/payment-provider/stripe),
+[Link con Payment Element](https://docs.stripe.com/payments/link/add-link-elements-integration),
+[Stripe CLI listen](https://docs.stripe.com/cli/listen), [firmas](https://docs.stripe.com/webhooks/signature).

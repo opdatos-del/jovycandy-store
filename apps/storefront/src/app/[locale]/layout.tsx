@@ -52,9 +52,8 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
   const content = await getHomeContent(locale as Locale)
 
   return (
-    <html lang={locale}>
+    <html lang={locale} data-scroll-behavior="smooth">
       <body className="bg-[#fff5d4]">
-        <link rel="preload" as="image" href="/assets/marketing/frames/logo/frame-01.webp" fetchPriority="high" />
         <a
           href="#contenido"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-[#0d3b6e] focus:px-5 focus:py-3 focus:text-sm focus:font-bold focus:text-white"

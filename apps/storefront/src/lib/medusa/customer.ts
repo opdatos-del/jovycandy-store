@@ -56,6 +56,7 @@ export type CustomerAddress = {
   postal_code: string | null
   country_code: string | null
   phone: string | null
+  is_default_shipping?: boolean
 }
 
 export type CustomerOrder = {
@@ -65,6 +66,16 @@ export type CustomerOrder = {
   total: number
   currencyCode: string
   createdAt: string | null
+  paymentStatus: string | null
+  fulfillmentStatus: string | null
+  items: Array<{
+    id: string
+    title: string
+    variantTitle: string | null
+    variantId: string | null
+    productId: string | null
+    quantity: number
+  }>
 }
 
 type RawCustomer = {
@@ -129,7 +140,13 @@ export async function getCustomer(token: string): Promise<Customer | null> {
   return normalizeCustomer(payload.customer ?? {})
 }
 
-export async function listCustomerOrders(token: string): Promise<CustomerOrder[]> {
+type CustomerOrdersPage = { orders: CustomerOrder[]; count: number; offset: number; limit: number }
+
+/** Incluso con ID, se consulta el listado cuyo filtro por cliente aplica Medusa. */
+export async function listCustomerOrders(
+  token: string,
+  { offset = 0, limit = 10, id }: { offset?: number; limit?: number; id?: string } = {},
+): Promise<CustomerOrdersPage> {
   type RawOrder = {
     id?: string
     display_id?: number | null
@@ -137,9 +154,27 @@ export async function listCustomerOrders(token: string): Promise<CustomerOrder[]
     total?: number | null
     currency_code?: string | null
     created_at?: string | null
+    payment_status?: string | null
+    fulfillment_status?: string | null
+    items?: Array<{
+      id?: string
+      title?: string
+      product_title?: string | null
+      variant_title?: string | null
+      variant_id?: string | null
+      product_id?: string | null
+      quantity?: number
+    }> | null
   }
-  const payload = await request<{ orders?: RawOrder[] }>("/store/orders?limit=50", { token })
-  return (payload.orders ?? [])
+  const search = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+    order: "-created_at",
+    fields: "+*items,+payment_status,+fulfillment_status",
+    ...(id ? { id } : {}),
+  })
+  const payload = await request<{ orders?: RawOrder[]; count?: number }>(`/store/orders?${search}`, { token })
+  const orders = (payload.orders ?? [])
     .filter((order): order is RawOrder & { id: string } => Boolean(order.id))
     .map((order) => ({
       id: order.id,
@@ -148,7 +183,33 @@ export async function listCustomerOrders(token: string): Promise<CustomerOrder[]
       total: order.total ?? 0,
       currencyCode: order.currency_code ?? "mxn",
       createdAt: order.created_at ?? null,
+      paymentStatus: order.payment_status ?? null,
+      fulfillmentStatus: order.fulfillment_status ?? null,
+      items: (order.items ?? []).flatMap((item) => item.id ? [{
+        id: item.id,
+        title: item.product_title ?? item.title ?? "",
+        variantTitle: item.variant_title ?? null,
+        variantId: item.variant_id ?? null,
+        productId: item.product_id ?? null,
+        quantity: item.quantity ?? 0,
+      }] : []),
     }))
+  return { orders, count: payload.count ?? orders.length, offset, limit }
+}
+
+export async function getCustomerOrder(token: string, id: string) {
+  const { orders } = await listCustomerOrders(token, { id, limit: 1 })
+  return orders.find((order) => order.id === id) ?? null
+}
+
+export async function updateCustomerProfile(
+  token: string,
+  body: { first_name: string; last_name: string; phone: string },
+) {
+  const payload = await request<{ customer?: RawCustomer }>("/store/customers/me", {
+    method: "POST", token, body,
+  })
+  return normalizeCustomer(payload.customer ?? {})
 }
 
 export async function addCustomerAddress(
@@ -169,5 +230,57 @@ export async function transferCartToCustomer(cartId: string, token: string) {
     method: "POST",
     token,
     body: {},
+  })
+}
+
+export async function updateCustomerAddress(
+  token: string,
+  id: string,
+  address: Record<string, string | boolean>,
+) {
+  await request(`/store/customers/me/addresses/${encodeURIComponent(id)}`, {
+    method: "POST", token, body: address,
+  })
+}
+
+export async function deleteCustomerAddress(token: string, id: string) {
+  await request(`/store/customers/me/addresses/${encodeURIComponent(id)}`, { method: "DELETE", token })
+}
+
+export type CustomerList = {
+  id: string
+  name: string | null
+  items: Array<{
+    id: string
+    variant: { id: string; title: string; product: { id: string; title: string; handle: string } } | null
+  }>
+}
+
+export type CustomerNotice = {
+  id: string
+  kind: "order_placed" | "order_canceled"
+  created_at: string
+  read_at: string | null
+}
+
+export function getCustomerLists(token: string) {
+  return request<{ lists: CustomerList[] }>("/store/jovy/customer-lists", { token })
+}
+
+export function changeCustomerList(token: string, body: unknown) {
+  return request<{ id: string }>("/store/jovy/customer-lists", { token, method: "POST", body })
+}
+
+export function getCustomerNotices(token: string) {
+  return request<{ notices: CustomerNotice[]; marketingEmail: boolean }>("/store/jovy/customer-notices", { token })
+}
+
+export function readCustomerNotice(token: string, id: string) {
+  return request<{ id: string }>("/store/jovy/customer-notices", { token, method: "POST", body: { action: "read", id } })
+}
+
+export function setMarketingEmail(token: string, enabled: boolean) {
+  return request<{ marketingEmail: boolean }>("/store/jovy/customer-notices", {
+    token, method: "POST", body: { action: "set_marketing_email", enabled },
   })
 }

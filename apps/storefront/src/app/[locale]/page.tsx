@@ -27,6 +27,7 @@ export default async function HomePage({ params }: HomePageProps) {
 
   return (
     <main id="contenido" className="relative bg-[#fff5d4] selection:bg-[#0d3b6e] selection:text-white">
+      <link rel="preload" as="image" href="/assets/marketing/frames/logo/frame-01.webp" fetchPriority="high" />
       <ScrollLogo />
       <HeroPromo locale={locale} dictionary={dictionary} content={homeContent} fallbackProducts={fallbackProducts} />
       <EventsSection content={content} dictionary={dictionary} />

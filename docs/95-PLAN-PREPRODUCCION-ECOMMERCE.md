@@ -53,8 +53,9 @@ Principios:
 - Ambiente staging con secretos separados.
 - Definición fiscal de la venta.
 
-Matriz de requisitos, contrato con el Payment Module y prerrequisitos de staging:
-`docs/96-PAGOS-SANDBOX-REQUISITOS-Y-CONTRATO.md`.
+Stripe fue seleccionado para el laboratorio local, no para producción.
+La conexión real de sandbox queda pendiente de credenciales. Configuración,
+contrato y prerrequisitos: [contrato Stripe](96-PAGOS-SANDBOX-REQUISITOS-Y-CONTRATO.md).
 
 ### Pruebas de aceptación
 

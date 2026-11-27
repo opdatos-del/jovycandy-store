@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 
 import { getCart } from "@/lib/medusa/cart-session"
-import { assertSameOrigin, errorResponse } from "@/lib/medusa/http"
-import { createStorePaymentSession } from "@/lib/medusa/store"
+import { getCustomerToken } from "@/lib/medusa/customer-session"
+import { assertSameOrigin, errorResponse, requiredString } from "@/lib/medusa/http"
+import { prepareStorePayment, StoreApiError } from "@/lib/medusa/store"
 
 export async function POST(request: Request) {
   try {
@@ -17,9 +18,16 @@ export async function POST(request: Request) {
         { status: 400 },
       )
     }
-    const updated = await createStorePaymentSession(cart.id)
-    return NextResponse.json({ cart: updated })
+    const body = await request.json().catch(() => null)
+    const expected = body?.sessionId === undefined
+      ? undefined
+      : { sessionId: requiredString(body.sessionId, "sesión", 100), cartVersion: requiredString(body.cartVersion, "versión", 64) }
+    const payment = await prepareStorePayment(cart.id, await getCustomerToken(), expected)
+    return NextResponse.json({ payment }, { headers: { "Cache-Control": "private, no-store" } })
   } catch (error) {
+    if (error instanceof StoreApiError && error.status >= 500) {
+      return NextResponse.json({ message: "No se pudo preparar el pago." }, { status: 503 })
+    }
     return errorResponse(error)
   }
 }

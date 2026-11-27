@@ -25,9 +25,11 @@ export default async function ConfirmationRoute({ params }: ConfirmRouteProps) {
       <main className="bg-[#fffaf0] pb-20 pt-28 sm:pt-32">
         <div className="mx-auto grid max-w-xl place-items-center gap-5 px-4 py-24 text-center">
           <h1 className="text-3xl font-black uppercase tracking-tight text-[#0d3b6e]">
-            {copy.orderConfirmed}
+            {locale === "es" ? "No hay un pedido confirmado" : "No confirmed order"}
           </h1>
-          <p className="text-sm leading-7 text-[#5b6f82]">{copy.emptyCartLead}</p>
+          <p className="text-sm leading-7 text-[#5b6f82]">{locale === "es"
+            ? "No encontramos una confirmación reciente en esta sesión."
+            : "We couldn't find a recent confirmation in this session."}</p>
           <Link
             href={`/${locale}/catalogo`}
             className="inline-flex min-h-12 items-center rounded-full bg-[#0d3b6e] px-6 text-xs font-black uppercase tracking-[0.1em] text-white"
@@ -48,9 +50,6 @@ export default async function ConfirmationRoute({ params }: ConfirmRouteProps) {
               <path d="m5 12.5 4.2 4.2L19 6.5" />
             </svg>
           </span>
-          <p className="text-[0.65rem] font-black uppercase tracking-[0.24em] text-[#007f7b]">
-            {copy.paymentDemoNote}
-          </p>
           <h1 className="mt-2 text-3xl font-black uppercase tracking-tight text-[#0d3b6e] sm:text-4xl">
             {copy.orderConfirmed}
           </h1>
@@ -109,7 +108,6 @@ export default async function ConfirmationRoute({ params }: ConfirmRouteProps) {
               <span>{formatMoney(order.total, order.currencyCode, locale)}</span>
             </div>
           </dl>
-          <p className="mt-4 text-[0.68rem] leading-5 text-[#5b6f82]">{copy.demoNote}</p>
           <Link
             href={`/${locale}/catalogo`}
             className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-[#0d3b6e] px-6 text-xs font-black uppercase tracking-[0.1em] text-white"
