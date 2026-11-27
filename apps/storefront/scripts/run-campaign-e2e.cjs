@@ -8,9 +8,14 @@
  * nueva, siembra catálogo e infraestructura de laboratorio, inicia backend y
  * storefront en puertos aleatorios y ejecuta Playwright. No toca 5432, 55432 ni
  * la base de desarrollo.
+ *
+ * La limpieza se reporta por separado del resultado de Playwright. Un fallo al
+ * detener PostgreSQL, backend o storefront marca la ejecución como fallida y
+ * conserva el directorio para inspección.
  */
 
 const fs = require("node:fs")
+const os = require("node:os")
 const path = require("node:path")
 const { randomBytes } = require("node:crypto")
 const { spawn, spawnSync } = require("node:child_process")
@@ -28,10 +33,16 @@ const {
   writeRunMarker,
 } = require("../../backend/integration-tests/ephemeral-postgres.cjs")
 const { restoreTsconfig } = require("./tsconfig-guard.cjs")
+const { finalizeCampaignRun } = require("./campaign-e2e-cleanup.cjs")
 
 const STOREFRONT_DIRECTORY = path.resolve(__dirname, "..")
 const BACKEND_DIRECTORY = path.resolve(STOREFRONT_DIRECTORY, "..", "backend")
 const REPORT_PREFIX = "e2e-campaign"
+const LOCK_PATH = path.join(
+  process.env.LOCALAPPDATA ?? os.tmpdir(),
+  "JovyCandy",
+  "campaign-e2e.lock",
+)
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
@@ -67,6 +78,33 @@ function runChecked(command, args, options = {}) {
     )
   }
   return result
+}
+
+function acquireLock(lockPath, runId) {
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true })
+  try {
+    const descriptor = fs.openSync(lockPath, "wx")
+    try {
+      fs.writeFileSync(
+        descriptor,
+        `${JSON.stringify({ runId, pid: process.pid, createdAt: new Date().toISOString() })}\n`,
+        "utf8",
+      )
+    } finally {
+      fs.closeSync(descriptor)
+    }
+  } catch (error) {
+    if (error && error.code === "EEXIST") {
+      throw new Error(
+        "Ya hay otra ejecución E2E de campañas activa. Elimina .next/campaign-e2e.lock solo si estás seguro de que no hay un proceso en curso.",
+      )
+    }
+    throw error
+  }
+}
+
+function releaseLock(lockPath) {
+  fs.rmSync(lockPath, { force: true })
 }
 
 function databaseUrl(launchEnvironment, database) {
@@ -111,6 +149,15 @@ async function waitForUrl(url, timeoutMs, label) {
   throw new Error(`${label} no respondió en ${timeoutMs} ms: ${lastError}`)
 }
 
+async function isUrlClosed(url) {
+  try {
+    await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(1_000) })
+    return false
+  } catch {
+    return true
+  }
+}
+
 function startProcess(command, args, options) {
   const stdout = fs.createWriteStream(options.logFile, { flags: "a" })
   const stderr = fs.createWriteStream(options.logFile, { flags: "a" })
@@ -146,6 +193,29 @@ function killTree(child) {
   }
 }
 
+function isProcessAlive(pid) {
+  if (!pid) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function stopChild(child, { name, url }) {
+  if (!child || !child.pid) return { stopped: true, pid: null }
+  killTree(child)
+  const deadline = Date.now() + 20_000
+  while (Date.now() < deadline) {
+    const alive = isProcessAlive(child.pid)
+    const closed = await isUrlClosed(url)
+    if (!alive && closed) return { stopped: true, pid: child.pid }
+    await sleep(500)
+  }
+  throw new Error(`${name} sigue activo después de la limpieza`)
+}
+
 function extractMarker(output) {
   const clean = String(output).replace(/\u001b\[[0-9;]*m/g, "")
   const match = clean.match(/JOVY_E2E_SEED (\{.*\})/)
@@ -156,9 +226,17 @@ function extractMarker(output) {
 }
 
 async function main() {
+  const identity = createRunIdentity()
+  try {
+    acquireLock(LOCK_PATH, identity.runId)
+  } catch (error) {
+    console.error(`[e2e-campaign] ${redact(error)}`)
+    process.exitCode = 1
+    return
+  }
+
   const tsconfigPath = path.join(STOREFRONT_DIRECTORY, "tsconfig.json")
   const originalTsconfig = fs.readFileSync(tsconfigPath, "utf8")
-  const identity = createRunIdentity()
   const root = createRunDirectory(process.env.LOCALAPPDATA, identity.runId)
   const metadata = {
     ...identity,
@@ -170,15 +248,18 @@ async function main() {
   }
   const password = createPassword()
   const database = `jovy_e2e_${identity.runId.replace(/-/g, "").slice(0, 20)}`
+  const nextDistDir = `.next/campaign-${identity.runId}`
+  const nextDistDirectory = path.join(STOREFRONT_DIRECTORY, nextDistDir)
+  const reportPath = path.join(path.dirname(root), "reports", `${identity.runId}.json`)
   let launchEnvironment
   let backendProcess
   let storefrontProcess
-  let stopped = false
-  let passed = false
+  let backendUrl = ""
+  let storefrontUrl = ""
+  let playwrightPassed = false
   let testOutput = ""
   let errorMessage = ""
   let marker
-  let nextDistDirectory = ""
 
   try {
     writeRunMarker(root, metadata)
@@ -226,6 +307,8 @@ async function main() {
       `http://127.0.0.1:${storefrontPort}`,
       `http://localhost:${storefrontPort}`,
     ]
+    backendUrl = `http://127.0.0.1:${backendPort}/health`
+    storefrontUrl = `http://localhost:${storefrontPort}/es/catalogo`
 
     backendProcess = startProcess("pnpm", ["exec", "medusa", "develop"], {
       cwd: BACKEND_DIRECTORY,
@@ -242,10 +325,8 @@ async function main() {
         JOVY_REVALIDATION_ENABLED: "false",
       },
     })
-    await waitForUrl(`http://127.0.0.1:${backendPort}/health`, 180_000, "backend")
+    await waitForUrl(backendUrl, 180_000, "backend")
 
-    const nextDistDir = ".next/campaign-e2e"
-    nextDistDirectory = path.join(STOREFRONT_DIRECTORY, nextDistDir)
     storefrontProcess = startProcess(
       "pnpm",
       ["exec", "next", "dev", "-p", String(storefrontPort)],
@@ -265,11 +346,7 @@ async function main() {
         },
       },
     )
-    await waitForUrl(
-      `http://localhost:${storefrontPort}/es/catalogo`,
-      240_000,
-      "storefront",
-    )
+    await waitForUrl(storefrontUrl, 240_000, "storefront")
 
     const playwright = run(
       "pnpm",
@@ -292,73 +369,115 @@ async function main() {
     )
     testOutput = redact(`${playwright.stdout || ""}${playwright.stderr || ""}`)
     if (testOutput) process.stdout.write(testOutput)
-    passed = playwright.status === 0
-    if (!passed) errorMessage = `Playwright terminó con código ${playwright.status}`
+    playwrightPassed = playwright.status === 0
+    if (!playwrightPassed) errorMessage = `Playwright terminó con código ${playwright.status}`
   } catch (error) {
     errorMessage = redact(error instanceof Error ? error.stack || error.message : String(error))
     console.error(`[e2e-campaign] ${errorMessage}`)
   } finally {
-    killTree(storefrontProcess)
-    killTree(backendProcess)
-    if (nextDistDirectory) {
-      fs.rmSync(nextDistDirectory, { recursive: true, force: true })
-    }
-    // `next dev` agrega el distDir a tsconfig. Se elimina esa entrada y se
-    // conserva cualquier cambio hecho por otro proceso durante la ejecución.
-    try {
-      const currentTsconfig = fs.readFileSync(tsconfigPath, "utf8")
-      const restored = restoreTsconfig(
-        originalTsconfig,
-        currentTsconfig,
-        ".next/campaign-e2e",
-      )
-      fs.writeFileSync(tsconfigPath, restored.text, "utf8")
-      if (restored.externalChanges) {
-        console.warn(
-          "[e2e-campaign] se conservaron cambios externos en tsconfig.json",
-        )
-      }
-    } catch (error) {
-      console.error(
-        `[e2e-campaign] no se pudo reconciliar tsconfig.json: ${redact(error)}`,
-      )
-    }
-    process.stdout.write(`\n[e2e-campaign] cleanup\n`)
-    try {
-      if (metadata.postgresPid && !stopped) {
-        stopCluster(metadata)
-        stopped = true
-      }
-    } catch (error) {
-      console.error(`[e2e-campaign] no se pudo detener PostgreSQL: ${redact(error)}`)
-    }
-    try {
-      saveEvidence(metadata, {
+    const result = await finalizeCampaignRun({
+      playwrightPassed,
+      root,
+      steps: [
+        {
+          name: "storefront",
+          run: () =>
+            stopChild(storefrontProcess, {
+              name: "storefront",
+              url: storefrontUrl || "http://localhost:1",
+            }),
+        },
+        {
+          name: "backend",
+          run: () =>
+            stopChild(backendProcess, {
+              name: "backend",
+              url: backendUrl || "http://127.0.0.1:1",
+            }),
+        },
+        {
+          name: "tsconfig",
+          run: () => {
+            const currentTsconfig = fs.readFileSync(tsconfigPath, "utf8")
+            const restored = restoreTsconfig(
+              originalTsconfig,
+              currentTsconfig,
+              nextDistDir,
+            )
+            fs.writeFileSync(tsconfigPath, restored.text, "utf8")
+            if (restored.externalChanges) {
+              console.warn(
+                "[e2e-campaign] se conservaron cambios externos en tsconfig.json",
+              )
+            }
+            return { restored: true, externalChanges: restored.externalChanges }
+          },
+        },
+        {
+          name: "distDir",
+          run: () => {
+            fs.rmSync(nextDistDirectory, { recursive: true, force: true })
+            if (fs.existsSync(nextDistDirectory)) {
+              throw new Error("El distDir temporal sigue existiendo.")
+            }
+            return { removed: true }
+          },
+        },
+        {
+          name: "postgres",
+          run: () => {
+            if (!metadata.postgresPid) return { stopped: false, skipped: true }
+            stopCluster(metadata)
+            return { stopped: true, verifiedByPgCtl: true }
+          },
+        },
+      ],
+      evidence: {
         suite: REPORT_PREFIX,
-        jest: passed ? "passed" : "failed",
-        jestExitCode: passed ? 0 : 1,
-        cleanup: passed ? "stopped-and-removed" : "stopped-directory-retained-after-e2e-failure",
-        error: errorMessage,
-        testOutput,
         database,
         productHandle: marker?.product?.handle ?? null,
-      })
-    } catch (error) {
-      console.error(`[e2e-campaign] no se pudo guardar evidencia: ${redact(error)}`)
-    }
-    if (passed) {
-      fs.rmSync(root, { recursive: true, force: false })
-      console.log(`[e2e-campaign] evidencia y limpieza correctas (${metadata.runId})`)
-    } else {
-      process.exitCode = 1
-      console.error(`[e2e-campaign] recursos conservados para inspección (${metadata.runId})`)
-    }
-  }
+        error: errorMessage,
+        testOutput,
+      },
+      saveEvidence: async (report) => saveEvidence(metadata, report),
+      updateEvidence: async (report) => {
+        if (!fs.existsSync(reportPath)) return
+        const current = JSON.parse(fs.readFileSync(reportPath, "utf8"))
+        fs.writeFileSync(
+          reportPath,
+          `${JSON.stringify({ ...current, ...report, postgresLog: current.postgresLog }, null, 2)}\n`,
+          { encoding: "utf8", mode: 0o600 },
+        )
+      },
+    })
 
-  if (!passed && !process.exitCode) process.exitCode = 1
+    if (result.overall) {
+      console.log(
+        `[e2e-campaign] Playwright y limpieza verificados; directorio eliminado (${metadata.runId})`,
+      )
+    } else {
+      const cleanup = result.cleanupPassed ? "limpio" : "falló"
+      console.error(
+        `[e2e-campaign] ejecución fallida (Playwright ${playwrightPassed ? "ok" : "falló"}, limpieza ${cleanup}). Recursos conservados (${metadata.runId})`,
+      )
+      if (result.cleanupErrors.length) {
+        console.error(
+          `[e2e-campaign] errores de limpieza: ${JSON.stringify(result.cleanupErrors)}`,
+        )
+      }
+      process.exitCode = 1
+    }
+
+    releaseLock(LOCK_PATH)
+  }
 }
 
 main().catch((error) => {
   console.error(redact(error instanceof Error ? error.stack || error.message : String(error)))
+  try {
+    releaseLock(LOCK_PATH)
+  } catch {
+    // Sin lock previo.
+  }
   process.exitCode = 1
 })

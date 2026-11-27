@@ -110,10 +110,17 @@ El runner:
 5. Ejecuta Playwright contra el storefront temporal.
 6. Detiene procesos, PostgreSQL y elimina el directorio efímero.
 
-No usa `5432`, `55432` ni la base de desarrollo. Usa un `distDir` temporal y
-restaura `tsconfig.json` al terminar. La restauración elimina solo las entradas
-del `distDir` de campaña, conserva cambios de otros procesos y tiene pruebas
-unitarias propias (`pnpm --dir apps/storefront test:scripts`).
+No usa `5432`, `55432` ni la base de desarrollo. Usa un `distDir` exclusivo por
+ejecución y restaura `tsconfig.json` al terminar. La restauración elimina solo
+las entradas del `distDir` de campaña, conserva cambios de otros procesos y
+tiene pruebas unitarias propias (`pnpm --dir apps/storefront test:scripts`).
+
+El resultado de Playwright y el de limpieza se registran por separado. La
+ejecución solo se considera correcta si ambos pasan. Se verifica el cierre de
+backend, storefront y PostgreSQL; si `stopCluster` falla, el resultado global es
+fallido y el directorio se conserva para inspección. Un lock fuera del
+repositorio evita ejecuciones concurrentes que compartan `tsconfig.json` o el
+`distDir`.
 
 ### Casos cubiertos
 
@@ -134,10 +141,13 @@ unitarias propias (`pnpm --dir apps/storefront test:scripts`).
 Evidencia:
 
 ```text
-run id: 3bba0457-d4eb-4a16-a24c-dc8546afe993
+run id: b55cb690-86e2-4d58-81bc-d57816712312
 suite:  e2e-campaign
 10/10 PASS
-cleanup: stopped-and-removed
+playwright: passed
+cleanup:    passed
+overall:    passed
+rootRemoved: true
 ```
 
 ## 4. Categorías, colecciones y paginación
@@ -167,7 +177,7 @@ La zona geográfica del fulfillment set de laboratorio usa ISO-2 en minúsculas
 | `product-editorial.spec.ts` | 11/11 PASS |
 | Importación histórica | 2/2 PASS |
 | Manifiesto completo | 1/1 PASS |
-| Pruebas de scripts E2E | 3/3 PASS |
+| Pruebas de scripts E2E | 7/7 PASS |
 | Storefront E2E | 31/31 PASS |
 | Campaña E2E aislada | 10/10 PASS |
 | Typecheck backend/storefront | PASS |
@@ -217,6 +227,11 @@ sin commit.
 
 - El E2E de campañas requiere Windows y PostgreSQL 18 local; no corre en GitHub
   Actions.
+- Resultado de Playwright y limpieza se evalúan por separado. Un fallo al
+  detener PostgreSQL, backend o storefront deja la ejecución fallida y conserva
+  el directorio; hay una prueba simulada de `stopCluster()` fallando.
+- El E2E usa un lock local y un `distDir` exclusivo por ejecución para evitar
+  conflictos con `tsconfig.json`.
 - En CI se omiten los tres casos de `seed:campaign` porque el servicio
   PostgreSQL usa `5432`; las guardas se cubren con unitarias y el flujo real con
   el E2E aislado.
@@ -230,7 +245,7 @@ sin commit.
 ### Evidencia
 
 473 unitarias, 20/20 comercio, 11/11 editorial, 2/2 y 1/1 importación, 31/31
-storefront, 10/10 campaña aislada, 3/3 scripts, 12/12 launcher, typecheck, lint
+storefront, 10/10 campaña aislada, 7/7 scripts, 12/12 launcher, typecheck, lint
 sin errores y build backend/storefront.
 
 ### Cómo revisar
@@ -246,5 +261,6 @@ sin errores y build backend/storefront.
 Revertir la rama o el PR. No hay migraciones nuevas ni cambios destructivos de
 catálogo, precios, stock o pedidos en este cierre.
 
-**Siguiente paso:** revisar `docs/95-PLAN-PREPRODUCCION-ECOMMERCE.md` y aprobar
-las decisiones de negocio antes de implementar proveedores.
+**Siguiente paso:** revisar `docs/95-PLAN-PREPRODUCCION-ECOMMERCE.md` y
+`docs/96-PAGOS-SANDBOX-REQUISITOS-Y-CONTRATO.md`, aprobar las decisiones de
+negocio y elegir un proveedor antes de instalar cualquier SDK.
